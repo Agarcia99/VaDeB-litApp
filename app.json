@@ -1,0 +1,71 @@
+{
+  "expo": {
+    "name": "VaDeBelit",
+    "slug": "VaDeBelit",
+    "version": "1.7.4",
+    "orientation": "portrait",
+    "icon": "./assets/images/belit_icon.png",
+    "scheme": "belitreferee",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/5c6d7d6c-0d45-4b3e-862d-4e81417c3182"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.arnaugarcia.vadebelit",
+      "buildNumber": "1",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/images/belit_icon_android.png",
+        "backgroundImage": "./assets/images/belit_icon_android.png",
+        "monochromeImage": "./assets/images/belit_icon_android.png"
+      },
+      "versionCode": 1,
+      "package": "com.arnaugarcia.vadebelit",
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "static",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/images/belit.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
+          "backgroundColor": "#ffffff",
+          "dark": {
+            "backgroundColor": "#000000"
+          }
+        }
+      ],
+      "@react-native-community/datetimepicker"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "5c6d7d6c-0d45-4b3e-862d-4e81417c3182"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    }
+  }
+}
