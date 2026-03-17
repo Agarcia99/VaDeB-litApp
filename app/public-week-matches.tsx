@@ -217,7 +217,7 @@ export default function PublicWeekMatches() {
           const bName = trimCharField(item.team_b?.name) || item.team_b?.short_name || "Equip B";
 
           const isLive = !!item.started_at && !item.is_finished;
-          const score = isLive ? "En joc" : `${item.score_team_a ?? 0} - ${item.score_team_b ?? 0}`;
+          const score = isLive ? "" : `${item.score_team_a ?? 0} - ${item.score_team_b ?? 0}`;
 
           // Same behavior as public-matches: open only if LIVE or FINISHED (never if pending)
           const canOpenSummary = item.is_finished || !!item.started_at;
@@ -235,48 +235,51 @@ export default function PublicWeekMatches() {
               ]}
             >
               <View style={styles.matchTopRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.matchTitle} numberOfLines={1}>
-                    {aName} <Text style={styles.vs}>vs</Text> {bName}
-                  </Text>
+  <Text style={styles.matchTitle} numberOfLines={1}>
+    {aName} <Text style={styles.vs}>vs</Text> {bName}
+  </Text>
 
-                  <View style={styles.metaRow}>
-                    {item.match_date ? (
-                      <Text style={styles.metaText}>🗓️ {formatDateDDMMYYYY_HHMM(item.match_date)}</Text>
-                    ) : (
-                      <Text style={styles.metaMuted}>🗓️ Data pendent</Text>
-                    )}
-                    {item.slot?.field_code ? (
-                      <Text style={styles.metaText}> · 🏟️ {item.slot.field_code}</Text>
-                    ) : null}
-                  </View>
+  <View style={styles.matchMetaRow}>
+    <View style={styles.metaRow}>
+      {item.match_date ? (
+        <Text style={styles.metaText}>🗓️ {formatDateDDMMYYYY_HHMM(item.match_date)}</Text>
+      ) : (
+        <Text style={styles.metaMuted}>🗓️ Data pendent</Text>
+      )}
+      {item.slot?.field_code ? (
+        <Text style={styles.metaText}> · 🏟️ {item.slot.field_code}</Text>
+      ) : null}
+    </View>
 
-                  {!!item.phase?.name && (
-                    <Text style={styles.phaseText} numberOfLines={1}>
-                      {item.phase.name}
-                    </Text>
-                  )}
-                </View>
+    <View style={[styles.badge, isLive ? styles.badgeLive : item.is_finished ? styles.badgeFinished : styles.badgePending]}>
+      <Text style={[styles.badgeText, isLive && styles.badgeTextLive]}>
+        {item.is_finished ? "FINAL" : item.started_at ? "EN JOC" : "PENDENT"}
+      </Text>
+    </View>
+  </View>
 
-                <View style={{ alignItems: "flex-end" }}>
-                  <View style={[styles.badge, isLive ? styles.badgeLive : item.is_finished ? styles.badgeFinished : styles.badgePending]}>
-                    <Text style={[styles.badgeText, isLive && styles.badgeTextLive]}>
-                      {item.is_finished ? "FINAL" : item.started_at ? "EN JOC" : "PENDENT"}
-                    </Text>
-                  </View>
-                  <Text style={[styles.scoreText, isLive ? styles.scoreLive : item.is_finished ? styles.scoreFinished : styles.scorePending]}>
-                    {score}
-                  </Text>
-                </View>
-              </View>
+  <View style={styles.matchBottomRow}>
+    {!!item.phase?.name ? (
+      <Text style={styles.phaseText} numberOfLines={1}>
+        {item.phase.name}
+      </Text>
+    ) : (
+      <View style={{ flex: 1 }} />
+    )}
 
-              {!item.is_finished && !item.started_at && (
-                <Text style={styles.pendingHint}>Encara no hi ha resum (partit no iniciat)</Text>
-              )}
+    <Text style={[styles.scoreText, isLive ? styles.scoreLive : item.is_finished ? styles.scoreFinished : styles.scorePending]}>
+      {score}
+    </Text>
+  </View>
+</View>
 
-              {!item.is_finished && !!item.started_at && (
-                <Text style={styles.pendingHint}>Partit en joc: resum en directe (marcador provisional)</Text>
-              )}
+{!item.is_finished && !item.started_at && (
+  <Text style={styles.pendingHint}>Encara no hi ha resum (partit no iniciat)</Text>
+)}
+
+{!item.is_finished && !!item.started_at && (
+  <Text style={styles.pendingHint}>Partit en joc: resum en directe (marcador provisional)</Text>
+)}
 
               {item.is_finished && (
                 <Text style={styles.openHint}>{Platform.OS === "ios" ? "Toca per veure el resum" : "Prem per veure el resum"}</Text>
@@ -436,23 +439,45 @@ const styles = StyleSheet.create({
   },
 
   matchTopRow: {
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "flex-start",
-  },
-  matchTitle: {
-    fontWeight: "900",
-    fontSize: 16,
-    color: "#111827",
-  },
+  gap: 8,
+},
+matchTitle: {
+  fontWeight: "900",
+  fontSize: 14,
+  color: "#111827",
+},
+matchMetaRow: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+},
+metaRow: {
+  flexDirection: "row",
+  flexWrap: "wrap",
+  flex: 1,
+  marginTop: 0,
+},
+matchBottomRow: {
+  flexDirection: "row",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: 12,
+},
+phaseText: {
+  flex: 1,
+  color: "#6B7280",
+  fontWeight: "800",
+  fontSize: 12,
+},
+scoreText: {
+  fontWeight: "900",
+  fontSize: 16,
+  textAlign: "right",
+},
   vs: {
     color: "#6B7280",
     fontWeight: "900",
-  },
-  metaRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: 6,
   },
   metaText: {
     color: "#374151",
@@ -464,14 +489,6 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     fontSize: 12,
   },
-
-  phaseText: {
-    marginTop: 6,
-    color: "#6B7280",
-    fontWeight: "800",
-    fontSize: 12,
-  },
-
   badge: {
     borderRadius: 999,
     paddingVertical: 5,
@@ -498,13 +515,6 @@ const styles = StyleSheet.create({
   },
   badgeTextLive: {
     color: "#1D4ED8",
-  },
-
-  scoreText: {
-    marginTop: 8,
-    fontWeight: "900",
-    fontSize: 16,
-    textAlign: "right",
   },
   scoreFinished: {
     color: "#15803D",

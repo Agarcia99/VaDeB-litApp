@@ -732,12 +732,15 @@ function captainForTeam(teamId: number) {
       let team = attackTeam;
 
       // Prefer explicit event player_id; fallback to attacker
-      const attackerPid = ev.play_id ? playByIdForPdf.get(ev.play_id)?.attacker_player_id ?? null : null;
-      const eliminatedByPid = ev.play_id ? playByIdForPdf.get(ev.play_id)?.eliminated_by_player_id ?? null : null;
+const attackerPid = ev.play_id ? playByIdForPdf.get(ev.play_id)?.attacker_player_id ?? null : null;
+const eliminatedByPid = ev.play_id ? playByIdForPdf.get(ev.play_id)?.eliminated_by_player_id ?? null : null;
 
-      let player = playerName(ev.player_id ?? attackerPid);
+const attackerName = playerName(attackerPid);
+const defenderName = playerName(ev.player_id ?? eliminatedByPid);
 
-      if (et === "AIR_CATCH" || et === "MATACANAS") {
+let player = playerName(ev.player_id ?? attackerPid);
+
+if (et === "AIR_CATCH" || et === "MATACANAS") {
   team = defenseTeam;
 
   if (attackerName !== "—" && defenderName !== "—") {
