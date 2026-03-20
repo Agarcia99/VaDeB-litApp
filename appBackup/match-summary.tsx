@@ -732,17 +732,31 @@ function captainForTeam(teamId: number) {
       let team = attackTeam;
 
       // Prefer explicit event player_id; fallback to attacker
-      const attackerPid = ev.play_id ? playByIdForPdf.get(ev.play_id)?.attacker_player_id ?? null : null;
-      const eliminatedByPid = ev.play_id ? playByIdForPdf.get(ev.play_id)?.eliminated_by_player_id ?? null : null;
+const attackerPid = ev.play_id ? playByIdForPdf.get(ev.play_id)?.attacker_player_id ?? null : null;
+const eliminatedByPid = ev.play_id ? playByIdForPdf.get(ev.play_id)?.eliminated_by_player_id ?? null : null;
 
-      let player = playerName(ev.player_id ?? attackerPid);
+const attackerName = playerName(attackerPid);
+const defenderName = playerName(ev.player_id ?? eliminatedByPid);
 
-      if (et === "AIR_CATCH" || et === "MATACANAS") {
-        team = defenseTeam;
-        // En aquests casos el player_id normalment ja és el defensor.
-        // Si no hi és, fem fallback al eliminated_by_player_id.
-        player = playerName(ev.player_id ?? eliminatedByPid);
-      }
+let player = playerName(ev.player_id ?? attackerPid);
+
+if (et === "AIR_CATCH" || et === "MATACANAS") {
+  team = defenseTeam;
+
+  if (attackerName !== "—" && defenderName !== "—") {
+    player =
+      et === "AIR_CATCH"
+        ? `${attackerName} escapsat per ${defenderName}`
+        : `${attackerName} matacanat per ${defenderName}`;
+  } else if (attackerName !== "—") {
+    player =
+      et === "AIR_CATCH"
+        ? `${attackerName} escapsat`
+        : `${attackerName} matacanat`;
+  } else {
+    player = defenderName;
+  }
+}
 
       const type = eventTypeLabel(ev.event_type);
       const value = typeof ev.value === "number" ? String(ev.value) : ev.value != null ? String(ev.value) : "";
@@ -1312,7 +1326,7 @@ for (const r of roundsSorted) {
                 ) : null}
               </View>
 
-              <Pressable
+              {/*<Pressable
                 onPress={exportActaPdf}
                 disabled={exportingPdf}
                 style={({ pressed }) => [
@@ -1324,7 +1338,7 @@ for (const r of roundsSorted) {
                 <Text style={styles.pdfButtonText}>
                   {exportingPdf ? "Generant PDF..." : "Exportar acta (PDF)"}
                 </Text>
-              </Pressable>
+              </Pressable>*/}
 
               {notPresentedInfo && match?.finished_at ? (
                 <View style={styles.notPresentedCard}>

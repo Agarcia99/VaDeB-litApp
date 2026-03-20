@@ -57,23 +57,6 @@ type StandingRow = {
   diff: number;
 };
 
-type TeamSanctionRow = {
-  championship_team_id: number;
-  points_value: number;
-  canes_value: number;
-  championship_team?: {
-    team_id: number;
-  } | null;
-};
-
-type SanctionTotalsByTeam = Record<
-  number,
-  {
-    points: number;
-    canes: number;
-  }
->;
-
 function safeNum(v: any, fallback = 0) {
   const n = typeof v === "string" ? parseInt(v, 10) : typeof v === "number" ? v : NaN;
   return Number.isFinite(n) ? n : fallback;
@@ -134,14 +117,8 @@ function parseGroupsFromDrawRunParams(params: any): Record<string, number[]> | n
   return null;
 }
 
-function buildStandings(
-  teams: TeamRow[],
-  matches: MatchRow[],
-  scoring: Scoring,
-  sanctionsByTeam: SanctionTotalsByTeam = {}
-): StandingRow[] {
+function buildStandings(teams: TeamRow[], matches: MatchRow[], scoring: Scoring): StandingRow[] {
   const byId = new Map<number, StandingRow>();
-
   for (const t of teams) {
     byId.set(t.id, {
       teamId: t.id,
@@ -193,15 +170,6 @@ function buildStandings(
     }
   }
 
-  // aplicar sancions després de calcular la classificació esportiva
-  for (const row of byId.values()) {
-    const sanction = sanctionsByTeam[row.teamId];
-    if (!sanction) continue;
-
-    row.points -= safeNum(sanction.points, 0);
-    row.diff -= safeNum(sanction.canes, 0);
-  }
-
   const rows = Array.from(byId.values());
 
   rows.sort((x, y) => {
@@ -224,7 +192,6 @@ export default function TeamRankingsScreen() {
   const [teams, setTeams] = useState<TeamRow[]>([]);
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [scoring, setScoring] = useState<Scoring>({ victoria: 3, empat: 1, derrota: 0 });
-  const [sanctionsByTeam, setSanctionsByTeam] = useState<SanctionTotalsByTeam>({});
 
   const [drawFormat, setDrawFormat] = useState<string | null>(null);
   const [groupsMap, setGroupsMap] = useState<Record<string, number[]> | null>(null);
@@ -244,9 +211,9 @@ export default function TeamRankingsScreen() {
   const groupMatches = useMemo(() => matches.filter((m) => m.phase_id === 1), [matches]);
 
   const leagueStandings = useMemo(
-  () => buildStandings(teams, leagueMatches, scoring, sanctionsByTeam),
-  [teams, leagueMatches, scoring, sanctionsByTeam]
-);
+    () => buildStandings(teams, leagueMatches, scoring),
+    [teams, leagueMatches, scoring]
+  );
 
   const groupStandings = useMemo(() => {
     if (!groupsMap) return null;
@@ -259,10 +226,10 @@ export default function TeamRankingsScreen() {
       const groupTeams = ids.map((id) => byTeamId.get(id)).filter(Boolean) as TeamRow[];
       const idSet = new Set(ids);
       const gMatches = groupMatches.filter((m) => idSet.has(m.team_a_id ?? -1) && idSet.has(m.team_b_id ?? -1));
-      out[groupKey] = buildStandings(groupTeams, gMatches, scoring, sanctionsByTeam);
+      out[groupKey] = buildStandings(groupTeams, gMatches, scoring);
     }
     return out;
-  }, [groupsMap, groupMatches, teams, scoring, sanctionsByTeam]);
+  }, [groupsMap, groupMatches, teams, scoring]);
 
   const groupsCount = useMemo(() => {
     return groupStandings ? Object.keys(groupStandings).length : 0;
@@ -344,38 +311,8 @@ export default function TeamRankingsScreen() {
       if (tErr) throw new Error(tErr.message);
       setTeams((tData ?? []) as TeamRow[]);
     }
-// 4) team sanctions
-    const { data: sData, error: sErr } = await supabase
-      .from("team_sanction")
-      .select(`
-        championship_team_id,
-        points_value,
-        canes_value,
-        championship_team:championship_team_id(
-          team_id
-        )
-      `)
-      .eq("championship_id", champ.id);
 
-    if (sErr) throw new Error(sErr.message);
-
-    const sanctionTotals: SanctionTotalsByTeam = {};
-
-    for (const row of (sData ?? []) as TeamSanctionRow[]) {
-      const teamId = safeNum(row.championship_team?.team_id, NaN);
-      if (!Number.isFinite(teamId)) continue;
-
-      if (!sanctionTotals[teamId]) {
-        sanctionTotals[teamId] = { points: 0, canes: 0 };
-      }
-
-      sanctionTotals[teamId].points += safeNum(row.points_value, 0);
-      sanctionTotals[teamId].canes += safeNum(row.canes_value, 0);
-    }
-
-    setSanctionsByTeam(sanctionTotals);
-
-    // 5) matches for league/groups
+    // 4) matches for league/groups
     const { data: mData, error: mErr } = await supabase
       .from("match")
       .select("id,championship_id,phase_id,is_finished,team_a_id,team_b_id,score_team_a,score_team_b,draw_run_id")
@@ -385,7 +322,7 @@ export default function TeamRankingsScreen() {
     if (mErr) throw new Error(mErr.message);
     setMatches((mData ?? []) as MatchRow[]);
 
-    // 6) latest draw_run tells us the format (groups2/groups3/league) and group membership
+    // 5) latest draw_run tells us the format (groups2/groups3/league) and group membership
     const { data: drData, error: drErr } = await supabase
   .from("draw_run")
   .select("id,kind,params,created_at")

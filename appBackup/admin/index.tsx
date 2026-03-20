@@ -261,6 +261,7 @@ export default function AdminHome() {
         <View style={{ height: 8 }} />
         <DangerBtn title="🧹 Netejar partit (EXTREM)" onPress={() => setCleanModalOpen(true)} />
         <DangerBtn title="♻️ Recuperar partit (BACKUP)" onPress={() => setRestoreModalOpen(true)} />
+        <DangerBtn title="🚫 Sancions d'equip" onPress={() => router.push("/admin/team-sanctions")} />
       </ScrollView>
 
       {/* =======================

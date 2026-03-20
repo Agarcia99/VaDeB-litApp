@@ -24,6 +24,13 @@ type AppReleaseRow = {
   is_active: boolean;
 };
 
+type MaintenanceConfigRow = {
+  value: {
+    enabled?: boolean;
+    message?: string | null;
+  } | null;
+};
+
 const currentVersion =
   (Constants.expoConfig?.version as string | undefined) ??
   Application.nativeApplicationVersion ??
@@ -34,6 +41,11 @@ const [updateForce, setUpdateForce] = useState(false);
 const [updateMessage, setUpdateMessage] = useState<string | null>(null);
 const [updateStoreUrl, setUpdateStoreUrl] = useState<string | null>(null);
 const [updateLatest, setUpdateLatest] = useState<string | null>(null);
+
+const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
+const [maintenanceMessage, setMaintenanceMessage] = useState<string>(
+  "Aplicació en manteniment, torna més tard"
+);
 
 function parseVersion(v: string) {
   return String(v)
@@ -116,7 +128,35 @@ async function openStore() {
   }
 }
 
+const loadMaintenanceMode = useCallback(async (championshipId: number) => {
+  try {
+    const { data, error } = await supabase
+      .from("championship_config")
+      .select("value")
+      .eq("championship_id", championshipId)
+      .is("phase_id", null)
+      .eq("key", "maintenance_mode")
+      .limit(1)
+      .maybeSingle();
 
+    if (error) {
+      setIsMaintenanceMode(false);
+      setMaintenanceMessage("Aplicació en manteniment, torna més tard");
+      return;
+    }
+
+    const row = data as MaintenanceConfigRow | null;
+    const enabled = row?.value?.enabled === true;
+    const message =
+      row?.value?.message?.trim() || "Aplicació en manteniment, torna més tard";
+
+    setIsMaintenanceMode(enabled);
+    setMaintenanceMessage(message);
+  } catch {
+    setIsMaintenanceMode(false);
+    setMaintenanceMessage("Aplicació en manteniment, torna més tard");
+  }
+}, []);
   
   const loadChampionBanner = useCallback(
     async (championshipId: number) => {
@@ -179,11 +219,12 @@ const loadChampionship = useCallback(async () => {
       .maybeSingle();
 
     if (!q1.error && q1.data?.name) {
-      setChampName(q1.data.name);
-      await loadChampionBanner(q1.data.id);
-      setLoading(false);
-      return;
-    }
+  setChampName(q1.data.name);
+  await loadMaintenanceMode(q1.data.id);
+  await loadChampionBanner(q1.data.id);
+  setLoading(false);
+  return;
+}
 
     // Intent 2: primer championship disponible
     const q2 = await supabase
@@ -194,16 +235,19 @@ const loadChampionship = useCallback(async () => {
       .maybeSingle();
 
     if (!q2.error && q2.data?.name) {
-      setChampName(q2.data.name);
-      await loadChampionBanner(q2.data.id);
-      setLoading(false);
-      return;
-    }
+  setChampName(q2.data.name);
+  await loadMaintenanceMode(q2.data.id);
+  await loadChampionBanner(q2.data.id);
+  setLoading(false);
+  return;
+}
 
     setChampionTeamName(null);
-    setChampName("Campionat del món de Bélit");
-    setLoading(false);
-  }, [loadChampionBanner]);
+setIsMaintenanceMode(false);
+setMaintenanceMessage("Aplicació en manteniment, torna més tard");
+setChampName("Campionat del món de Bélit");
+setLoading(false);
+  }, [loadChampionBanner, loadMaintenanceMode]);
 
   useEffect(() => {
     loadChampionship();
@@ -258,7 +302,89 @@ const loadChampionship = useCallback(async () => {
       </View>
     );
   }
+  if (isMaintenanceMode) {
+    return (
+      <View
+        style={{
+          flex: 1,
+          padding: 24,
+          justifyContent: "center",
+          alignItems: "center",
+          backgroundColor: "#f8fafc",
+        }}
+      >
+        <View
+          style={{
+            width: "100%",
+            maxWidth: 420,
+            backgroundColor: "white",
+            borderRadius: 24,
+            paddingVertical: 28,
+            paddingHorizontal: 22,
+            borderWidth: 1,
+            borderColor: "#e5e7eb",
+            alignItems: "center",
+            shadowColor: "#000",
+            shadowOpacity: 0.08,
+            shadowRadius: 10,
+            shadowOffset: { width: 0, height: 4 },
+            elevation: 3,
+          }}
+        >
+          <View
+            style={{
+              width: 84,
+              height: 84,
+              borderRadius: 42,
+              backgroundColor: "#FEF2F2",
+              justifyContent: "center",
+              alignItems: "center",
+              marginBottom: 16,
+            }}
+          >
+            <Text style={{ fontSize: 34 }}>🚧</Text>
+          </View>
 
+          <Text
+            style={{
+              fontSize: 24,
+              fontWeight: "900",
+              color: "#111827",
+              textAlign: "center",
+            }}
+          >
+            Aplicació en manteniment
+          </Text>
+
+          <Text
+            style={{
+              marginTop: 12,
+              fontSize: 16,
+              lineHeight: 22,
+              color: "#6B7280",
+              fontWeight: "600",
+              textAlign: "center",
+            }}
+          >
+            {maintenanceMessage}
+          </Text>
+
+          <Pressable
+            onPress={loadChampionship}
+            style={{
+              marginTop: 20,
+              paddingVertical: 12,
+              paddingHorizontal: 18,
+              borderRadius: 14,
+              backgroundColor: "#111827",
+            }}
+          >
+            <Text style={{ color: "white", fontWeight: "900" }}>Tornar a provar</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
   return (
     <View style={{ flex: 1, padding: 16 }}>
       {/* Títol del campionat en actiu */}

@@ -57,7 +57,31 @@ function formatDateDDMMYYYY_HHMM(iso?: string | null) {
 function trimCharField(s?: string | null) {
   return (s ?? "").trim();
 }
+function getFieldOrder(fieldCode?: string | null) {
+  const code = (fieldCode ?? "").trim().toUpperCase();
 
+  if (code === "A") return 0;
+  if (code === "B") return 1;
+  return 99;
+}
+
+function compareMatches(a: MatchRow, b: MatchRow) {
+  const timeA = a.match_date ? new Date(a.match_date).getTime() : Number.MAX_SAFE_INTEGER;
+  const timeB = b.match_date ? new Date(b.match_date).getTime() : Number.MAX_SAFE_INTEGER;
+
+  if (timeA !== timeB) {
+    return timeA - timeB;
+  }
+
+  const fieldA = getFieldOrder(a.slot?.field_code);
+  const fieldB = getFieldOrder(b.slot?.field_code);
+
+  if (fieldA !== fieldB) {
+    return fieldA - fieldB;
+  }
+
+  return a.id - b.id;
+}
 type DatePreset = "all" | "today" | "yesterday" | "week" | "custom";
 type StatusFilter = "all" | "finished" | "pending";
 
@@ -288,7 +312,8 @@ setShowApplySingleDay(true);   // ✅ AFEGEIX AQUESTA LÍNIA
       return;
     }
 
-    setMatches((data ?? []) as unknown as MatchRow[]);
+    const sortedMatches = ((data ?? []) as unknown as MatchRow[]).slice().sort(compareMatches);
+setMatches(sortedMatches);
     setLoading(false);
     setRefreshing(false);
   }
@@ -532,7 +557,7 @@ setShowApplySingleDay(true);   // ✅ AFEGEIX AQUESTA LÍNIA
           const bName = trimCharField(item.team_b?.name) || item.team_b?.short_name || "Equip B";
 
           const isLive = !!item.started_at && !item.is_finished;
-          const score = isLive ? "En joc" : `${item.score_team_a ?? 0} - ${item.score_team_b ?? 0}`;
+          const score = isLive ? "" : `${item.score_team_a ?? 0} - ${item.score_team_b ?? 0}`;
           const canOpenSummary = item.is_finished || !!item.started_at;
 
           return (
@@ -548,46 +573,51 @@ setShowApplySingleDay(true);   // ✅ AFEGEIX AQUESTA LÍNIA
               ]}
             >
               <View style={styles.matchTopRow}>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.matchTitle} numberOfLines={1}>
-                    {aName} <Text style={styles.vs}>vs</Text> {bName}
-                  </Text>
+  <Text style={styles.matchTitle} numberOfLines={1}>
+    {aName} <Text style={styles.vs}>vs</Text> {bName}
+  </Text>
 
-                  <View style={styles.metaRow}>
-                    {item.match_date ? (
-                      <Text style={styles.metaText}>🗓️ {formatDateDDMMYYYY_HHMM(item.match_date)}</Text>
-                    ) : (
-                      <Text style={styles.metaMuted}>🗓️ Data pendent</Text>
-                    )}
-                    {item.slot?.field_code ? (
-                      <Text style={styles.metaText}> · 🏟️ {item.slot.field_code}</Text>
-                    ) : null}
-                  </View>
+  <View style={styles.matchMetaRow}>
+    <View style={styles.metaRow}>
+      {item.match_date ? (
+        <Text style={styles.metaText}>🗓️ {formatDateDDMMYYYY_HHMM(item.match_date)}</Text>
+      ) : (
+        <Text style={styles.metaMuted}>🗓️ Data pendent</Text>
+      )}
+      {item.slot?.field_code ? (
+        <Text style={styles.metaText}> · 🏟️ {item.slot.field_code}</Text>
+      ) : null}
+    </View>
 
-                  {!!item.phase?.name && (
-                    <Text style={styles.phaseText} numberOfLines={1}>
-                      {item.phase.name}
-                    </Text>
-                  )}
-                </View>
+    <View style={[styles.badge, isLive ? styles.badgeLive : item.is_finished ? styles.badgeFinished : styles.badgePending]}>
+      <Text style={[styles.badgeText, isLive && styles.badgeTextLive]}>
+        {item.is_finished ? "FINAL" : item.started_at ? "EN JOC" : "PENDENT"}
+      </Text>
+    </View>
+  </View>
 
-                <View style={{ alignItems: "flex-end" }}>
-                  <View style={[styles.badge, isLive ? styles.badgeLive : item.is_finished ? styles.badgeFinished : styles.badgePending]}>
-                    <Text style={[styles.badgeText, isLive && styles.badgeTextLive]}>{item.is_finished ? "FINAL" : (item.started_at ? "EN JOC" : "PENDENT")}</Text>
-                  </View>
-                  <Text style={[styles.scoreText, isLive ? styles.scoreLive : item.is_finished ? styles.scoreFinished : styles.scorePending]}>
-                    {score}
-                  </Text>
-                </View>
-              </View>
+  <View style={styles.matchBottomRow}>
+    {!!item.phase?.name ? (
+      <Text style={styles.phaseText} numberOfLines={1}>
+        {item.phase.name}
+      </Text>
+    ) : (
+      <View style={{ flex: 1 }} />
+    )}
 
-              {!item.is_finished && !item.started_at && (
-                <Text style={styles.pendingHint}>Encara no hi ha resum (partit no iniciat)</Text>
-              )}
+    <Text style={[styles.scoreText, isLive ? styles.scoreLive : item.is_finished ? styles.scoreFinished : styles.scorePending]}>
+      {score}
+    </Text>
+  </View>
+</View>
 
-              {!item.is_finished && !!item.started_at && (
-                <Text style={styles.pendingHint}>Partit en joc: resum en directe (marcador provisional)</Text>
-              )}
+{!item.is_finished && !item.started_at && (
+  <Text style={styles.pendingHint}>Encara no hi ha resum (partit no iniciat)</Text>
+)}
+
+{!item.is_finished && !!item.started_at && (
+  <Text style={styles.pendingHint}>Partit en joc: resum en directe (marcador provisional)</Text>
+)}
 
               {item.is_finished && (
                 <Text style={styles.openHint}>{Platform.OS === "ios" ? "Toca per veure el resum" : "Prem per veure el resum"}</Text>
@@ -783,24 +813,35 @@ const styles = StyleSheet.create({
     borderLeftColor: "#F59E0B", // amber
   },
   matchTopRow: {
-    flexDirection: "row",
-    gap: 12,
-    alignItems: "flex-start",
-  },
+  gap: 8,
+},
   matchTitle: {
-    fontSize: 13,
-    fontWeight: "900",
-    color: "#111",
-  },
+  fontSize: 14,
+  fontWeight: "900",
+  color: "#111",
+},
   vs: {
     color: "#666",
     fontWeight: "800",
   },
   metaRow: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: 6,
-  },
+  flexDirection: "row",
+  flexWrap: "wrap",
+  flex: 1,
+  marginTop: 0,
+},
+matchMetaRow: {
+  flexDirection: "row",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+},
+matchBottomRow: {
+  flexDirection: "row",
+  alignItems: "flex-start",
+  justifyContent: "space-between",
+  gap: 12,
+},
   metaText: {
     color: "#444",
     fontWeight: "700",
@@ -810,10 +851,10 @@ const styles = StyleSheet.create({
     fontWeight: "700",
   },
   phaseText: {
-    marginTop: 6,
-    color: "#6B7280",
-    fontWeight: "800",
-  },
+  flex: 1,
+  color: "#6B7280",
+  fontWeight: "800",
+},
   badge: {
     paddingVertical: 6,
     paddingHorizontal: 10,
@@ -845,10 +886,10 @@ const styles = StyleSheet.create({
     color: "#2563EB",
   },
   scoreText: {
-    marginTop: 8,
-    fontWeight: "900",
-    fontSize: 20,
-  },
+  fontWeight: "900",
+  fontSize: 20,
+  textAlign: "right",
+},
   scoreFinished: {
     color: "#10B981",
   },

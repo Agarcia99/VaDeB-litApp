@@ -142,7 +142,7 @@ async function loadMatches() {
 
     // ✅ APLICA FILTRE "AVUI"
     // Si vols DESACTIVAR el filtre per fer proves, comenta aquesta línia:
-    // q = q.gte("match_date", startIso).lt("match_date", endIso);
+    q = q.gte("match_date", startIso).lt("match_date", endIso);
 
     const { data: matchData, error: matchErr } = await q;
 

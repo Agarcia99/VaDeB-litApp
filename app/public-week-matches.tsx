@@ -40,7 +40,31 @@ type MatchRow = {
 function trimCharField(s?: string | null) {
   return (s ?? "").trim();
 }
+function getFieldOrder(fieldCode?: string | null) {
+  const code = (fieldCode ?? "").trim().toUpperCase();
 
+  if (code === "A") return 0;
+  if (code === "B") return 1;
+  return 99;
+}
+
+function compareMatches(a: MatchRow, b: MatchRow) {
+  const timeA = a.match_date ? new Date(a.match_date).getTime() : Number.MAX_SAFE_INTEGER;
+  const timeB = b.match_date ? new Date(b.match_date).getTime() : Number.MAX_SAFE_INTEGER;
+
+  if (timeA !== timeB) {
+    return timeA - timeB;
+  }
+
+  const fieldA = getFieldOrder(a.slot?.field_code);
+  const fieldB = getFieldOrder(b.slot?.field_code);
+
+  if (fieldA !== fieldB) {
+    return fieldA - fieldB;
+  }
+
+  return a.id - b.id;
+}
 function pad2(n: number) {
   return String(n).padStart(2, "0");
 }
@@ -135,7 +159,8 @@ export default function PublicWeekMatches() {
         return;
       }
 
-      setMatches((data ?? []) as any);
+      const sortedMatches = ((data ?? []) as MatchRow[]).slice().sort(compareMatches);
+      setMatches(sortedMatches);
       setLoading(false);
       setRefreshing(false);
     },
