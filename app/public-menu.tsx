@@ -386,7 +386,27 @@ setLoading(false);
     );
   }
   return (
-    <View style={{ flex: 1, padding: 16 }}>
+  <View style={{ flex: 1, padding: 16 }}>
+
+    {isMaintenanceMode && __DEV__ ? (
+      <View
+        style={{
+          marginHorizontal: 0,
+          marginTop: 12,
+          marginBottom: 4,
+          paddingVertical: 10,
+          paddingHorizontal: 12,
+          borderRadius: 12,
+          backgroundColor: "#FEF3C7",
+          borderWidth: 1,
+          borderColor: "#FCD34D",
+        }}
+      >
+        <Text style={{ color: "#92400E", fontWeight: "800", textAlign: "center" }}>
+          ⚠️ Manteniment actiu: visible només perquè estàs en desenvolupament
+        </Text>
+      </View>
+    ) : null}
       {/* Títol del campionat en actiu */}
 <View style={{ alignItems: "center", marginBottom: 12 }}>
   <View
