@@ -639,26 +639,27 @@ const canEditCaptain = useMemo(() => {
   }
 
   // ==== Afegir jugadors (mateixa lògica que tens) ====
-  async function getTeamRoster(teamId: number): Promise<PlayerItem[]> {
-    const { data, error } = await supabase
-      .from("team_player")
-      .select("player_id, player_number, is_captain, player:player_id(name, external_code)")
-      .eq("team_id", teamId);
+  async function getTeamRoster(teamId: number, champId: number): Promise<PlayerItem[]> {
+  const { data, error } = await supabase
+    .from("team_player")
+    .select("player_id, player_number, is_captain, player:player_id(name, external_code)")
+    .eq("team_id", teamId)
+    .eq("championship_id", champId);
 
-    if (error) throw error;
+  if (error) throw error;
 
-    const list: PlayerItem[] =
-      (data ?? []).map((x: any) => ({
-        player_id: x.player_id,
-        player_number: x.player_number,
-        is_captain: !!x.is_captain,
-        player_name: x.player?.name ?? `#${x.player_id}`,
-        external_code: x.player?.external_code ?? null,
-      })) ?? [];
+  const list: PlayerItem[] =
+    (data ?? []).map((x: any) => ({
+      player_id: x.player_id,
+      player_number: x.player_number,
+      is_captain: !!x.is_captain,
+      player_name: x.player?.name ?? `#${x.player_id}`,
+      external_code: x.player?.external_code ?? null,
+    })) ?? [];
 
-    list.sort((a, b) => a.player_number - b.player_number);
-    return list;
-  }
+  list.sort((a, b) => a.player_number - b.player_number);
+  return list;
+}
 
   async function canRemovePlayerEverywhere(playerId: number): Promise<boolean> {
     const { data: rl, error: rlErr } = await supabase
@@ -706,37 +707,42 @@ const canEditCaptain = useMemo(() => {
   }
 
   async function searchExistingInChampionship(q: string) {
-    if (!championshipId) return;
-    const term = q.trim();
-    if (term.length < 2) {
-      setDuplicateNameCount(0);
-      return;
-    }
-
-    const { data, error } = await supabase
-      .from("team_player")
-      .select("player:player_id(id, name)")
-      .eq("championship_id", championshipId)
-      .ilike("player.name", `%${term}%`)
-      .limit(50);
-
-    if (error) {
-      setDuplicateNameCount(0);
-      return;
-    }
-
-    const exact = (data ?? []).filter(
-      (r: any) => (r.player?.name ?? "").trim().toLowerCase() === term.toLowerCase()
-    );
-
-    const ids = new Set<number>();
-    for (const r of exact) {
-      const id = r.player?.id;
-      if (typeof id === "number") ids.add(id);
-    }
-
-    setDuplicateNameCount(ids.size);
+  if (!championshipId) return;
+  const term = q.trim();
+  if (term.length < 2) {
+    setDuplicateNameCount(0);
+    return;
   }
+
+  const { data, error } = await supabase
+    .from("team_player")
+    .select(`
+      player_id,
+      player:player_id (
+        id,
+        name
+      )
+    `)
+    .eq("championship_id", championshipId)
+    .limit(200);
+
+  if (error) {
+    setDuplicateNameCount(0);
+    return;
+  }
+
+  const exact = (data ?? []).filter(
+    (r: any) => (r.player?.name ?? "").trim().toLowerCase().includes(term.toLowerCase())
+  );
+
+  const ids = new Set<number>();
+  for (const r of exact) {
+    const id = r.player?.id;
+    if (typeof id === "number") ids.add(id);
+  }
+
+  setDuplicateNameCount(ids.size);
+}
 
   async function submitAddOrReplace() {
     if (!teamForAdd || !championshipId) {
@@ -752,7 +758,7 @@ const canEditCaptain = useMemo(() => {
 
     setSaving(true);
     try {
-      const roster = await getTeamRoster(teamForAdd);
+      const roster = await getTeamRoster(teamForAdd,championshipId);
 
       let playerNumber =
         roster.length === 0 ? 1 : Math.max(...roster.map((p) => p.player_number)) + 1;
@@ -802,16 +808,22 @@ const canEditCaptain = useMemo(() => {
       }
 
       const { data: sameNameRows, error: snErr } = await supabase
-        .from("team_player")
-        .select("player:player_id(id, name)")
-        .eq("championship_id", championshipId)
-        .ilike("player.name", name);
+  .from("team_player")
+  .select(`
+    player_id,
+    player:player_id (
+      id,
+      name
+    )
+  `)
+  .eq("championship_id", championshipId)
+  .limit(200);
 
-      if (snErr) throw snErr;
+if (snErr) throw snErr;
 
-      const sameNameInChampionship = (sameNameRows ?? []).some(
-        (r: any) => (r.player?.name ?? "").trim().toLowerCase() === name.toLowerCase()
-      );
+const sameNameInChampionship = (sameNameRows ?? []).some(
+  (r: any) => (r.player?.name ?? "").trim().toLowerCase() === name.toLowerCase()
+);
 
       const externalCode = sameNameInChampionship
         ? `CH${championshipId}-${Date.now()}-${Math.floor(Math.random() * 1000)}`

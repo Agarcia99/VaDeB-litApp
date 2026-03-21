@@ -302,7 +302,7 @@ setLoading(false);
       </View>
     );
   }
-  if (isMaintenanceMode) {
+  if (isMaintenanceMode && !__DEV__) {
     return (
       <View
         style={{
