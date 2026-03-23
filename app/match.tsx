@@ -773,6 +773,7 @@ export default function MatchScreen() {
           is_finished: true,
           score_team_a: scoreA,
           score_team_b: scoreB,
+          started_at: new Date().toISOString(),
           finished_at: new Date().toISOString(),
         })
         .eq("id", matchId);

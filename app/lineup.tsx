@@ -49,6 +49,7 @@ export default function LineupScreen() {
   const [defenseSelectedIds, setDefenseSelectedIds] = useState<Set<number>>(new Set());
 
   const [championshipId, setChampionshipId] = useState<number | null>(null);
+  const [matchPhaseId, setMatchPhaseId] = useState<number | null>(null);
 
   // ✅ Capità per defecte (de team_player) i capità temporal per aquest partit (override)
   const [originalCaptainByTeam, setOriginalCaptainByTeam] = useState<Record<number, number | null>>({});
@@ -306,7 +307,7 @@ useEffect(() => {
     // Si el match està finalitzat, no deixem editar
     const { data: matchRow, error: matchErr } = await supabase
       .from("match")
-      .select("id, championship_id, is_finished, team_a_id, team_b_id, team_a:team_a_id(name), team_b:team_b_id(name)")
+      .select("id, championship_id, phase_id,is_finished, team_a_id, team_b_id, team_a:team_a_id(name), team_b:team_b_id(name)")
       .eq("id", matchId)
       .single();
 
@@ -323,6 +324,7 @@ useEffect(() => {
     }
 
     setChampionshipId(matchRow.championship_id);
+    setMatchPhaseId(matchRow.phase_id ?? null);
 
     setTeamAId(matchRow.team_a_id ?? null);
     setTeamBId(matchRow.team_b_id ?? null);
@@ -693,6 +695,13 @@ const canEditCaptain = useMemo(() => {
   }
 
   function openAddPlayer(role: AddRole) {
+if ([2, 3, 4, 5].includes(matchPhaseId ?? -1)) {
+  Alert.alert(
+    "No disponible",
+    "A vuitens, quarts, semis i final no es poden afegir jugadors."
+  );
+  return;
+}
     const teamId = role === "attack" ? attackingTeamId : defendingTeamId;
     if (!teamId) {
       Alert.alert("Error", "No s'ha pogut detectar l'equip.");
@@ -708,7 +717,9 @@ const canEditCaptain = useMemo(() => {
 
   async function searchExistingInChampionship(q: string) {
   if (!championshipId) return;
-  const term = q.trim();
+
+  const term = q.trim().toLowerCase();
+
   if (term.length < 2) {
     setDuplicateNameCount(0);
     return;
@@ -720,23 +731,24 @@ const canEditCaptain = useMemo(() => {
       player_id,
       player:player_id (
         id,
-        name
+        name,
+        external_code
       )
     `)
     .eq("championship_id", championshipId)
-    .limit(200);
+    .limit(500);
 
   if (error) {
     setDuplicateNameCount(0);
     return;
   }
 
-  const exact = (data ?? []).filter(
-    (r: any) => (r.player?.name ?? "").trim().toLowerCase().includes(term.toLowerCase())
+  const exactSameNameRows = (data ?? []).filter(
+    (r: any) => (r.player?.name ?? "").trim().toLowerCase() === term
   );
 
   const ids = new Set<number>();
-  for (const r of exact) {
+  for (const r of exactSameNameRows) {
     const id = r.player?.id;
     if (typeof id === "number") ids.add(id);
   }
@@ -745,125 +757,182 @@ const canEditCaptain = useMemo(() => {
 }
 
   async function submitAddOrReplace() {
-    if (!teamForAdd || !championshipId) {
-      Alert.alert("Error", "Falten dades de campionat/equip.");
-      return;
-    }
+  if (!teamForAdd || !championshipId) {
+    Alert.alert("Error", "Falten dades de campionat/equip.");
+    return;
+  }
 
-    const name = newPlayerName.trim();
-    if (name.length < 2) {
-      Alert.alert("Nom invàlid", "Introdueix un nom de jugador.");
-      return;
-    }
+  const name = newPlayerName.trim();
+  if (name.length < 2) {
+    Alert.alert("Nom invàlid", "Introdueix un nom de jugador.");
+    return;
+  }
 
-    setSaving(true);
-    try {
-      const roster = await getTeamRoster(teamForAdd,championshipId);
+  setSaving(true);
 
-      let playerNumber =
-        roster.length === 0 ? 1 : Math.max(...roster.map((p) => p.player_number)) + 1;
+  try {
+    const roster = await getTeamRoster(teamForAdd, championshipId);
 
-      if (roster.length >= maxTeamPlayers) {
-        if (!replaceTargetPlayerId) {
-          setRosterForReplace(roster);
-          // iOS: if the "Add player" modal is still visible, a second modal may not appear.
-          // Close it first, then open the replacement modal on the next tick.
-          setAddModalVisible(false);
-          setSaving(false);
-          setTimeout(() => setReplaceModalVisible(true), 50);
-          return;
-        }
+    let playerNumber =
+      roster.length === 0 ? 1 : Math.max(...roster.map((p) => p.player_number)) + 1;
 
-        const ok = await canRemovePlayerEverywhere(replaceTargetPlayerId);
-        if (!ok) {
-          Alert.alert("No es pot substituir", "Aquest jugador ja té dades relacionades. No es pot canviar.");
-          setSaving(false);
-          return;
-        }
+    let isReplacement = false;
+    let replacedPlayerNumber: number | null = null;
 
-        const replaced = roster.find((p) => p.player_id === replaceTargetPlayerId);
-        if (!replaced) {
-          Alert.alert("Error", "No s'ha pogut trobar el jugador a substituir.");
-          setSaving(false);
-          return;
-        }
-
-        playerNumber = replaced.player_number;
-
-        const { error: delErr } = await supabase
-          .from("team_player")
-          .delete()
-          .eq("championship_id", championshipId)
-          .eq("team_id", teamForAdd)
-          .eq("player_id", replaceTargetPlayerId);
-
-        if (delErr) throw delErr;
-
-        setAttackSelected((prev) => prev.filter((x) => x.player_id !== replaceTargetPlayerId));
-        setDefenseSelectedIds((prev) => {
-          const next = new Set(prev);
-          next.delete(replaceTargetPlayerId);
-          return next;
-        });
+    if (roster.length >= maxTeamPlayers) {
+      if (!replaceTargetPlayerId) {
+        setRosterForReplace(roster);
+        setAddModalVisible(false);
+        setSaving(false);
+        setTimeout(() => setReplaceModalVisible(true), 50);
+        return;
       }
 
-      const { data: sameNameRows, error: snErr } = await supabase
-  .from("team_player")
-  .select(`
-    player_id,
-    player:player_id (
-      id,
-      name
-    )
-  `)
-  .eq("championship_id", championshipId)
-  .limit(200);
+      const ok = await canRemovePlayerEverywhere(replaceTargetPlayerId);
+      if (!ok) {
+        Alert.alert(
+          "No es pot substituir",
+          "Aquest jugador ja té dades relacionades. No es pot canviar."
+        );
+        setSaving(false);
+        return;
+      }
 
-if (snErr) throw snErr;
+      const replaced = roster.find((p) => p.player_id === replaceTargetPlayerId);
+      if (!replaced) {
+        Alert.alert("Error", "No s'ha pogut trobar el jugador a substituir.");
+        setSaving(false);
+        return;
+      }
 
-const sameNameInChampionship = (sameNameRows ?? []).some(
-  (r: any) => (r.player?.name ?? "").trim().toLowerCase() === name.toLowerCase()
-);
+      isReplacement = true;
+      replacedPlayerNumber = replaced.player_number;
+      playerNumber = replaced.player_number;
 
-      const externalCode = sameNameInChampionship
-        ? `CH${championshipId}-${Date.now()}-${Math.floor(Math.random() * 1000)}`
-        : null;
-
-      const { data: newPlayer, error: pErr } = await supabase
-        .from("player")
-        .insert({ name, external_code: externalCode })
-        .select("id")
-        .single();
-
-      if (pErr || !newPlayer) throw pErr ?? new Error("No s'ha pogut crear el player");
-
-      const { error: tpErr } = await supabase.from("team_player").insert({
-        championship_id: championshipId,
-        team_id: teamForAdd,
-        player_id: newPlayer.id,
-        player_number: playerNumber,
-        is_captain: false,
+      setAttackSelected((prev) => prev.filter((x) => x.player_id !== replaceTargetPlayerId));
+      setDefenseSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(replaceTargetPlayerId);
+        return next;
       });
+    }
+
+    const { data: sameNameRows, error: snErr } = await supabase
+      .from("team_player")
+      .select(`
+        player_id,
+        player:player_id (
+          id,
+          name,
+          external_code
+        )
+      `)
+      .eq("championship_id", championshipId)
+      .limit(500);
+
+    if (snErr) throw snErr;
+
+    const normalizedName = name.trim().toLowerCase();
+
+    const exactSameNameRows = (sameNameRows ?? []).filter(
+      (r: any) => (r.player?.name ?? "").trim().toLowerCase() === normalizedName
+    );
+
+    const sameNameInChampionship = exactSameNameRows.length > 0;
+
+    let externalCodeForNewPlayer: string | null = null;
+
+    if (sameNameInChampionship) {
+      const numericCodes = exactSameNameRows
+        .map((r: any) => {
+          const raw = String(r.player?.external_code ?? "").trim();
+          const n = parseInt(raw, 10);
+          return Number.isFinite(n) ? n : 0;
+        })
+        .filter((n: number) => n > 0);
+
+      const nextCode = numericCodes.length > 0 ? Math.max(...numericCodes) + 1 : 2;
+      externalCodeForNewPlayer = String(nextCode);
+    }
+
+    const { data: newPlayer, error: pErr } = await supabase
+      .from("player")
+      .insert({
+        name,
+        external_code: externalCodeForNewPlayer,
+      })
+      .select("id")
+      .single();
+
+    if (pErr || !newPlayer) {
+      throw pErr ?? new Error("No s'ha pogut crear el player");
+    }
+
+    if (isReplacement && replaceTargetPlayerId) {
+      const { error: tpErr } = await supabase
+        .from("team_player")
+        .update({
+          player_id: newPlayer.id,
+          player_number: replacedPlayerNumber ?? playerNumber,
+          is_captain: false,
+        })
+        .eq("championship_id", championshipId)
+        .eq("team_id", teamForAdd)
+        .eq("player_id", replaceTargetPlayerId);
 
       if (tpErr) throw tpErr;
+    } else {
+      const { error: tpErr } = await supabase
+        .from("team_player")
+        .insert({
+          championship_id: championshipId,
+          team_id: teamForAdd,
+          player_id: newPlayer.id,
+          player_number: playerNumber,
+          is_captain: false,
+        });
 
-      if (attackingTeamId && defendingTeamId) {
-        const loaded2 = await loadPlayersForTeams(attackingTeamId, defendingTeamId, championshipId);
-        if (loaded2.ok) {
-          await loadCaptainOverridesForMatch(attackingTeamId, defendingTeamId, loaded2.attackList, loaded2.defenseList);
-        }
-      }
-
-      setAddModalVisible(false);
-      setReplaceModalVisible(false);
-      setReplaceTargetPlayerId(null);
-      Alert.alert("Fet ✅", sameNameInChampionship ? "Jugador creat (amb external_code)." : "Jugador creat.");
-    } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Error afegint/substituint jugador.");
-    } finally {
-      setSaving(false);
+      if (tpErr) throw tpErr;
     }
+
+    if (attackingTeamId && defendingTeamId) {
+      const loaded2 = await loadPlayersForTeams(
+        attackingTeamId,
+        defendingTeamId,
+        championshipId
+      );
+
+      if (loaded2.ok) {
+        await loadCaptainOverridesForMatch(
+          attackingTeamId,
+          defendingTeamId,
+          loaded2.attackList,
+          loaded2.defenseList
+        );
+      }
+    }
+
+    setAddModalVisible(false);
+    setReplaceModalVisible(false);
+    setReplaceTargetPlayerId(null);
+    setNewPlayerName("");
+
+    Alert.alert(
+      "Fet ✅",
+      isReplacement
+        ? sameNameInChampionship
+          ? `Jugador substituït correctament (codi ${externalCodeForNewPlayer}).`
+          : "Jugador substituït correctament."
+        : sameNameInChampionship
+        ? `Jugador creat amb external_code ${externalCodeForNewPlayer}.`
+        : "Jugador creat."
+    );
+  } catch (e: any) {
+    Alert.alert("Error", e?.message ?? "Error afegint/substituint jugador.");
+  } finally {
+    setSaving(false);
   }
+}
 
   async function saveLineup(): Promise<boolean> {
     if (!roundRow) return false;
@@ -949,6 +1018,7 @@ const sameNameInChampionship = (sameNameRows ?? []).some(
   }
 
   const captainCardStyle = { borderColor: "#2e86de", backgroundColor: "#eaf3ff" };
+  const canAddPlayers = ![2, 3, 4, 5].includes(matchPhaseId ?? -1);
 
   return (
     <>
@@ -1043,20 +1113,22 @@ const sameNameInChampionship = (sameNameRows ?? []).some(
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
             <Text style={{ fontWeight: "800", fontSize: 16 }}>Atacants (4-6) · amb ordre</Text>
 
-            <Pressable
-              disabled={saving}
-              onPress={() => openAddPlayer("attack")}
-              style={{
-                paddingVertical: 8,
-                paddingHorizontal: 10,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: "#ccc",
-                opacity: saving ? 0.6 : 1,
-              }}
-            >
-              <Text style={{ fontWeight: "700" }}>+ Jugador</Text>
-            </Pressable>
+            {canAddPlayers ? (
+  <Pressable
+    disabled={saving}
+    onPress={() => openAddPlayer("attack")}
+    style={{
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: "#ccc",
+      opacity: saving ? 0.6 : 1,
+    }}
+  >
+    <Text style={{ fontWeight: "700" }}>+ Jugador</Text>
+  </Pressable>
+) : null}
           </View>
 
           <Text style={{ marginTop: 6, color: "#666" }}>Si selecciones el capità (C), sempre quedarà últim.</Text>
@@ -1133,28 +1205,34 @@ const sameNameInChampionship = (sameNameRows ?? []).some(
 
         {/* DEFENSORS */}
         <View style={{ padding: 14, borderRadius: 12, borderWidth: 1, borderColor: "#ddd", backgroundColor: "#fafafa" }}>
-          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Text style={{ fontWeight: "800", fontSize: 16 }}>Defensors (4-8)</Text>
+  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+    <Text style={{ fontWeight: "800", fontSize: 16 }}>Defensors (4-8)</Text>
 
-            <Pressable
-              disabled={saving}
-              onPress={() => openAddPlayer("defense")}
-              style={{
-                paddingVertical: 8,
-                paddingHorizontal: 10,
-                borderRadius: 10,
-                borderWidth: 1,
-                borderColor: "#ccc",
-                opacity: saving ? 0.6 : 1,
-              }}
-            >
-              <Text style={{ fontWeight: "700" }}>+ Jugador</Text>
-            </Pressable>
-          </View>
+    {canAddPlayers ? (
+      <Pressable
+        disabled={saving}
+        onPress={() => openAddPlayer("defense")}
+        style={{
+          paddingVertical: 8,
+          paddingHorizontal: 10,
+          borderRadius: 10,
+          borderWidth: 1,
+          borderColor: "#ccc",
+          opacity: saving ? 0.6 : 1,
+        }}
+      >
+        <Text style={{ fontWeight: "700" }}>+ Jugador</Text>
+      </Pressable>
+    ) : null}
+  </View>
 
-          <Text style={{ marginTop: 6, color: "#666" }}>Selecciona exactament 8 (tap per marcar/desmarcar).</Text>
+  <Text style={{ marginTop: 6, color: "#666" }}>
+    Selecciona exactament 8 (tap per marcar/desmarcar).
+  </Text>
 
-          <Text style={{ marginTop: 10, fontWeight: "700" }}>Seleccionats: {defenseSelectedIds.size}/8</Text>
+  <Text style={{ marginTop: 10, fontWeight: "700" }}>
+    Seleccionats: {defenseSelectedIds.size}/8
+  </Text>
 
           {defensePlayers.map((p) => {
             const selected = defenseSelectedIds.has(p.player_id);

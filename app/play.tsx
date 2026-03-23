@@ -45,6 +45,19 @@ function confirmAction(title: string, message: string) {
   });
 }
 
+function confirmContinueAfterLastPlay() {
+  return new Promise<boolean>((resolve) => {
+    Alert.alert(
+      "Última tirada",
+      "És la darrera tirada d'aquest torn. Està tot correcte per continuar?",
+      [
+        { text: "No, revisar", style: "cancel", onPress: () => resolve(false) },
+        { text: "Sí, continuar", onPress: () => resolve(true) },
+      ]
+    );
+  });
+}
+
 /**
  * ✅ Compta plays globals del match (BBDD real)
  */
@@ -65,16 +78,7 @@ async function isMatchCompleted(roundList: RoundRow[]): Promise<boolean> {
   // Un match està complet quan tots els rounds tenen tantes tirades com atacants seleccionats (4-6)
   for (const r of roundList) {
     const required = await getRequiredPlaysForRound(r.round_id, r.attacking_team_id);
-
-        if (required === 0) {
-          // No hi ha lineup d'atac definida per aquest round: enviem a fer la lineup
-          router.replace({
-            pathname: "/lineup",
-            params: { matchId: String(matchId), roundId: String(r.round_id) },
-          });
-          setLoading(false);
-          return;
-        }
+    if (required === 0) return false;
 
     const { count, error } = await supabase
       .from("play")
@@ -128,6 +132,8 @@ export default function PlayScreen() {
   const [defenders, setDefenders] = useState<LineupRow[]>([]);
   const [playsDone, setPlaysDone] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [awaitingTurnConfirmation, setAwaitingTurnConfirmation] = useState(false);
+  const [canUndoNow, setCanUndoNow] = useState(false);
 
   const [defenderModalOpen, setDefenderModalOpen] = useState(false);
   const [pendingDefenseEvent, setPendingDefenseEvent] = useState<
@@ -637,9 +643,15 @@ const headerTitleDefense = useMemo(() => {
 
     if (error) {
       setPlaysDone(0);
+      setAwaitingTurnConfirmation(false);
+      setCanUndoNow(false);
       return;
     }
-    setPlaysDone(count ?? 0);
+
+    const done = count ?? 0;
+    setPlaysDone(done);
+    setAwaitingTurnConfirmation(false);
+    setCanUndoNow(done > 0);
   }
 
   /**
@@ -775,6 +787,151 @@ const headerTitleDefense = useMemo(() => {
     }
   }
 
+  async function getLastPlayOfCurrentRound() {
+    if (!currentRound) return null;
+
+    const { data, error } = await supabase
+      .from("play")
+      .select("id, attacker_player_id")
+      .eq("round_id", currentRound.round_id)
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      Alert.alert("Error", `No s'ha pogut carregar l'última tirada: ${error.message}`);
+      return null;
+    }
+
+    return data;
+  }
+
+  async function undoPreviousPlay() {
+    if (!currentRound || saving) return;
+
+    if (!canUndoNow) {
+      Alert.alert(
+        "Acció no disponible",
+        "No pots desfer dues tirades seguides. Torna a entrar una jugada abans de retrocedir de nou."
+      );
+      return;
+    }
+
+    if (playsDone <= 0) {
+      Alert.alert("Info", "Encara no hi ha cap tirada per desfer.");
+      return;
+    }
+
+    const ok = await new Promise<boolean>((resolve) => {
+      Alert.alert(
+        "Desfer última tirada",
+        "S'eliminarà completament la jugada immediatament anterior per tornar-la a entrar. Vols continuar?",
+        [
+          { text: "Cancel·lar", style: "cancel", onPress: () => resolve(false) },
+          { text: "Sí, desfer", style: "destructive", onPress: () => resolve(true) },
+        ]
+      );
+    });
+
+    if (!ok) return;
+
+    try {
+      setSaving(true);
+
+      const lastPlay = await getLastPlayOfCurrentRound();
+      if (!lastPlay?.id) {
+        Alert.alert("Info", "No s'ha trobat cap tirada per desfer.");
+        return;
+      }
+
+      const { error: evErr } = await supabase
+        .from("play_event")
+        .delete()
+        .eq("play_id", lastPlay.id);
+
+      if (evErr) throw evErr;
+
+      const { error: playErr } = await supabase
+        .from("play")
+        .delete()
+        .eq("id", lastPlay.id);
+
+      if (playErr) throw playErr;
+
+      const { count, error: countErr } = await supabase
+        .from("play")
+        .select("id", { count: "exact", head: true })
+        .eq("round_id", currentRound.round_id);
+
+      if (countErr) throw countErr;
+
+      const done = count ?? 0;
+      setPlaysDone(done);
+      setCurrentIndex(Math.max(0, Math.min(done, (attackers.length || 6) - 1)));
+      setCanUndoNow(false);
+      setAwaitingTurnConfirmation(false);
+
+      await refreshScoreboard();
+
+      Alert.alert("Fet ✅", "S'ha desfet l'última tirada. Torna-la a entrar correctament.");
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "No s'ha pogut desfer l'última tirada.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function continueAfterTurnCompleted(totalsOverride?: { a: number; b: number }) {
+    if (!currentRound) return;
+
+    const totals = totalsOverride ?? (await refreshScoreboard());
+
+    const mr = matchRoundsCount || 2;
+    const isLastTurnByConfig =
+      currentRound.match_round_number >= mr && currentRound.turn === 2;
+
+    if (isLastTurnByConfig) {
+      const { data: mInfo, error: mInfoErr } = await supabase
+        .from("match")
+        .select("phase_id")
+        .eq("id", matchId)
+        .single();
+
+      if (mInfoErr) {
+        Alert.alert("Error", mInfoErr.message);
+        return;
+      }
+
+      const phaseId = (mInfo as any)?.phase_id as number;
+      if (phaseId !== 1 && phaseId !== 8 && totals.a === totals.b) {
+        setBelitDorPendingTotals({ a: totals.a, b: totals.b });
+        setBelitDorModalOpen(true);
+        return;
+      }
+
+      Alert.alert("Partit finalitzat ✅", "S'han registrat totes les tirades del partit.");
+      await finalizeMatch({ matchId, scoreTeamA: totals.a, scoreTeamB: totals.b });
+      setFinishedLocal(true);
+      setFinalScores({ a: totals.a, b: totals.b });
+      setFinalModalOpen(true);
+      return;
+    }
+
+    const idx = rounds.findIndex((r) => r.round_id === currentRound.round_id);
+    const next = idx >= 0 ? rounds[idx + 1] : null;
+
+    if (next) {
+      Alert.alert("Torn complet ✅", "Ara toca preparar el següent torn.");
+      router.replace({
+        pathname: "/lineup",
+        params: { matchId: String(matchId), roundId: String(next.round_id) },
+      });
+    } else {
+      Alert.alert("Partit complet ✅", "S'han registrat totes les tirades del partit.");
+      router.replace("/matches");
+    }
+  }
+
   
   // ✅ Aplica el Bélit d'Or (només eliminatòries): suma +1 al marcador, crea play especial + play_event i finalitza
   async function applyBelitDor(winner: "A" | "B") {
@@ -853,25 +1010,46 @@ const headerTitleDefense = useMemo(() => {
       setSaving(false);
     }
   }
+
 async function afterSavedAdvance() {
-    if (!currentRound) return;
+  if (!currentRound) return;
 
-    const { count } = await supabase
-      .from("play")
-      .select("id", { count: "exact", head: true })
-      .eq("round_id", currentRound.round_id);
+  const { count, error: countErr } = await supabase
+    .from("play")
+    .select("id", { count: "exact", head: true })
+    .eq("round_id", currentRound.round_id);
 
-    const done = count ?? 0;
-    setPlaysDone(done);
+  if (countErr) {
+    Alert.alert("Error", countErr.message);
+    return;
+  }
 
-    // ✅ refresca marcador després de cada acció guardada i RECULL totals
-    const totals = await refreshScoreboard();
+  const done = count ?? 0;
+  setPlaysDone(done);
+  setCanUndoNow(done > 0);
 
-    // ✅ Si ja hi ha 24 plays globals -> FINALITZA i surt
+  // refresca marcador després de cada acció guardada i recull totals
+  const totals = await refreshScoreboard();
+
+  const requiredPlays = attackers.length || 6;
+
+  if (done >= requiredPlays) {
+    // sempre preguntar primer abans d'avançar o finalitzar
+    const continueOk = await confirmContinueAfterLastPlay();
+
+    if (!continueOk) {
+      setAwaitingTurnConfirmation(true);
+      setCurrentIndex(Math.max(0, requiredPlays - 1));
+      return;
+    }
+
+    setAwaitingTurnConfirmation(false);
+
+    // després de confirmar, comprovar si el partit ja està complet
     try {
       const reached = await isMatchCompleted(rounds);
+
       if (reached) {
-        // ✅ Si és empat i NO és fase de grups (1) ni lliga (8), s'ha de resoldre amb Bélit d'Or abans de finalitzar
         const { data: mInfo, error: mInfoErr } = await supabase
           .from("match")
           .select("phase_id")
@@ -884,86 +1062,48 @@ async function afterSavedAdvance() {
         }
 
         const phaseId = (mInfo as any)?.phase_id as number;
+
         if (phaseId !== 1 && phaseId !== 8 && totals.a === totals.b) {
           setBelitDorPendingTotals({ a: totals.a, b: totals.b });
           setBelitDorModalOpen(true);
           return;
         }
 
-        Alert.alert("Partit finalitzat ✅", "S'han registrat totes les tirades del partit.");
-        await finalizeMatch({ matchId, scoreTeamA: totals.a, scoreTeamB: totals.b });
+        Alert.alert(
+          "Partit finalitzat ✅",
+          "S'han registrat totes les tirades del partit."
+        );
+
+        await finalizeMatch({
+          matchId,
+          scoreTeamA: totals.a,
+          scoreTeamB: totals.b,
+        });
+
         setFinishedLocal(true);
         setFinalScores({ a: totals.a, b: totals.b });
         setFinalModalOpen(true);
         return;
       }
     } catch (e: any) {
-      // si falla el check, no trenquem el flux; només avisem a consola
       console.warn("isMatchCompleted error:", e?.message ?? e);
     }
 
-    const requiredPlays = attackers.length || 6;
-
-    if (done >= requiredPlays) {
-      // ✅ Si és l'últim torn de l'última ronda segons la config, finalitzem el partit aquí.
-      // Això evita que, amb match_rounds=1, el flux salti a una ronda/turn "fantasma".
-      const mr = matchRoundsCount || 2;
-      const isLastTurnByConfig =
-        currentRound.match_round_number >= mr && currentRound.turn === 2;
-
-      if (isLastTurnByConfig) {
-        // Inclou la regla de Bélit d'Or (mateixa lògica que el check global)
-        const { data: mInfo, error: mInfoErr } = await supabase
-          .from("match")
-          .select("phase_id")
-          .eq("id", matchId)
-          .single();
-
-        if (mInfoErr) {
-          Alert.alert("Error", mInfoErr.message);
-          return;
-        }
-
-        const phaseId = (mInfo as any)?.phase_id as number;
-        if (phaseId !== 1 && phaseId !== 8 && totals.a === totals.b) {
-          setBelitDorPendingTotals({ a: totals.a, b: totals.b });
-          setBelitDorModalOpen(true);
-          return;
-        }
-
-        Alert.alert("Partit finalitzat ✅", "S'han registrat totes les tirades del partit.");
-        await finalizeMatch({ matchId, scoreTeamA: totals.a, scoreTeamB: totals.b });
-        setFinishedLocal(true);
-        setFinalScores({ a: totals.a, b: totals.b });
-        setFinalModalOpen(true);
-        return;
-      }
-
-      const idx = rounds.findIndex((r) => r.round_id === currentRound.round_id);
-      const next = idx >= 0 ? rounds[idx + 1] : null;
-
-      if (next) {
-        Alert.alert("Torn complet ✅", "Ara toca preparar el següent torn.");
-        router.replace({
-          pathname: "/lineup",
-          params: { matchId: String(matchId), roundId: String(next.round_id) },
-        });
-      } else {
-        // abans feies router.back(); ara tornem a matches (per coherència UX)
-        Alert.alert("Partit complet ✅", "S'han registrat totes les tirades del partit.");
-        router.replace("/matches");
-      }
-      return;
-    }
-
-    setCurrentIndex(Math.min(done, attackers.length - 1));
+    // si no és final de partit, seguir el flux normal
+    await continueAfterTurnCompleted();
+    return;
   }
+
+  setAwaitingTurnConfirmation(false);
+  setCurrentIndex(Math.min(done, attackers.length - 1));
+}
 
   async function safeSave(fn: () => Promise<void>) {
     if (saving) return;
     try {
       setSaving(true);
       await fn();
+      setCanUndoNow(true);
     } finally {
       setSaving(false);
     }
@@ -1112,6 +1252,9 @@ if (canasValue <= 0) {
     bName: "Equip B",
   };
 
+  const playActionsDisabled = saving || finishedLocal || awaitingTurnConfirmation;
+  const finishTurnDisabled = saving || finishedLocal;
+
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
       {/* Header: sortir (esquerra) + cronòmetre (dreta) */}
@@ -1201,11 +1344,34 @@ if (canasValue <= 0) {
         </Text>
       </View>
 
-      <View style={{ height: 16 }} />
+      <View style={{ height: 12 }} />
+
+      {awaitingTurnConfirmation ? (
+  <Pressable
+    onPress={() => {
+      continueAfterTurnCompleted();
+    }}
+    disabled={finishTurnDisabled}
+    style={{
+      marginTop: 4,
+      padding: 14,
+      borderRadius: 12,
+      backgroundColor: "#111827",
+      alignItems: "center",
+      opacity: finishTurnDisabled ? 0.45 : 1,
+    }}
+  >
+    <Text style={{ fontWeight: "900", fontSize: 15, color: "white" }}>
+      ✅ Finalitzar torn
+    </Text>
+  </Pressable>
+) : null}
+
+      <View style={{ height: 4 }} />
 
       <Pressable
         onPress={() => setCanasModalOpen(true)}
-        disabled={saving || finishedLocal}
+        disabled={playActionsDisabled}
         style={{
           padding: 14,
           borderRadius: 12,
@@ -1214,7 +1380,7 @@ if (canasValue <= 0) {
           borderColor: "#cfeedd",
           alignItems: "center",
           marginBottom: 10,
-          opacity: saving ? 0.6 : 1,
+          opacity: playActionsDisabled ? 0.45 : 1,
         }}
       >
         <Text style={{ fontWeight: "900", fontSize: 16 }}>Sumar canes</Text>
@@ -1227,7 +1393,7 @@ if (canasValue <= 0) {
           setPendingDefenseEvent("MATACANAS");
           setDefenderModalOpen(true);
         }}
-        disabled={saving || finishedLocal}
+        disabled={playActionsDisabled}
         style={{
           padding: 14,
           borderRadius: 12,
@@ -1236,7 +1402,7 @@ if (canasValue <= 0) {
           borderColor: "#f3caca",
           alignItems: "center",
           marginBottom: 10,
-          opacity: saving ? 0.6 : 1,
+          opacity: playActionsDisabled ? 0.45 : 1,
         }}
       >
         <Text style={{ fontWeight: "900", fontSize: 16 }}>Matacanes</Text>
@@ -1250,7 +1416,7 @@ if (canasValue <= 0) {
           setPendingDefenseEvent("AIR_CATCH");
           setDefenderModalOpen(true);
         }}
-        disabled={saving || finishedLocal}
+        disabled={playActionsDisabled}
         style={{
           padding: 14,
           borderRadius: 12,
@@ -1258,11 +1424,30 @@ if (canasValue <= 0) {
           borderWidth: 1,
           borderColor: "#cbdaf7",
           alignItems: "center",
-          opacity: saving ? 0.6 : 1,
+          opacity: playActionsDisabled ? 0.45 : 1,
         }}
       >
         <Text style={{ fontWeight: "900", fontSize: 16 }}>Recollida</Text>
         <Text style={{ color: "#2f457a", marginTop: 2 }}>Selecciona defensor</Text>
+      </Pressable>
+<View style={{ height: 12 }} />
+
+<Pressable
+        onPress={undoPreviousPlay}
+        disabled={saving || finishedLocal || playsDone <= 0 || !canUndoNow}
+        style={{
+          padding: 12,
+          borderRadius: 12,
+          backgroundColor: "#FFF7ED",
+          borderWidth: 1,
+          borderColor: "#FDBA74",
+          alignItems: "center",
+          opacity: saving || finishedLocal || playsDone <= 0 || !canUndoNow ? 0.45 : 1,
+        }}
+      >
+        <Text style={{ fontWeight: "900", fontSize: 15, color: "#9A3412" }}>
+          ↩️ Desfer última tirada
+        </Text>
       </Pressable>
 
       {/* Modal Canes */}
@@ -1293,28 +1478,28 @@ if (canasValue <= 0) {
             <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
               <Pressable
                 onPress={() => setCanasValue((v) => Math.max(0, v - 20))}
-                disabled={saving || finishedLocal}
+                disabled={playActionsDisabled}
                 style={{
                   paddingVertical: 10,
                   paddingHorizontal: 14,
                   borderRadius: 12,
                   borderWidth: 1,
                   borderColor: "#ccc",
-                  opacity: saving ? 0.6 : 1,
+                  opacity: playActionsDisabled ? 0.45 : 1,
                 }}
               >
                 <Text style={{ fontWeight: "900", fontSize: 16 }}>− 20</Text>
               </Pressable>
 <Pressable
                 onPress={() => setCanasValue((v) => Math.max(0, v - 5))}
-                disabled={saving || finishedLocal}
+                disabled={playActionsDisabled}
                 style={{
                   paddingVertical: 10,
                   paddingHorizontal: 14,
                   borderRadius: 12,
                   borderWidth: 1,
                   borderColor: "#ccc",
-                  opacity: saving ? 0.6 : 1,
+                  opacity: playActionsDisabled ? 0.45 : 1,
                 }}
               >
                 <Text style={{ fontWeight: "900", fontSize: 16 }}>− 5</Text>
@@ -1322,28 +1507,28 @@ if (canasValue <= 0) {
 
               <Pressable
                 onPress={() => addCanes(5)}
-                disabled={saving || finishedLocal}
+                disabled={playActionsDisabled}
                 style={{
                   paddingVertical: 10,
                   paddingHorizontal: 14,
                   borderRadius: 12,
                   borderWidth: 1,
                   borderColor: "#ccc",
-                  opacity: saving ? 0.6 : 1,
+                  opacity: playActionsDisabled ? 0.45 : 1,
                 }}
               >
                 <Text style={{ fontWeight: "900", fontSize: 16 }}>+ 5</Text>
               </Pressable>
 <Pressable
                 onPress={() => addCanes(20)}
-                disabled={saving || finishedLocal}
+                disabled={playActionsDisabled}
                 style={{
                   paddingVertical: 10,
                   paddingHorizontal: 14,
                   borderRadius: 12,
                   borderWidth: 1,
                   borderColor: "#ccc",
-                  opacity: saving ? 0.6 : 1,
+                  opacity: playActionsDisabled ? 0.45 : 1,
                 }}
               >
                 <Text style={{ fontWeight: "900", fontSize: 16 }}>+ 20</Text>
@@ -1354,7 +1539,7 @@ if (canasValue <= 0) {
 
             <Pressable
               onPress={saveCanasPlayerOnly}
-              disabled={saving || finishedLocal}
+              disabled={playActionsDisabled}
               style={{
                 padding: 14,
                 borderRadius: 12,
@@ -1363,7 +1548,7 @@ if (canasValue <= 0) {
                 borderColor: "#ddd",
                 alignItems: "center",
                 marginBottom: 10,
-                opacity: saving ? 0.6 : 1,
+                opacity: playActionsDisabled ? 0.45 : 1,
               }}
             >
               <Text style={{ fontWeight: "900" }}>
@@ -1383,7 +1568,7 @@ if (canasValue <= 0) {
                 borderColor: "#cfeedd",
                 alignItems: "center",
                 marginBottom: 10,
-                opacity: (saving || canasValue <= 0) ? 0.6 : 1,
+                opacity: (saving || canasValue <= 0) ? 0.45 : 1,
               }}
             >
               <Text style={{ fontWeight: "900" }}>Metre guanyat per atacant</Text>
@@ -1401,7 +1586,7 @@ if (canasValue <= 0) {
                 borderColor: "#f5d7b8",
                 alignItems: "center",
                 marginBottom: 10,
-                opacity: (saving || canasValue <= 0) ? 0.6 : 1,
+                opacity: (saving || canasValue <= 0) ? 0.45 : 1,
               }}
             >
               <Text style={{ fontWeight: "900" }}>Metre guanyat per defensor</Text>
@@ -1412,8 +1597,8 @@ if (canasValue <= 0) {
 
             <Pressable
               onPress={() => setCanasModalOpen(false)}
-              disabled={saving || finishedLocal}
-              style={{ alignItems: "center", padding: 10, opacity: saving ? 0.6 : 1 }}
+              disabled={playActionsDisabled}
+              style={{ alignItems: "center", padding: 10, opacity: saving ? 0.45 : 1 }}
             >
               <Text style={{ color: "#666", fontWeight: "700" }}>Cancel·lar</Text>
             </Pressable>
@@ -1529,7 +1714,7 @@ if (canasValue <= 0) {
               renderItem={({ item }) => (
                 <Pressable
                   onPress={() => onPickDefender(item.player_id)}
-                  disabled={saving || finishedLocal}
+                  disabled={playActionsDisabled}
                   style={{
                     paddingVertical: 12,
                     paddingHorizontal: 12,
@@ -1539,7 +1724,7 @@ if (canasValue <= 0) {
                     backgroundColor: "#fafafa",
                     marginBottom: 8,
                     alignItems: "center",
-                    opacity: saving ? 0.6 : 1,
+                    opacity: playActionsDisabled ? 0.6 : 1,
                   }}
                 >
                   <Text style={{ fontWeight: "900" }}>
@@ -1554,7 +1739,7 @@ if (canasValue <= 0) {
                 setPendingDefenseEvent(null);
                 setDefenderModalOpen(false);
               }}
-              disabled={saving || finishedLocal}
+              disabled={playActionsDisabled}
               style={{ alignItems: "center", padding: 10, opacity: saving ? 0.6 : 1 }}
             >
               <Text style={{ color: "#666", fontWeight: "700" }}>Cancel·lar</Text>
