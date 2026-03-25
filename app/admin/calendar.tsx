@@ -252,14 +252,52 @@ function fmtField(fieldCode: string) {
     return `${toCaDay(slot.day_code)} ${datePart}, ${timePart} - ${fmtField(slot.field_code)}`;
   };
 
+const hasTeamConflictAtSlotTime = async (matchRow: MatchRow, newSlot: MatchSlot) => {
+  if (!championship) return false;
+
+  const teamIds = [matchRow.team_a_id, matchRow.team_b_id].filter(
+    (v): v is number => typeof v === "number"
+  );
+
+  if (teamIds.length === 0) return false;
+
+  const { data, error } = await supabase
+    .from("match")
+    .select("id, team_a_id, team_b_id, match_date")
+    .eq("championship_id", championship.id)
+    .neq("id", matchRow.id)
+    .eq("match_date", newSlot.starts_at);
+
+  if (error) throw error;
+
+  const conflictingMatch = (data ?? []).find((m: any) => {
+    const a = m.team_a_id;
+    const b = m.team_b_id;
+    return teamIds.includes(a) || teamIds.includes(b);
+  });
+
+  return !!conflictingMatch;
+};
+
   const saveNewSlot = async (newSlot: MatchSlot) => {
     if (!selectedMatch || !championship) return;
 
-    // Safety: only not-finished matches can be moved
-    if (selectedMatch.is_finished) {
-      Alert.alert("No es pot", "Aquest partit ja està finalitzat.");
-      return;
-    }
+// Safety: only not-finished matches can be moved
+if (selectedMatch.is_finished) {
+  Alert.alert("No es pot", "Aquest partit ja està finalitzat.");
+  return;
+}
+
+// Safety: a cap dels dos equips pot jugar a la mateixa hora en un altre partit
+const hasConflict = await hasTeamConflictAtSlotTime(selectedMatch, newSlot);
+
+if (hasConflict) {
+  Alert.alert(
+    "Conflicte d'horari",
+    "Un dels dos equips ja té un altre partit a aquesta mateixa hora. No es pot moure aquest partit a aquest slot."
+  );
+  return;
+}
 
     setBusyMatchId(selectedMatch.id);
     try {
