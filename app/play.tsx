@@ -45,14 +45,14 @@ function confirmAction(title: string, message: string) {
   });
 }
 
-function confirmContinueAfterLastPlay() {
+function confirmFinishTurn() {
   return new Promise<boolean>((resolve) => {
     Alert.alert(
-      "Última tirada",
-      "És la darrera tirada d'aquest torn. Està tot correcte per continuar?",
+      "Confirmació final",
+      "Segur que vols finalitzar el torn? Revisa bé l'última tirada abans de continuar.",
       [
         { text: "No, revisar", style: "cancel", onPress: () => resolve(false) },
-        { text: "Sí, continuar", onPress: () => resolve(true) },
+        { text: "Sí, finalitzar", style: "destructive", onPress: () => resolve(true) },
       ]
     );
   });
@@ -883,7 +883,8 @@ const headerTitleDefense = useMemo(() => {
 
   async function continueAfterTurnCompleted(totalsOverride?: { a: number; b: number }) {
     if (!currentRound) return;
-
+    const ok = await confirmFinishTurn();
+    if (!ok) return;
     const totals = totalsOverride ?? (await refreshScoreboard());
 
     const mr = matchRoundsCount || 2;
@@ -1029,68 +1030,15 @@ async function afterSavedAdvance() {
   setCanUndoNow(done > 0);
 
   // refresca marcador després de cada acció guardada i recull totals
-  const totals = await refreshScoreboard();
+  await refreshScoreboard();
 
   const requiredPlays = attackers.length || 6;
 
   if (done >= requiredPlays) {
-    // sempre preguntar primer abans d'avançar o finalitzar
-    const continueOk = await confirmContinueAfterLastPlay();
-
-    if (!continueOk) {
-      setAwaitingTurnConfirmation(true);
-      setCurrentIndex(Math.max(0, requiredPlays - 1));
-      return;
-    }
-
-    setAwaitingTurnConfirmation(false);
-
-    // després de confirmar, comprovar si el partit ja està complet
-    try {
-      const reached = await isMatchCompleted(rounds);
-
-      if (reached) {
-        const { data: mInfo, error: mInfoErr } = await supabase
-          .from("match")
-          .select("phase_id")
-          .eq("id", matchId)
-          .single();
-
-        if (mInfoErr) {
-          Alert.alert("Error", mInfoErr.message);
-          return;
-        }
-
-        const phaseId = (mInfo as any)?.phase_id as number;
-
-        if (phaseId !== 1 && phaseId !== 8 && totals.a === totals.b) {
-          setBelitDorPendingTotals({ a: totals.a, b: totals.b });
-          setBelitDorModalOpen(true);
-          return;
-        }
-
-        Alert.alert(
-          "Partit finalitzat ✅",
-          "S'han registrat totes les tirades del partit."
-        );
-
-        await finalizeMatch({
-          matchId,
-          scoreTeamA: totals.a,
-          scoreTeamB: totals.b,
-        });
-
-        setFinishedLocal(true);
-        setFinalScores({ a: totals.a, b: totals.b });
-        setFinalModalOpen(true);
-        return;
-      }
-    } catch (e: any) {
-      console.warn("isMatchCompleted error:", e?.message ?? e);
-    }
-
-    // si no és final de partit, seguir el flux normal
-    await continueAfterTurnCompleted();
+    // Quan s'acaba el torn, NO preguntem automàticament.
+    // Simplement bloquegem les accions de jugada i mostrem "Finalitzar torn".
+    setAwaitingTurnConfirmation(true);
+    setCurrentIndex(Math.max(0, requiredPlays - 1));
     return;
   }
 

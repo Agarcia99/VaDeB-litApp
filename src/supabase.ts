@@ -14,3 +14,24 @@ export const supabase = createClient(
     },
   }
 );
+
+// 🔥 Limpieza de sesión corrupta al iniciar la app
+(async () => {
+  try {
+    const { data, error } = await supabase.auth.getSession();
+
+    if (error) {
+      console.log('⚠️ Sesión corrupta detectada → limpiando');
+      await supabase.auth.signOut();
+      return;
+    }
+
+    // Si no hay sesión pero hay basura en storage (caso típico en Expo)
+    if (!data?.session) {
+      // opcional: descomenta si quieres limpiar siempre
+      // await AsyncStorage.clear();
+    }
+  } catch (e) {
+    console.log('Error comprobando sesión inicial:', e);
+  }
+})();
