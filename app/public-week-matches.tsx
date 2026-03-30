@@ -378,7 +378,7 @@ const styles = StyleSheet.create({
 matchCardAjornat: {
   borderLeftWidth: 6,
   borderLeftColor: "#DC2626",
-  backgroundColor: "#FEF2F2",
+  //backgroundColor: "#FEF2F2",
 },
 badgeAjornat: {
   backgroundColor: "#FEE2E2",
