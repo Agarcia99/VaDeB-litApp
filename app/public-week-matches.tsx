@@ -26,6 +26,7 @@ type MatchRow = {
   id: number;
   match_date: string | null;
   started_at: string | null;
+  display_status:string | null;
   is_finished: boolean;
   score_team_a: number;
   score_team_b: number;
@@ -106,11 +107,12 @@ export default function PublicWeekMatches() {
   const weekEnd = useMemo(() => endOfWeekSunday(new Date()), []);
 
   const summary = useMemo(() => {
-    const finished = matches.filter((m) => m.is_finished).length;
-    const live = matches.filter((m) => !!m.started_at && !m.is_finished).length;
-    const pending = matches.length - finished - live;
-    return { total: matches.length, finished, live, pending };
-  }, [matches]);
+  const ajornats = matches.filter((m) => m.display_status === "AJORNAT").length;
+  const finished = matches.filter((m) => m.is_finished).length;
+  const live = matches.filter((m) => !!m.started_at && !m.is_finished && m.display_status !== "AJORNAT").length;
+  const pending = matches.length - finished - live - ajornats;
+  return { total: matches.length, finished, live, pending, ajornats };
+}, [matches]);
 
   const load = useCallback(
     async (isRefresh = false) => {
@@ -145,7 +147,7 @@ export default function PublicWeekMatches() {
       const { data, error } = await supabase
         .from("match")
         .select(
-          "id, match_date, started_at, is_finished, score_team_a, score_team_b, team_a_id, team_b_id, team_a:team_a_id(id,name,short_name), team_b:team_b_id(id,name,short_name), slot:slot_id(field_code), phase:phase_id(name)"
+          "id, match_date, started_at,display_status, is_finished, score_team_a, score_team_b, team_a_id, team_b_id, team_a:team_a_id(id,name,short_name), team_b:team_b_id(id,name,short_name), slot:slot_id(field_code), phase:phase_id(name)"
         )
         .eq("championship_id", ch.id)
         .gte("match_date", startIso)
@@ -241,11 +243,10 @@ export default function PublicWeekMatches() {
           const aName = trimCharField(item.team_a?.name) || item.team_a?.short_name || "Equip A";
           const bName = trimCharField(item.team_b?.name) || item.team_b?.short_name || "Equip B";
 
-          const isLive = !!item.started_at && !item.is_finished;
-          const score = isLive ? "" : `${item.score_team_a ?? 0} - ${item.score_team_b ?? 0}`;
-
-          // Same behavior as public-matches: open only if LIVE or FINISHED (never if pending)
-          const canOpenSummary = item.is_finished || !!item.started_at;
+          const isAjornat = item.display_status === "AJORNAT";
+          const isLive = !!item.started_at && !item.is_finished && !isAjornat;
+          const score = isLive || isAjornat ? "" : `${item.score_team_a ?? 0} - ${item.score_team_b ?? 0}`;
+          const canOpenSummary = !isAjornat && (item.is_finished || !!item.started_at);
 
           return (
             <Pressable
@@ -253,9 +254,17 @@ export default function PublicWeekMatches() {
                 if (!canOpenSummary) return;
                 router.push({ pathname: "/match-summary", params: { id: item.id } });
               }}
-              style={({ pressed }) => [
-                styles.matchCard,
-                isLive ? styles.matchCardLive : item.is_finished ? styles.matchCardFinished : styles.matchCardPending,
+              onLongPress={() => Alert.alert("ID del partit", String(item.id))}
+              delayLongPress={350}
+             style={({ pressed }) => [
+              styles.matchCard,
+              isAjornat
+                ? styles.matchCardAjornat
+                : isLive
+                ? styles.matchCardLive
+                : item.is_finished
+                ? styles.matchCardFinished
+                : styles.matchCardPending,
                 pressed && canOpenSummary ? { transform: [{ scale: 0.99 }], opacity: 0.95 } : null,
               ]}
             >
@@ -263,6 +272,7 @@ export default function PublicWeekMatches() {
   <Text style={styles.matchTitle} numberOfLines={1}>
     {aName} <Text style={styles.vs}>vs</Text> {bName}
   </Text>
+  
 
   <View style={styles.matchMetaRow}>
     <View style={styles.metaRow}>
@@ -276,11 +286,28 @@ export default function PublicWeekMatches() {
       ) : null}
     </View>
 
-    <View style={[styles.badge, isLive ? styles.badgeLive : item.is_finished ? styles.badgeFinished : styles.badgePending]}>
-      <Text style={[styles.badgeText, isLive && styles.badgeTextLive]}>
-        {item.is_finished ? "FINAL" : item.started_at ? "EN JOC" : "PENDENT"}
-      </Text>
-    </View>
+    <View
+  style={[
+    styles.badge,
+    isAjornat
+      ? styles.badgeAjornat
+      : isLive
+      ? styles.badgeLive
+      : item.is_finished
+      ? styles.badgeFinished
+      : styles.badgePending,
+  ]}
+>
+  <Text
+    style={[
+      styles.badgeText,
+      isAjornat ? styles.badgeTextAjornat : null,
+      isLive ? styles.badgeTextLive : null,
+    ]}
+  >
+    {isAjornat ? "AJORNAT" : item.is_finished ? "FINAL" : item.started_at ? "EN JOC" : "PENDENT"}
+  </Text>
+</View>
   </View>
 
   <View style={styles.matchBottomRow}>
@@ -292,14 +319,33 @@ export default function PublicWeekMatches() {
       <View style={{ flex: 1 }} />
     )}
 
-    <Text style={[styles.scoreText, isLive ? styles.scoreLive : item.is_finished ? styles.scoreFinished : styles.scorePending]}>
-      {score}
-    </Text>
+   <Text
+  style={[
+    styles.scoreText,
+    isAjornat
+      ? styles.scoreAjornat
+      : isLive
+      ? styles.scoreLive
+      : item.is_finished
+      ? styles.scoreFinished
+      : styles.scorePending,
+  ]}
+>
+  {score}
+</Text>
   </View>
 </View>
 
-{!item.is_finished && !item.started_at && (
-  <Text style={styles.pendingHint}>Encara no hi ha resum (partit no iniciat)</Text>
+{(isAjornat || (!item.is_finished && !item.started_at)) && (
+  <View style={styles.bottomRow}>
+    <Text style={styles.pendingHint}>
+      {isAjornat
+        ? "Partit ajornat"
+        : "Encara no hi ha resum (partit no iniciat)"}
+    </Text>
+
+    <Text style={styles.matchIdBottom}>#{item.id}</Text>
+  </View>
 )}
 
 {!item.is_finished && !!item.started_at && (
@@ -329,7 +375,33 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+matchCardAjornat: {
+  borderLeftWidth: 6,
+  borderLeftColor: "#DC2626",
+  backgroundColor: "#FEF2F2",
+},
+badgeAjornat: {
+  backgroundColor: "#FEE2E2",
+  borderColor: "#FCA5A5",
+},
+badgeTextAjornat: {
+  color: "#B91C1C",
+},
+scoreAjornat: {
+  color: "#B91C1C",
+},
+bottomRow: {
+  flexDirection: "row",
+  justifyContent: "space-between",
+  alignItems: "center",
+  marginTop: 8,
+},
 
+matchIdBottom: {
+  fontSize: 11,
+  fontWeight: "700",
+  color: "#9CA3AF",
+},
   // top header (match-summary-like buttons)
   topBarRow: {
     flexDirection: "row",

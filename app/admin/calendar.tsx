@@ -309,6 +309,7 @@ if (hasConflict) {
   .update({
     slot_id: newSlot.id,
     match_date: newSlot.starts_at, // ✅ actualitza la data del partit
+    display_status: null,
   })
   .eq("id", selectedMatch.id)
   .eq("championship_id", championship.id)
