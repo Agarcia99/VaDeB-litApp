@@ -27,6 +27,13 @@ export default function MatchScreen() {
   const [matchView, setMatchView] = useState<any | null>(null);
   const [matchRow, setMatchRow] = useState<any | null>(null);
   const [myRefereeId, setMyRefereeId] = useState<number | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [simulateModalOpen, setSimulateModalOpen] = useState(false);
+  const [simulateChecking, setSimulateChecking] = useState(false);
+  const [simulateCanRun, setSimulateCanRun] = useState<boolean | null>(null);
+  const [simulatePreviewText, setSimulatePreviewText] = useState("Carrega la previsualització abans de simular.");
+  const [simulateTeamACount, setSimulateTeamACount] = useState<number | null>(null);
+  const [simulateTeamBCount, setSimulateTeamBCount] = useState<number | null>(null);
 
   const [started, setStarted] = useState(false);
   const [firstTeamId, setFirstTeamId] = useState<number | null>(null);
@@ -332,6 +339,116 @@ export default function MatchScreen() {
     </Modal>
   );
 
+  const simulateModal = (
+    <Modal
+      visible={simulateModalOpen}
+      transparent
+      animationType="fade"
+      onRequestClose={() => {
+        if (saving || simulateChecking) return;
+        setSimulateModalOpen(false);
+      }}
+    >
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(0,0,0,0.55)",
+          justifyContent: "center",
+          alignItems: "center",
+          padding: 18,
+        }}
+      >
+        <View
+          style={{
+            width: "100%",
+            maxWidth: 420,
+            backgroundColor: "white",
+            borderRadius: 18,
+            padding: 18,
+            borderWidth: 1,
+            borderColor: "#eee",
+          }}
+        >
+          <Text style={{ fontSize: 20, fontWeight: "900", textAlign: "center" }}>🧪 Simular partit complet</Text>
+          <Text style={{ marginTop: 8, color: "#666", fontWeight: "600", textAlign: "center" }}>
+            Només per admins. Aquesta opció només funciona si el partit està completament buit.
+          </Text>
+
+          <View style={{ height: 16 }} />
+
+          <View
+            style={{
+              borderWidth: 1,
+              borderColor: simulateCanRun === false ? "#FCA5A5" : "#E5E7EB",
+              borderRadius: 14,
+              padding: 14,
+              backgroundColor: simulateCanRun === false ? "#FEF2F2" : "#F9FAFB",
+            }}
+          >
+            <Text style={{ fontWeight: "900", fontSize: 16, marginBottom: 8 }}>Previsualització</Text>
+            <Text style={{ color: "#374151", fontWeight: "700", marginBottom: 4 }}>
+              Jugadors {teamA?.name ?? "Equip A"}: {simulateTeamACount ?? "-"}
+            </Text>
+            <Text style={{ color: "#374151", fontWeight: "700", marginBottom: 8 }}>
+              Jugadors {teamB?.name ?? "Equip B"}: {simulateTeamBCount ?? "-"}
+            </Text>
+            <Text style={{ color: simulateCanRun === false ? "#B91C1C" : "#111827", fontWeight: "900" }}>
+              {simulatePreviewText}
+            </Text>
+          </View>
+
+          <Pressable
+            onPress={loadSimulationPreview}
+            disabled={saving || simulateChecking}
+            style={{
+              marginTop: 14,
+              paddingVertical: 12,
+              borderRadius: 12,
+              backgroundColor: "#F5F3FF",
+              borderWidth: 1,
+              borderColor: "#DDD6FE",
+              alignItems: "center",
+              opacity: saving || simulateChecking ? 0.6 : 1,
+            }}
+          >
+            {simulateChecking ? (
+              <ActivityIndicator color="#6D28D9" />
+            ) : (
+              <Text style={{ fontWeight: "900", color: "#6D28D9" }}>Carregar previsualització</Text>
+            )}
+          </Pressable>
+
+          <Pressable
+            onPress={runFullSimulation}
+            disabled={saving || simulateChecking || !simulateCanRun}
+            style={{
+              marginTop: 10,
+              paddingVertical: 14,
+              borderRadius: 12,
+              backgroundColor: "#111827",
+              alignItems: "center",
+              opacity: saving || simulateChecking || !simulateCanRun ? 0.6 : 1,
+            }}
+          >
+            {saving ? (
+              <ActivityIndicator color="white" />
+            ) : (
+              <Text style={{ color: "white", fontWeight: "900" }}>Acceptar simulació</Text>
+            )}
+          </Pressable>
+
+          <Pressable
+            onPress={() => setSimulateModalOpen(false)}
+            disabled={saving || simulateChecking}
+            style={{ paddingVertical: 12, alignItems: "center", marginTop: 10, opacity: saving || simulateChecking ? 0.6 : 1 }}
+          >
+            <Text style={{ color: "#666", fontWeight: "800" }}>Tancar</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+
   useEffect(() => {
     if (!matchId || Number.isNaN(matchId)) return;
     init();
@@ -353,6 +470,14 @@ export default function MatchScreen() {
       router.replace("/login");
       return;
     }
+
+    const { data: adminRow } = await supabase
+      .from("championship_admin_user")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    setIsAdmin(!!adminRow);
 
     const { data: refMap, error: refErr } = await supabase
       .from("referee_user")
@@ -935,11 +1060,151 @@ function onNoShowPress() {
 
   }
 
+
+  async function loadSimulationPreview() {
+    if (!matchRow || !teamA || !teamB) return;
+
+    try {
+      setSimulateChecking(true);
+      setSimulateCanRun(null);
+      setSimulatePreviewText("Comprovant si el partit està buit...");
+
+      const { data: teamPlayers, error: teamPlayersErr } = await supabase
+        .from("team_player")
+        .select("team_id, player_id")
+        .eq("championship_id", matchRow.championship_id)
+        .in("team_id", [teamA.id, teamB.id]);
+
+      if (teamPlayersErr) throw teamPlayersErr;
+
+      const teamACount = (teamPlayers ?? []).filter((x: any) => x.team_id === teamA.id).length;
+      const teamBCount = (teamPlayers ?? []).filter((x: any) => x.team_id === teamB.id).length;
+
+      setSimulateTeamACount(teamACount);
+      setSimulateTeamBCount(teamBCount);
+
+      if (teamACount < 4 || teamBCount < 4) {
+        setSimulateCanRun(false);
+        setSimulatePreviewText("❌ No es pot simular: cada equip ha de tenir almenys 4 jugadors.");
+        return;
+      }
+
+      const { data: matchRounds, error: mrErr } = await supabase
+        .from("match_round")
+        .select("id")
+        .eq("match_id", matchId);
+
+      if (mrErr) throw mrErr;
+
+      const matchRoundIds = (matchRounds ?? []).map((x: any) => x.id);
+
+      if (matchRoundIds.length === 0) {
+        setSimulateCanRun(true);
+        setSimulatePreviewText("✅ El partit està buit. Es generaran totes les rondes, jugades i el resultat final automàticament.");
+        return;
+      }
+
+      const { data: rounds, error: roundErr } = await supabase
+        .from("round")
+        .select("id")
+        .in("match_round_id", matchRoundIds);
+
+      if (roundErr) throw roundErr;
+
+      const roundIds = (rounds ?? []).map((x: any) => x.id);
+
+      const { count: lineupCount, error: lineupErr } = roundIds.length
+        ? await supabase
+            .from("round_lineup")
+            .select("id", { count: "exact", head: true })
+            .in("round_id", roundIds)
+        : { count: 0, error: null as any };
+
+      if (lineupErr) throw lineupErr;
+
+      const { data: plays, error: playErr } = roundIds.length
+        ? await supabase
+            .from("play")
+            .select("id")
+            .in("round_id", roundIds)
+        : { data: [], error: null as any };
+
+      if (playErr) throw playErr;
+
+      const playIds = (plays ?? []).map((x: any) => x.id);
+
+      const { count: eventCount, error: eventErr } = playIds.length
+        ? await supabase
+            .from("play_event")
+            .select("id", { count: "exact", head: true })
+            .in("play_id", playIds)
+        : { count: 0, error: null as any };
+
+      if (eventErr) throw eventErr;
+
+      const hasData =
+        matchRoundIds.length > 0 ||
+        roundIds.length > 0 ||
+        (lineupCount ?? 0) > 0 ||
+        (plays ?? []).length > 0 ||
+        (eventCount ?? 0) > 0;
+
+      if (hasData) {
+        setSimulateCanRun(false);
+        setSimulatePreviewText("❌ El partit ja té dades creades. La simulació completa només es permet en partits completament buits.");
+        return;
+      }
+
+      setSimulateCanRun(true);
+      setSimulatePreviewText("✅ El partit està buit. Es generaran totes les rondes, jugades i el resultat final automàticament.");
+    } catch (e: any) {
+      setSimulateCanRun(false);
+      setSimulatePreviewText(`❌ Error comprovant el partit: ${e?.message ?? "error desconegut"}`);
+    } finally {
+      setSimulateChecking(false);
+    }
+  }
+
+  async function runFullSimulation() {
+    Alert.alert(
+      "Simulació completa",
+      "Segur que vols simular el partit complet? Es tancarà automàticament amb totes les jugades generades.",
+      [
+        { text: "Cancel·lar", style: "cancel" },
+        {
+          text: "Confirmar",
+          onPress: async () => {
+            try {
+              setSaving(true);
+
+              const { error } = await supabase.rpc("admin_simulate_match_full", {
+                p_match_id: matchId,
+              });
+
+              if (error) throw error;
+
+              setSimulateModalOpen(false);
+              await refreshMatch();
+              await detectPreparedState();
+
+              Alert.alert("Fet ✅", "Partit simulat i finalitzat correctament.");
+            } catch (e: any) {
+              Alert.alert("Error", e?.message ?? "No s'ha pogut simular el partit.");
+            } finally {
+              setSaving(false);
+            }
+          },
+        },
+      ]
+    );
+  }
+
   if (loading || !matchView || !matchRow || !teamA || !teamB) {
     return (
       <View style={{ flex: 1, justifyContent: "center" }}>
 
       {coinFlipModal}
+      {simulateModal}
 
         <ActivityIndicator size="large" />
       </View>
@@ -956,6 +1221,7 @@ function onNoShowPress() {
   return (
     <View style={{ flex: 1, padding: 16 }}>
       {coinFlipModal}
+      {simulateModal}
       <Pressable
         onPress={() => router.replace('/matches')}
         style={{
@@ -973,6 +1239,7 @@ function onNoShowPress() {
 {myRefereeId !== 2 && (
       <Pressable
         onPress={() => {
+          if (saving || !!matchRow?.is_finished) return;
           Alert.alert(
             "Assignar",
             "Vols assignar aquest partit a l'àrbitre genèric?",
@@ -982,6 +1249,7 @@ function onNoShowPress() {
             ]
           );
         }}
+        disabled={saving || !!matchRow?.is_finished}
         style={{
           position: "absolute",
           top: 16,
@@ -992,6 +1260,7 @@ function onNoShowPress() {
           borderWidth: 1,
           borderColor: "#ccc",
           backgroundColor: "white",
+          opacity: saving || !!matchRow?.is_finished ? 0.6 : 1
         }}
       >
         <Text style={{ fontWeight: "600" }}>Assignar a àrbitre genèric</Text>
@@ -1144,7 +1413,6 @@ function onNoShowPress() {
       onPress={onNoShowPress}
       disabled={saving || !!matchRow?.is_finished || started}
       style={{
-        marginBottom: 50,
         padding: 14,
         borderRadius: 12,
         borderWidth: 1,
@@ -1159,6 +1427,35 @@ function onNoShowPress() {
         Finalitza el partit (5 - 0)
       </Text>
     </Pressable>
+    {isAdmin && (
+      <Pressable
+        onPress={() => {
+          setSimulateModalOpen(true);
+          setSimulateCanRun(null);
+          setSimulateTeamACount(null);
+          setSimulateTeamBCount(null);
+          setSimulatePreviewText("Carrega la previsualització abans de simular.");
+        }}
+        disabled={saving || !!matchRow?.is_finished}
+        style={{
+          paddingVertical: 8,
+          paddingHorizontal: 12,
+          borderRadius: 12,
+          borderWidth: 1,
+          borderColor: "#DDD6FE",
+          backgroundColor: "#F5F3FF",
+          marginBottom: 50,
+          marginTop: 14,
+          alignItems: "center",
+          opacity: saving || !!matchRow?.is_finished ? 0.6 : 1,
+        }}
+      >
+        <Text style={{ fontWeight: "800", color: "#6D28D9"}}>🧪 Simular partit complet</Text>
+        <Text style={{ marginTop: 2, color: "#7a2f2f" }}>
+        Opció per fer TESTING.
+      </Text>
+      </Pressable>
+)}
     </View>
   );
 }
