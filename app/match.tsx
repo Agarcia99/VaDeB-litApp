@@ -1418,6 +1418,7 @@ function onNoShowPress() {
         borderWidth: 1,
         borderColor: "#f3caca",
         backgroundColor: "#ffecec",
+        marginBottom: isAdmin ? 12 : 30,
         alignItems: "center",
         opacity: saving || !!matchRow?.is_finished || started ? 0.6 : 1,
       }}
@@ -1444,8 +1445,7 @@ function onNoShowPress() {
           borderWidth: 1,
           borderColor: "#DDD6FE",
           backgroundColor: "#F5F3FF",
-          marginBottom: 50,
-          marginTop: 14,
+          marginBottom: 30,
           alignItems: "center",
           opacity: saving || !!matchRow?.is_finished ? 0.6 : 1,
         }}
