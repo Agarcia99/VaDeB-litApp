@@ -161,7 +161,7 @@ export default function PublicWeekMatches() {
         return;
       }
 
-      const sortedMatches = ((data ?? []) as MatchRow[]).slice().sort(compareMatches);
+      const sortedMatches = ((data ?? []) as unknown as MatchRow[]).slice().sort(compareMatches);
       setMatches(sortedMatches);
       setLoading(false);
       setRefreshing(false);
@@ -344,7 +344,7 @@ export default function PublicWeekMatches() {
         : "Encara no hi ha resum (partit no iniciat)"}
     </Text>
 
-    <Text style={styles.matchIdBottom}>#{item.id}</Text>
+    {/*<Text style={styles.matchIdBottom}>#{item.id}</Text>*/}
   </View>
 )}
 

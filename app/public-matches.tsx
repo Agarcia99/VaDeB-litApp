@@ -657,7 +657,7 @@ setMatches(sortedMatches);
         : "Encara no hi ha resum (partit no iniciat)"}
     </Text>
 
-    <Text style={styles.matchIdBottom}>#{item.id}</Text>
+    {/*<Text style={styles.matchIdBottom}>#{item.id}</Text>*/}
   </View>
 )}
 

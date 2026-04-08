@@ -257,10 +257,11 @@ export default function AdminHome() {
         <Btn title="🎲 Sorteig/Crear partits" onPress={() => router.push("/admin/draw-matches")} />
         <Btn title="🎲 Crear eliminatories" onPress={() => router.push("/admin/draw-elimination")} />
         <Btn title="🗓️ Moure partits d'horari" onPress={() => router.push("/admin/calendar")} />
+        <Btn title="📋 Arbitrar qualsevol partit" onPress={() => router.push("/admin/all-matches")} />
+        <Btn title="🌧️ Ajornar / treure ajornament" onPress={() => router.push("/admin/match-postpone")} />
+        <Btn title="🕒 Canviar hores partit" onPress={() => router.push("/admin/edit-match-times")} />
 
         <View style={{ height: 8 }} />
-        <DangerBtn title="🌧️ Ajornar / treure ajornament" onPress={() => router.push("/admin/match-postpone")} />
-        <DangerBtn title="🕒 Canviar hores partit" onPress={() => router.push("/admin/edit-match-times")} />
         <DangerBtn title="🛠️ Corregir jugades" onPress={() => router.push("/admin/edit-match-plays")} />
         <DangerBtn title="🧹 Netejar partit (EXTREM)" onPress={() => setCleanModalOpen(true)} />
         <DangerBtn title="♻️ Recuperar partit (BACKUP)" onPress={() => setRestoreModalOpen(true)} />
