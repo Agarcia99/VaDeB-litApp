@@ -1156,6 +1156,14 @@ if (canasValue <= 0) {
 
         await createPlayEvent(play.id, "MATACANAS", 1, defenderPlayerId);
       } else if (pendingDefenseEvent === "AIR_CATCH") {
+        const { error } = await supabase
+          .from("play")
+          .update({ eliminated: true, eliminated_by_player_id: defenderPlayerId })
+          .eq("id", play.id);
+
+        if (error) {
+          Alert.alert("Error", `No s'ha pogut marcar eliminated: ${error.message}`);
+        }
         await createPlayEvent(play.id, "AIR_CATCH", 1, defenderPlayerId);
       }
 
@@ -1182,7 +1190,7 @@ if (canasValue <= 0) {
     if (!ok) return;
     router.replace({
   pathname: "/lineup",
-  params: { matchId: String(matchId), roundId: String(currentRound.round_id) },
+  params: { matchId: String(matchId), roundId: String(currentRound?.round_id) },
 });
   }
 
