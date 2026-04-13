@@ -14,6 +14,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { useFocusEffect } from "@react-navigation/native";
+import * as Calendar from "expo-calendar";
 import { useRouter, Stack } from "expo-router";
 import { supabase } from "../src/supabase";
 import { BackButton, RefreshButton } from "../components/HeaderButtons";
@@ -324,6 +325,69 @@ setMatches(sortedMatches);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset, status, teamId, customStart, customEnd]);
 
+  async function getDefaultCalendarId() {
+  const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+
+  const editableCalendars = calendars.filter(
+    (cal) =>
+      cal.allowsModifications &&
+      (Platform.OS !== "ios" || cal.source?.name !== "Subscribed Calendars")
+  );
+
+  const preferred =
+    editableCalendars.find((cal) => cal.isPrimary) ??
+    editableCalendars.find((cal) => cal.source?.name?.toLowerCase().includes("google")) ??
+    editableCalendars[0];
+
+  return preferred?.id ?? null;
+}
+
+async function addMatchToCalendar(item: MatchRow) {
+  try {
+    if (!item.match_date) {
+      Alert.alert("Sense data", "Aquest partit encara no té data assignada.");
+      return;
+    }
+
+    const { status } = await Calendar.requestCalendarPermissionsAsync();
+
+    if (status !== "granted") {
+      Alert.alert(
+        "Permís necessari",
+        "Cal donar permís al calendari per afegir aquest partit."
+      );
+      return;
+    }
+
+    const calendarId = await getDefaultCalendarId();
+
+    if (!calendarId) {
+      Alert.alert("Error", "No s'ha trobat cap calendari disponible al dispositiu.");
+      return;
+    }
+
+    const aName = trimCharField(item.team_a?.name) || item.team_a?.short_name || "Equip A";
+    const bName = trimCharField(item.team_b?.name) || item.team_b?.short_name || "Equip B";
+    const fieldCode = item.slot?.field_code ? `Camp ${item.slot.field_code}` : "Camp pendent";
+
+    const startDate = new Date(item.match_date);
+    const endDate = new Date(startDate.getTime() + 90 * 60 * 1000); // 90 min
+
+    await Calendar.createEventAsync(calendarId, {
+      title: `${aName} vs ${bName}`,
+      startDate,
+      endDate,
+      location: fieldCode,
+      notes: `Partit del campionat${item.phase?.name ? ` · ${item.phase.name}` : ""}\nID partit: ${item.id}`,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
+
+    Alert.alert("Afegit ✅", "El partit s'ha afegit al calendari.");
+  } catch (e: any) {
+    Alert.alert("Error", e?.message ?? "No s'ha pogut afegir el partit al calendari.");
+  }
+}
+
   if (loading) {
     return (
       <SafeAreaView edges={["left","right","bottom"]} style={styles.loadingWrap}>
@@ -565,8 +629,27 @@ setMatches(sortedMatches);
           return (
             <Pressable
               onPress={() => {
-                if (!canOpenSummary) return;
-                router.push({ pathname: "/match-summary", params: { id: item.id } });
+                if (isAjornat) {
+                  Alert.alert("Partit ajornat", "Aquest partit està ajornat temporalment.");
+                  return;
+                }
+
+                if (canOpenSummary) {
+                  router.push({ pathname: "/match-summary", params: { id: item.id } });
+                  return;
+                }
+
+                Alert.alert(
+                  "Partit pendent",
+                  "Vols afegir aquest partit al calendari del telèfon?",
+                  [
+                    { text: "Cancel·lar", style: "cancel" },
+                    {
+                      text: "Afegir al calendari",
+                      onPress: () => addMatchToCalendar(item),
+                    },
+                  ]
+                );
               }}
               onLongPress={() => Alert.alert("ID del partit", String(item.id))}
               delayLongPress={350}
@@ -654,7 +737,7 @@ setMatches(sortedMatches);
     <Text style={styles.pendingHint}>
       {isAjornat
         ? "Partit ajornat"
-        : "Encara no hi ha resum (partit no iniciat)"}
+        : "Partit pendent · Toca per afegir-lo al calendari"}
     </Text>
 
     {/*<Text style={styles.matchIdBottom}>#{item.id}</Text>*/}
@@ -975,6 +1058,7 @@ matchBottomRow: {
     marginTop: 10,
     color: "#666",
     fontWeight: "700",
+    fontSize:13,
   },
   openHint: {
     marginTop: 10,
