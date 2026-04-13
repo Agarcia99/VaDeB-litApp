@@ -49,7 +49,23 @@ function getFieldOrder(fieldCode?: string | null) {
   return 99;
 }
 
+function getMatchPriority(m: MatchRow) {
+  const isAjornat = m.display_status === "AJORNAT";
+  const isLive = !!m.started_at && !m.is_finished && !isAjornat;
+
+  if (isLive) return 0;          // primero en juego
+  if (!m.is_finished) return 1;  // luego pendientes y ajornats
+  return 2;                      // al final finalizados
+}
+
 function compareMatches(a: MatchRow, b: MatchRow) {
+  const priorityA = getMatchPriority(a);
+  const priorityB = getMatchPriority(b);
+
+  if (priorityA !== priorityB) {
+    return priorityA - priorityB;
+  }
+
   const timeA = a.match_date ? new Date(a.match_date).getTime() : Number.MAX_SAFE_INTEGER;
   const timeB = b.match_date ? new Date(b.match_date).getTime() : Number.MAX_SAFE_INTEGER;
 

@@ -555,7 +555,7 @@ export default function TeamRankingsScreen() {
                 </Text>
                 <Text
                   style={{
-                    width: 44,
+                    width: 70,
                     textAlign: "right",
                     fontWeight: "900",
                     color: r.diff >= 0 ? "#16a34a" : "#dc2626",

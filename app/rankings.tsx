@@ -39,6 +39,7 @@ function Block({
   getValue,
   accent,
   emptyText,
+  onPressRow,
 }: {
   title: string;
   loading: boolean;
@@ -47,6 +48,7 @@ function Block({
   getValue: (r: Row) => number;
   accent: string;
   emptyText?: string;
+  onPressRow?: (r: Row) => void;
 }) {
   const playerLabel = (r: Row) => {
     const short = (r.team_short_name ?? "").trim();
@@ -94,15 +96,17 @@ function Block({
           renderItem={({ item }) => {
             const medal = medalForRank(item.rank);
             return (
-              <View
-                style={{
+              <Pressable
+                onPress={() => onPressRow?.(item)}
+                style={({ pressed }) => ({
                   flexDirection: "row",
                   justifyContent: "space-between",
                   alignItems: "center",
                   paddingVertical: 10,
                   borderTopWidth: item.rank === rows[0]?.rank ? 0 : 1,
                   borderTopColor: "#f0f0f0",
-                }}
+                  opacity: pressed ? 0.85 : 1,
+                })}
               >
                 <View style={{ flexDirection: "row", alignItems: "center", flex: 1, paddingRight: 10 }}>
                   <View
@@ -142,7 +146,7 @@ function Block({
                     {valueLabel ? ` ${valueLabel}` : ""}
                   </Text>
                 </View>
-              </View>
+              </Pressable>
             );
           }}
         />
@@ -264,6 +268,13 @@ export default function RankingsScreen() {
     return { topC, topM, topR };
   }, [canadors, matacanes, recollidors]);
 
+  function openPlayerDetail(row: Row) {
+    router.push({
+      pathname: "/player-detail",
+      params: { playerId: String(row.player_id) },
+    });
+  }
+
   return (
     <ScrollView
       style={{ flex: 1, backgroundColor: "#f6f6f6" }}
@@ -271,11 +282,32 @@ export default function RankingsScreen() {
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      {/* Back (same vibe as PublicMatches) */}
-<BackButton
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginTop: 5,
+        }}
+      >
+        <BackButton
           onPress={() => router.replace("/public-menu")}
-          style={{ marginTop:5 }}
         />
+
+        <Pressable
+          onPress={() => router.push("/player-search")}
+          style={{
+            paddingVertical: 8,
+            paddingHorizontal: 12,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: "#E5E7EB",
+            backgroundColor: "white",
+          }}
+        >
+          <Text style={{ fontWeight: "900", color: "#111827" }}>🔎 Cercar jugador</Text>
+        </Pressable>
+      </View>
 
       <Text style={{ fontSize: 20, fontWeight: "900", marginTop: 14, textAlign: "center", color: "#111827" }}>
         Classificacions individuals
@@ -403,6 +435,7 @@ export default function RankingsScreen() {
         getValue={(r) => r.total_canes ?? 0}
         accent="#16a34a"
         emptyText={hasQuery ? "No hi ha coincidències a canadors." : "Encara no hi ha dades."}
+        onPressRow={openPlayerDetail}
       />
 
       <Block
@@ -413,6 +446,7 @@ export default function RankingsScreen() {
         getValue={(r) => r.total_matacanes ?? 0}
         accent="#ef4444"
         emptyText={hasQuery ? "No hi ha coincidències a matacanes." : "Encara no hi ha dades."}
+        onPressRow={openPlayerDetail}
       />
 
       <Block
@@ -423,6 +457,7 @@ export default function RankingsScreen() {
         getValue={(r) => r.total_air_catches ?? 0}
         accent="#3b82f6"
         emptyText={hasQuery ? "No hi ha coincidències a recollidors." : "Encara no hi ha dades."}
+        onPressRow={openPlayerDetail}
       />
     </ScrollView>
   );
