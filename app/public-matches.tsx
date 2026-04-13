@@ -378,7 +378,7 @@ async function addMatchToCalendar(item: MatchRow) {
       startDate,
       endDate,
       location: fieldCode,
-      notes: `Partit del campionat${item.phase?.name ? ` · ${item.phase.name}` : ""}\nID partit: ${item.id}`,
+      notes: `Partit del campionat${item.phase?.name ? ` · ${item.phase.name}` : ""}`,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
     });
 

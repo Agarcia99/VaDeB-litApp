@@ -52,7 +52,13 @@
           }
         }
       ],
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Permet que VaDeBelit accedeixi al teu calendari per afegir-hi partits."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
