@@ -202,7 +202,7 @@ export default function PlayerDetailScreen() {
             {summary.player_name}
           </Text>
           <Text style={{ marginTop: 6, color: "#6B7280", fontWeight: "800", textAlign: "center" }}>
-            {summary.team_short_name || summary.team_name}
+            {summary.team_name || summary.team_short_name }
             {summary.is_captain ? " · Capità" : ""}
           </Text>
 
@@ -306,8 +306,8 @@ export default function PlayerDetailScreen() {
                 >
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontWeight: "900", color: "#111827", fontSize: 16 }}>
-                        vs {item.opponent_team_short_name || item.opponent_team_name || "Rival"}
+                      <Text style={{ fontWeight: "900", color: "#111827", fontSize: 13 }}>
+                        vs {item.opponent_team_name || item.opponent_team_short_name || "Rival"}
                       </Text>
                       <Text style={{ marginTop: 4, color: "#6B7280", fontWeight: "700" }}>
                         {formatDateDDMMYYYY_HHMM(item.match_date)}

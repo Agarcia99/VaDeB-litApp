@@ -117,8 +117,6 @@ export default function PlayerSearchScreen() {
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="Ex: Joan / Barça / CH4-..."
-          placeholderTextColor="#9CA3AF"
           autoCapitalize="none"
           autoCorrect={false}
           style={{
@@ -155,7 +153,7 @@ export default function PlayerSearchScreen() {
             </View>
           }
           renderItem={({ item }) => {
-            const subtitle = [item.team_short_name || item.team_name || null, item.external_code || null].filter(Boolean).join(" · ");
+            const subtitle = [item.team_name || item.team_short_name || null, item.external_code || null].filter(Boolean).join(" · ");
             return (
               <Pressable
                 onPress={() =>
