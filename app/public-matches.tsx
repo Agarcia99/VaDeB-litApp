@@ -10,11 +10,13 @@ import {
   StyleSheet,
   RefreshControl,
   Platform,
+  Modal,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { useFocusEffect } from "@react-navigation/native";
 import * as Calendar from "expo-calendar";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter, Stack } from "expo-router";
 import { supabase } from "../src/supabase";
 import { BackButton, RefreshButton } from "../components/HeaderButtons";
@@ -40,6 +42,15 @@ type MatchRow = {
   slot?: { field_code: string | null } | null;
   phase?: { name: string | null } | null;
 };
+
+type CalendarOption = {
+  id: string;
+  title: string;
+  subtitle: string;
+};
+
+const CALENDAR_PREF_KEY = "preferred_calendar_id_v1";
+const CALENDAR_PREF_TITLE_KEY = "preferred_calendar_title_v1";
 
 function pad2(n: number) {
   return String(n).padStart(2, "0");
@@ -131,6 +142,10 @@ const [showApplySingleDay, setShowApplySingleDay] = useState(false);
 
   const [teamId, setTeamId] = useState<number | null>(null);
   const [showTeamPicker, setShowTeamPicker] = useState(false);
+  const [calendarPickerOpen, setCalendarPickerOpen] = useState(false);
+  const [calendarOptions, setCalendarOptions] = useState<CalendarOption[]>([]);
+  const [calendarLoading, setCalendarLoading] = useState(false);
+  const [calendarTargetMatch, setCalendarTargetMatch] = useState<MatchRow | null>(null);
 const displayStart = pickingCustom ? draftStart : customStart;
 const displayEnd = pickingCustom ? draftEnd : customEnd;
 
@@ -236,6 +251,9 @@ setShowApplySingleDay(true);   // ✅ AFEGEIX AQUESTA LÍNIA
   }
 }
 
+async function clearSavedCalendarPreference() {
+  await AsyncStorage.multiRemove([CALENDAR_PREF_KEY, CALENDAR_PREF_TITLE_KEY]);
+}
 
   async function load(isRefresh = false) {
     if (isRefresh) setRefreshing(true);
@@ -325,68 +343,225 @@ setMatches(sortedMatches);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [preset, status, teamId, customStart, customEnd]);
 
-  async function getDefaultCalendarId() {
+  async function openCalendarPickerForMatch(item: MatchRow) {
+    try {
+      if (!item.match_date) {
+        Alert.alert("Sense data", "Aquest partit encara no té data assignada.");
+        return;
+      }
+
+      setCalendarLoading(true);
+      setCalendarTargetMatch(item);
+
+      const { status } = await Calendar.requestCalendarPermissionsAsync();
+
+      if (status !== "granted") {
+        Alert.alert(
+          "Permís necessari",
+          "Cal donar permís al calendari per afegir aquest partit."
+        );
+        return;
+      }
+
+      const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+
+      const editableCalendars = calendars.filter(
+        (cal) =>
+          cal.allowsModifications &&
+          !!cal.id &&
+          !!cal.title &&
+          (Platform.OS !== "ios" || cal.source?.name !== "Subscribed Calendars")
+      );
+
+      if (!editableCalendars.length) {
+        Alert.alert("Error", "No s'ha trobat cap calendari editable al dispositiu.");
+        return;
+      }
+
+      const options: CalendarOption[] = editableCalendars
+        .map((cal) => ({
+          id: cal.id,
+          title: cal.title,
+          subtitle: [cal.source?.name ?? null, cal.isPrimary ? "Principal" : null]
+            .filter(Boolean)
+            .join(" · "),
+        }))
+        .sort((a, b) => a.title.localeCompare(b.title));
+
+      setCalendarOptions(options);
+      setCalendarPickerOpen(true);
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "No s'ha pogut carregar la llista de calendaris.");
+    } finally {
+      setCalendarLoading(false);
+    }
+  }
+
+  async function addMatchToCalendar(calendarId: string, calendarTitle: string, item: MatchRow) {
+    try {
+      if (!item.match_date) {
+        Alert.alert("Sense data", "Aquest partit encara no té data assignada.");
+        return;
+      }
+
+      const aName = trimCharField(item.team_a?.name) || item.team_a?.short_name || "Equip A";
+      const bName = trimCharField(item.team_b?.name) || item.team_b?.short_name || "Equip B";
+      const fieldCode = item.slot?.field_code ? `Camp ${item.slot.field_code}` : "Camp pendent";
+
+      const startDate = new Date(item.match_date);
+      const endDate = new Date(startDate.getTime() + 90 * 60 * 1000);
+
+      await Calendar.createEventAsync(calendarId, {
+        title: `${aName} vs ${bName}`,
+        startDate,
+        endDate,
+        location: fieldCode,
+        notes: `Partit del campionat${item.phase?.name ? ` · ${item.phase.name}` : ""}`,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      });
+
+      await AsyncStorage.multiSet([
+        [CALENDAR_PREF_KEY, calendarId],
+        [CALENDAR_PREF_TITLE_KEY, calendarTitle],
+      ]);
+
+      setCalendarPickerOpen(false);
+      setCalendarOptions([]);
+      setCalendarTargetMatch(null);
+      Alert.alert("Afegit ✅", `El partit s'ha afegit al calendari: ${calendarTitle}`);
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "No s'ha pogut afegir el partit al calendari.");
+    }
+  }
+
+  async function tryAddToSavedCalendar(item: MatchRow) {
+  const [[, savedCalendarId], [, savedCalendarTitle]] = await AsyncStorage.multiGet([
+    CALENDAR_PREF_KEY,
+    CALENDAR_PREF_TITLE_KEY,
+  ]);
+
+  if (!savedCalendarId) return false;
+
   const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
 
-  const editableCalendars = calendars.filter(
+  const stillValid = calendars.find(
     (cal) =>
+      cal.id === savedCalendarId &&
       cal.allowsModifications &&
       (Platform.OS !== "ios" || cal.source?.name !== "Subscribed Calendars")
   );
 
-  const preferred =
-    editableCalendars.find((cal) => cal.isPrimary) ??
-    editableCalendars.find((cal) => cal.source?.name?.toLowerCase().includes("google")) ??
-    editableCalendars[0];
-
-  return preferred?.id ?? null;
-}
-
-async function addMatchToCalendar(item: MatchRow) {
-  try {
-    if (!item.match_date) {
-      Alert.alert("Sense data", "Aquest partit encara no té data assignada.");
-      return;
-    }
-
-    const { status } = await Calendar.requestCalendarPermissionsAsync();
-
-    if (status !== "granted") {
-      Alert.alert(
-        "Permís necessari",
-        "Cal donar permís al calendari per afegir aquest partit."
-      );
-      return;
-    }
-
-    const calendarId = await getDefaultCalendarId();
-
-    if (!calendarId) {
-      Alert.alert("Error", "No s'ha trobat cap calendari disponible al dispositiu.");
-      return;
-    }
-
-    const aName = trimCharField(item.team_a?.name) || item.team_a?.short_name || "Equip A";
-    const bName = trimCharField(item.team_b?.name) || item.team_b?.short_name || "Equip B";
-    const fieldCode = item.slot?.field_code ? `Camp ${item.slot.field_code}` : "Camp pendent";
-
-    const startDate = new Date(item.match_date);
-    const endDate = new Date(startDate.getTime() + 90 * 60 * 1000); // 90 min
-
-    await Calendar.createEventAsync(calendarId, {
-      title: `${aName} vs ${bName}`,
-      startDate,
-      endDate,
-      location: fieldCode,
-      notes: `Partit del campionat${item.phase?.name ? ` · ${item.phase.name}` : ""}`,
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    });
-
-    Alert.alert("Afegit ✅", "El partit s'ha afegit al calendari.");
-  } catch (e: any) {
-    Alert.alert("Error", e?.message ?? "No s'ha pogut afegir el partit al calendari.");
+  if (!stillValid) {
+    await AsyncStorage.multiRemove([CALENDAR_PREF_KEY, CALENDAR_PREF_TITLE_KEY]);
+    return false;
   }
+
+  await addMatchToCalendar(savedCalendarId, savedCalendarTitle ?? stillValid.title, item);
+  return true;
 }
+
+  const calendarPickerModal = (
+    <Modal
+      visible={calendarPickerOpen}
+      transparent
+      animationType="fade"
+      onRequestClose={() => {
+        if (calendarLoading) return;
+        setCalendarPickerOpen(false);
+      }}
+    >
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: "rgba(0,0,0,0.45)",
+          justifyContent: "center",
+          padding: 18,
+        }}
+      >
+        <View
+          style={{
+            backgroundColor: "white",
+            borderRadius: 18,
+            padding: 16,
+            borderWidth: 1,
+            borderColor: "#E5E7EB",
+            maxHeight: "75%",
+          }}
+        >
+          <Text style={{ fontSize: 20, fontWeight: "900", color: "#111827", textAlign: "center" }}>
+            Selecciona calendari
+          </Text>
+          <Text style={{ marginTop: 6, color: "#6B7280", fontWeight: "700", textAlign: "center" }}>
+            Tria on vols afegir aquest partit pendent.
+          </Text>
+
+          <ScrollView style={{ marginTop: 14 }} showsVerticalScrollIndicator={false}>
+            {calendarLoading ? (
+              <View style={{ paddingVertical: 24, alignItems: "center" }}>
+                <ActivityIndicator />
+              </View>
+            ) : (
+              calendarOptions.map((cal) => (
+                <Pressable
+                  key={cal.id}
+                  onPress={() => {
+                    if (!calendarTargetMatch) return;
+                    addMatchToCalendar(cal.id, cal.title, calendarTargetMatch);
+                  }}
+                  style={({ pressed }) => ({
+                    borderWidth: 1,
+                    borderColor: "#E5E7EB",
+                    borderRadius: 14,
+                    padding: 14,
+                    marginBottom: 10,
+                    backgroundColor: "white",
+                    opacity: pressed ? 0.92 : 1,
+                  })}
+                >
+                  <Text style={{ fontWeight: "900", color: "#111827", fontSize: 16 }}>{cal.title}</Text>
+                  {cal.subtitle ? (
+                    <Text style={{ marginTop: 4, color: "#6B7280", fontWeight: "700" }}>{cal.subtitle}</Text>
+                  ) : null}
+                </Pressable>
+              ))
+            )}
+          </ScrollView>
+
+          <Pressable
+            onPress={async () => {
+              await clearSavedCalendarPreference();
+              Alert.alert("Calendari restablert", "La propera vegada podràs escollir un calendari de nou.");
+              setCalendarPickerOpen(false);
+              setCalendarTargetMatch(null);
+            }}
+            style={{
+              marginTop: 12,
+              paddingVertical: 12,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: "#DC2626", fontWeight: "900" }}>
+              Restablir calendari guardat
+            </Text>
+          </Pressable>
+
+          <Pressable
+            onPress={() => {
+              setCalendarPickerOpen(false);
+              setCalendarTargetMatch(null);
+            }}
+            style={{
+              marginTop: 8,
+              paddingVertical: 12,
+              alignItems: "center",
+            }}
+          >
+            <Text style={{ color: "#6B7280", fontWeight: "900" }}>Cancel·lar</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
 
   if (loading) {
     return (
@@ -398,6 +573,7 @@ async function addMatchToCalendar(item: MatchRow) {
 
   return (
     <SafeAreaView edges={["left","right","bottom"]} style={styles.screen}>
+      {calendarPickerModal}
 <FlatList
         ListHeaderComponent={
           <View>
@@ -640,16 +816,25 @@ async function addMatchToCalendar(item: MatchRow) {
                 }
 
                 Alert.alert(
-                  "Partit pendent",
-                  "Vols afegir aquest partit al calendari del telèfon?",
-                  [
-                    { text: "Cancel·lar", style: "cancel" },
-                    {
-                      text: "Afegir al calendari",
-                      onPress: () => addMatchToCalendar(item),
+                "Partit pendent",
+                "Vols afegir aquest partit al calendari del telèfon?",
+                [
+                  { text: "Cancel·lar", style: "cancel" },
+                  {
+                    text: "Afegir al calendari",
+                    onPress: async () => {
+                      const reused = await tryAddToSavedCalendar(item);
+                      if (!reused) {
+                        await openCalendarPickerForMatch(item);
+                      }
                     },
-                  ]
-                );
+                  },
+                  {
+                    text: "Canviar calendari",
+                    onPress: () => openCalendarPickerForMatch(item),
+                  },
+                ]
+              );
               }}
               onLongPress={() => Alert.alert("ID del partit", String(item.id))}
               delayLongPress={350}
