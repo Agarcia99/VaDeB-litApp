@@ -285,8 +285,8 @@ setLoading(false);
         alignItems: "center",
       }}
     >
-      <Text style={{ fontWeight: "900", fontSize: 16 }}>{title}</Text>
-      <Text style={{ marginTop: 6, color: "#6b6b6b", fontWeight: "600" }}>
+      <Text style={{ fontWeight: "900", fontSize: 16 ,textAlign: "center"}}>{title}</Text>
+      <Text style={{ marginTop: 6, color: "#6b6b6b", fontWeight: "600",textAlign: "center" }}>
         {subtitle}
       </Text>
     </Pressable>
