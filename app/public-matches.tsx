@@ -148,6 +148,8 @@ const [showApplySingleDay, setShowApplySingleDay] = useState(false);
   const [calendarTargetMatch, setCalendarTargetMatch] = useState<MatchRow | null>(null);
 const displayStart = pickingCustom ? draftStart : customStart;
 const displayEnd = pickingCustom ? draftEnd : customEnd;
+const [savedCalendarId, setSavedCalendarId] = useState<string | null>(null);
+const [savedCalendarTitle, setSavedCalendarTitle] = useState<string | null>(null);
 
   useFocusEffect(
     useCallback(() => {
@@ -251,8 +253,20 @@ setShowApplySingleDay(true);   // ✅ AFEGEIX AQUESTA LÍNIA
   }
 }
 
+async function loadSavedCalendarPreference() {
+  const [[, id], [, title]] = await AsyncStorage.multiGet([
+    CALENDAR_PREF_KEY,
+    CALENDAR_PREF_TITLE_KEY,
+  ]);
+
+  setSavedCalendarId(id ?? null);
+  setSavedCalendarTitle(title ?? null);
+}
+
 async function clearSavedCalendarPreference() {
   await AsyncStorage.multiRemove([CALENDAR_PREF_KEY, CALENDAR_PREF_TITLE_KEY]);
+  setSavedCalendarId(null);
+  setSavedCalendarTitle(null);
 }
 
   async function load(isRefresh = false) {
@@ -393,6 +407,7 @@ setMatches(sortedMatches);
     } catch (e: any) {
       Alert.alert("Error", e?.message ?? "No s'ha pogut carregar la llista de calendaris.");
     } finally {
+      await loadSavedCalendarPreference();
       setCalendarLoading(false);
     }
   }
@@ -424,7 +439,8 @@ setMatches(sortedMatches);
         [CALENDAR_PREF_KEY, calendarId],
         [CALENDAR_PREF_TITLE_KEY, calendarTitle],
       ]);
-
+      setSavedCalendarId(calendarId);
+      setSavedCalendarTitle(calendarTitle);
       setCalendarPickerOpen(false);
       setCalendarOptions([]);
       setCalendarTargetMatch(null);
@@ -494,7 +510,25 @@ setMatches(sortedMatches);
           <Text style={{ marginTop: 6, color: "#6B7280", fontWeight: "700", textAlign: "center" }}>
             Tria on vols afegir aquest partit pendent.
           </Text>
-
+          {savedCalendarId && savedCalendarTitle ? (
+            <View
+              style={{
+                marginTop: 12,
+                backgroundColor: "#F9FAFB",
+                borderWidth: 1,
+                borderColor: "#E5E7EB",
+                borderRadius: 12,
+                padding: 10,
+              }}
+            >
+              <Text style={{ color: "#374151", fontWeight: "700", textAlign: "center" }}>
+                Calendari guardat actual
+              </Text>
+              <Text style={{ color: "#111827", fontWeight: "900", textAlign: "center", marginTop: 4 }}>
+                {savedCalendarTitle}
+              </Text>
+            </View>
+          ) : null}
           <ScrollView style={{ marginTop: 14 }} showsVerticalScrollIndicator={false}>
             {calendarLoading ? (
               <View style={{ paddingVertical: 24, alignItems: "center" }}>
@@ -527,23 +561,28 @@ setMatches(sortedMatches);
             )}
           </ScrollView>
 
-          <Pressable
-            onPress={async () => {
-              await clearSavedCalendarPreference();
-              Alert.alert("Calendari restablert", "La propera vegada podràs escollir un calendari de nou.");
-              setCalendarPickerOpen(false);
-              setCalendarTargetMatch(null);
-            }}
-            style={{
-              marginTop: 12,
-              paddingVertical: 12,
-              alignItems: "center",
-            }}
-          >
-            <Text style={{ color: "#DC2626", fontWeight: "900" }}>
-              Restablir calendari guardat
-            </Text>
-          </Pressable>
+          {savedCalendarId ? (
+            <Pressable
+              onPress={async () => {
+                await clearSavedCalendarPreference();
+                Alert.alert(
+                  "Calendari restablert",
+                  "La propera vegada podràs escollir un calendari de nou."
+                );
+                setCalendarPickerOpen(false);
+                setCalendarTargetMatch(null);
+              }}
+              style={{
+                marginTop: 12,
+                paddingVertical: 12,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: "#DC2626", fontWeight: "900" }}>
+                Restablir calendari guardat
+              </Text>
+            </Pressable>
+          ) : null}
 
           <Pressable
             onPress={() => {
@@ -820,19 +859,29 @@ setMatches(sortedMatches);
                 "Vols afegir aquest partit al calendari del telèfon?",
                 [
                   { text: "Cancel·lar", style: "cancel" },
-                  {
-                    text: "Afegir al calendari",
-                    onPress: async () => {
-                      const reused = await tryAddToSavedCalendar(item);
-                      if (!reused) {
-                        await openCalendarPickerForMatch(item);
-                      }
-                    },
-                  },
-                  {
-                    text: "Canviar calendari",
-                    onPress: () => openCalendarPickerForMatch(item),
-                  },
+
+                  ...(savedCalendarId
+                    ? [
+                        {
+                          text: `Afegir a ${savedCalendarTitle ?? "calendari guardat"}`,
+                          onPress: async () => {
+                            const reused = await tryAddToSavedCalendar(item);
+                            if (!reused) {
+                              await openCalendarPickerForMatch(item);
+                            }
+                          },
+                        },
+                        {
+                          text: "Canviar calendari",
+                          onPress: () => openCalendarPickerForMatch(item),
+                        },
+                      ]
+                    : [
+                        {
+                          text: "Afegir al calendari",
+                          onPress: () => openCalendarPickerForMatch(item),
+                        },
+                      ]),
                 ]
               );
               }}
