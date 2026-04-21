@@ -14,150 +14,150 @@ export default function PublicMenu() {
   const [championTeamName, setChampionTeamName] = useState<string | null>(null);
 
 
-// --- App update gate (manual store update prompt) ---
-type AppReleaseRow = {
-  platform: "android" | "ios";
-  latest_version: string;
-  min_supported_version: string | null;
-  store_url: string;
-  message: string | null;
-  is_active: boolean;
-};
+  // --- App update gate (manual store update prompt) ---
+  type AppReleaseRow = {
+    platform: "android" | "ios";
+    latest_version: string;
+    min_supported_version: string | null;
+    store_url: string;
+    message: string | null;
+    is_active: boolean;
+  };
 
-type MaintenanceConfigRow = {
-  value: {
-    enabled?: boolean;
-    message?: string | null;
-  } | null;
-};
+  type MaintenanceConfigRow = {
+    value: {
+      enabled?: boolean;
+      message?: string | null;
+    } | null;
+  };
 
-const currentVersion =
-  (Constants.expoConfig?.version as string | undefined) ??
-  Application.nativeApplicationVersion ??
-  "0.0.0";
+  const currentVersion =
+    (Constants.expoConfig?.version as string | undefined) ??
+    Application.nativeApplicationVersion ??
+    "0.0.0";
 
-const [updateVisible, setUpdateVisible] = useState(false);
-const [updateForce, setUpdateForce] = useState(false);
-const [updateMessage, setUpdateMessage] = useState<string | null>(null);
-const [updateStoreUrl, setUpdateStoreUrl] = useState<string | null>(null);
-const [updateLatest, setUpdateLatest] = useState<string | null>(null);
+  const [updateVisible, setUpdateVisible] = useState(false);
+  const [updateForce, setUpdateForce] = useState(false);
+  const [updateMessage, setUpdateMessage] = useState<string | null>(null);
+  const [updateStoreUrl, setUpdateStoreUrl] = useState<string | null>(null);
+  const [updateLatest, setUpdateLatest] = useState<string | null>(null);
 
-const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
-const [maintenanceMessage, setMaintenanceMessage] = useState<string>(
-  "Aplicació en manteniment, torna més tard"
-);
+  const [isMaintenanceMode, setIsMaintenanceMode] = useState(false);
+  const [maintenanceMessage, setMaintenanceMessage] = useState<string>(
+    "Aplicació en manteniment, torna més tard"
+  );
 
-function parseVersion(v: string) {
-  return String(v)
-    .split(".")
-    .map((x) => {
-      const n = parseInt(x, 10);
-      return Number.isFinite(n) ? n : 0;
-    });
-}
-
-function isVersionLess(a: string, b: string) {
-  const av = parseVersion(a);
-  const bv = parseVersion(b);
-  const n = Math.max(av.length, bv.length);
-  for (let i = 0; i < n; i++) {
-    const ai = av[i] ?? 0;
-    const bi = bv[i] ?? 0;
-    if (ai < bi) return true;
-    if (ai > bi) return false;
+  function parseVersion(v: string) {
+    return String(v)
+      .split(".")
+      .map((x) => {
+        const n = parseInt(x, 10);
+        return Number.isFinite(n) ? n : 0;
+      });
   }
-  return false;
-}
 
-const checkForAppUpdate = useCallback(async () => {
-  try {
-    const platform = Platform.OS === "android" ? "android" : "ios";
-
-    const q = await supabase
-      .from("app_release")
-      .select("platform,latest_version,min_supported_version,store_url,message,is_active")
-      .eq("is_active", true)
-      .eq("platform", platform)
-      .order("latest_version", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-
-    if (q.error || !q.data) return;
-
-    const rel = q.data as AppReleaseRow;
-
-    // store url + message
-    setUpdateStoreUrl(rel.store_url ?? null);
-    setUpdateMessage(rel.message ?? null);
-    setUpdateLatest(rel.latest_version ?? null);
-
-    const mustUpdate =
-      !!rel.min_supported_version && isVersionLess(currentVersion, rel.min_supported_version);
-
-    const hasUpdate =
-      !!rel.latest_version && isVersionLess(currentVersion, rel.latest_version);
-
-    if (mustUpdate || hasUpdate) {
-      setUpdateForce(mustUpdate);
-      setUpdateVisible(true);
-    } else {
-      setUpdateVisible(false);
+  function isVersionLess(a: string, b: string) {
+    const av = parseVersion(a);
+    const bv = parseVersion(b);
+    const n = Math.max(av.length, bv.length);
+    for (let i = 0; i < n; i++) {
+      const ai = av[i] ?? 0;
+      const bi = bv[i] ?? 0;
+      if (ai < bi) return true;
+      if (ai > bi) return false;
     }
-  } catch (e: any) {
-    console.log("Update check failed:", e?.message ?? e);
+    return false;
   }
-}, [currentVersion]);
 
-async function openStore() {
-  if (!updateStoreUrl) {
-    Alert.alert("Error", "Falta l'enllaç de la botiga per actualitzar.");
-    return;
-  }
-  try {
-    await Linking.openURL(updateStoreUrl);
-  } catch (e) {
-    // Android fallback if market:// fails
-    if (Platform.OS === "android") {
-      const pkg = Application.applicationId;
-      if (pkg) {
-        await Linking.openURL(`https://play.google.com/store/apps/details?id=${pkg}`);
-        return;
+  const checkForAppUpdate = useCallback(async () => {
+    try {
+      const platform = Platform.OS === "android" ? "android" : "ios";
+
+      const q = await supabase
+        .from("app_release")
+        .select("platform,latest_version,min_supported_version,store_url,message,is_active")
+        .eq("is_active", true)
+        .eq("platform", platform)
+        .order("latest_version", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (q.error || !q.data) return;
+
+      const rel = q.data as AppReleaseRow;
+
+      // store url + message
+      setUpdateStoreUrl(rel.store_url ?? null);
+      setUpdateMessage(rel.message ?? null);
+      setUpdateLatest(rel.latest_version ?? null);
+
+      const mustUpdate =
+        !!rel.min_supported_version && isVersionLess(currentVersion, rel.min_supported_version);
+
+      const hasUpdate =
+        !!rel.latest_version && isVersionLess(currentVersion, rel.latest_version);
+
+      if (mustUpdate || hasUpdate) {
+        setUpdateForce(mustUpdate);
+        setUpdateVisible(true);
+      } else {
+        setUpdateVisible(false);
       }
+    } catch (e: any) {
+      console.log("Update check failed:", e?.message ?? e);
     }
-    Alert.alert("Error", "No s'ha pogut obrir la botiga.");
-  }
-}
+  }, [currentVersion]);
 
-const loadMaintenanceMode = useCallback(async (championshipId: number) => {
-  try {
-    const { data, error } = await supabase
-      .from("championship_config")
-      .select("value")
-      .eq("championship_id", championshipId)
-      .is("phase_id", null)
-      .eq("key", "maintenance_mode")
-      .limit(1)
-      .maybeSingle();
-
-    if (error) {
-      setIsMaintenanceMode(false);
-      setMaintenanceMessage("Aplicació en manteniment, torna més tard");
+  async function openStore() {
+    if (!updateStoreUrl) {
+      Alert.alert("Error", "Falta l'enllaç de la botiga per actualitzar.");
       return;
     }
-
-    const row = data as MaintenanceConfigRow | null;
-    const enabled = row?.value?.enabled === true;
-    const message =
-      row?.value?.message?.trim() || "Aplicació en manteniment, torna més tard";
-
-    setIsMaintenanceMode(enabled);
-    setMaintenanceMessage(message);
-  } catch {
-    setIsMaintenanceMode(false);
-    setMaintenanceMessage("Aplicació en manteniment, torna més tard");
+    try {
+      await Linking.openURL(updateStoreUrl);
+    } catch (e) {
+      // Android fallback if market:// fails
+      if (Platform.OS === "android") {
+        const pkg = Application.applicationId;
+        if (pkg) {
+          await Linking.openURL(`https://play.google.com/store/apps/details?id=${pkg}`);
+          return;
+        }
+      }
+      Alert.alert("Error", "No s'ha pogut obrir la botiga.");
+    }
   }
-}, []);
-  
+
+  const loadMaintenanceMode = useCallback(async (championshipId: number) => {
+    try {
+      const { data, error } = await supabase
+        .from("championship_config")
+        .select("value")
+        .eq("championship_id", championshipId)
+        .is("phase_id", null)
+        .eq("key", "maintenance_mode")
+        .limit(1)
+        .maybeSingle();
+
+      if (error) {
+        setIsMaintenanceMode(false);
+        setMaintenanceMessage("Aplicació en manteniment, torna més tard");
+        return;
+      }
+
+      const row = data as MaintenanceConfigRow | null;
+      const enabled = row?.value?.enabled === true;
+      const message =
+        row?.value?.message?.trim() || "Aplicació en manteniment, torna més tard";
+
+      setIsMaintenanceMode(enabled);
+      setMaintenanceMessage(message);
+    } catch {
+      setIsMaintenanceMode(false);
+      setMaintenanceMessage("Aplicació en manteniment, torna més tard");
+    }
+  }, []);
+
   const loadChampionBanner = useCallback(
     async (championshipId: number) => {
       // Default: no banner
@@ -207,7 +207,7 @@ const loadMaintenanceMode = useCallback(async (championshipId: number) => {
     []
   );
 
-const loadChampionship = useCallback(async () => {
+  const loadChampionship = useCallback(async () => {
     setLoading(true);
 
     // Intent 1: championship amb is_active = true
@@ -219,12 +219,12 @@ const loadChampionship = useCallback(async () => {
       .maybeSingle();
 
     if (!q1.error && q1.data?.name) {
-  setChampName(q1.data.name);
-  await loadMaintenanceMode(q1.data.id);
-  await loadChampionBanner(q1.data.id);
-  setLoading(false);
-  return;
-}
+      setChampName(q1.data.name);
+      await loadMaintenanceMode(q1.data.id);
+      await loadChampionBanner(q1.data.id);
+      setLoading(false);
+      return;
+    }
 
     // Intent 2: primer championship disponible
     const q2 = await supabase
@@ -235,18 +235,18 @@ const loadChampionship = useCallback(async () => {
       .maybeSingle();
 
     if (!q2.error && q2.data?.name) {
-  setChampName(q2.data.name);
-  await loadMaintenanceMode(q2.data.id);
-  await loadChampionBanner(q2.data.id);
-  setLoading(false);
-  return;
-}
+      setChampName(q2.data.name);
+      await loadMaintenanceMode(q2.data.id);
+      await loadChampionBanner(q2.data.id);
+      setLoading(false);
+      return;
+    }
 
     setChampionTeamName(null);
-setIsMaintenanceMode(false);
-setMaintenanceMessage("Aplicació en manteniment, torna més tard");
-setChampName("Campionat del món de Bélit");
-setLoading(false);
+    setIsMaintenanceMode(false);
+    setMaintenanceMessage("Aplicació en manteniment, torna més tard");
+    setChampName("Campionat del món de Bélit");
+    setLoading(false);
   }, [loadChampionBanner, loadMaintenanceMode]);
 
   useEffect(() => {
@@ -285,8 +285,8 @@ setLoading(false);
         alignItems: "center",
       }}
     >
-      <Text style={{ fontWeight: "900", fontSize: 16 ,textAlign: "center"}}>{title}</Text>
-      <Text style={{ marginTop: 6, color: "#6b6b6b", fontWeight: "600",textAlign: "center" }}>
+      <Text style={{ fontWeight: "900", fontSize: 16, textAlign: "center" }}>{title}</Text>
+      <Text style={{ marginTop: 6, color: "#6b6b6b", fontWeight: "600", textAlign: "center" }}>
         {subtitle}
       </Text>
     </Pressable>
@@ -386,55 +386,55 @@ setLoading(false);
     );
   }
   return (
-  <View style={{ flex: 1, padding: 16 }}>
+    <View style={{ flex: 1, padding: 16 }}>
 
-    {isMaintenanceMode && __DEV__ ? (
-      <View
-        style={{
-          marginHorizontal: 0,
-          marginTop: 12,
-          marginBottom: 4,
-          paddingVertical: 10,
-          paddingHorizontal: 12,
-          borderRadius: 12,
-          backgroundColor: "#FEF3C7",
-          borderWidth: 1,
-          borderColor: "#FCD34D",
-        }}
-      >
-        <Text style={{ color: "#92400E", fontWeight: "800", textAlign: "center" }}>
-          ⚠️ Manteniment actiu: visible només perquè estàs en desenvolupament
-        </Text>
-      </View>
-    ) : null}
+      {isMaintenanceMode && __DEV__ ? (
+        <View
+          style={{
+            marginHorizontal: 0,
+            marginTop: 12,
+            marginBottom: 4,
+            paddingVertical: 10,
+            paddingHorizontal: 12,
+            borderRadius: 12,
+            backgroundColor: "#FEF3C7",
+            borderWidth: 1,
+            borderColor: "#FCD34D",
+          }}
+        >
+          <Text style={{ color: "#92400E", fontWeight: "800", textAlign: "center" }}>
+            ⚠️ Manteniment actiu: visible només perquè estàs en desenvolupament
+          </Text>
+        </View>
+      ) : null}
       {/* Títol del campionat en actiu */}
-<View style={{ alignItems: "center", marginBottom: 12 }}>
-  <View
-    style={{
-      width: 70,
-      height: 70,
-      borderRadius: 35,
-      backgroundColor: "#fff",
-      justifyContent: "center",
-      alignItems: "center",
-      shadowColor: "#000",
-      shadowOpacity: 0.15,
-      shadowRadius: 6,
-      shadowOffset: { width: 0, height: 3 },
-      elevation: 4, // Android
-    }}
-  >
-    <Image
-      source={require("../assets/images/belit.png")} // ajusta el path si cal
-      style={{
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-      }}
-      resizeMode="contain"
-    />
-  </View>
-</View>
+      <View style={{ alignItems: "center", marginBottom: 12 }}>
+        <View
+          style={{
+            width: 70,
+            height: 70,
+            borderRadius: 35,
+            backgroundColor: "#fff",
+            justifyContent: "center",
+            alignItems: "center",
+            shadowColor: "#000",
+            shadowOpacity: 0.15,
+            shadowRadius: 6,
+            shadowOffset: { width: 0, height: 3 },
+            elevation: 4, // Android
+          }}
+        >
+          <Image
+            source={require("../assets/images/belit.png")} // ajusta el path si cal
+            style={{
+              width: 60,
+              height: 60,
+              borderRadius: 30,
+            }}
+            resizeMode="contain"
+          />
+        </View>
+      </View>
       <View style={{ marginBottom: 14 }}>
         <Text
           style={{
@@ -457,72 +457,72 @@ setLoading(false);
           >
             🎉 Enhorabona {championTeamName}!
           </Text>
-)  : null}
-</View>
-
-{/* Update modal */}
-<Modal visible={updateVisible} transparent animationType="fade">
-  <View
-    style={{
-      flex: 1,
-      backgroundColor: "rgba(0,0,0,0.45)",
-      justifyContent: "center",
-      padding: 18,
-    }}
-  >
-    <View style={{ backgroundColor: "white", borderRadius: 18, padding: 16 }}>
-      <Text style={{ fontSize: 18, fontWeight: "900", marginBottom: 8 }}>
-        Nova versió disponible
-      </Text>
-
-      <Text style={{ fontSize: 14, color: "#374151", marginBottom: 14 }}>
-        {updateMessage ??
-          "Hi ha una actualització disponible. Ves a la botiga per instal·lar-la."}
-      </Text>
-
-      {updateLatest ? (
-        <Text style={{ fontSize: 13, color: "#6B7280", marginBottom: 14, fontWeight: "700" }}>
-          Versió instal·lada: {currentVersion} · Nova: {updateLatest}
-        </Text>
-      ) : null}
-
-      <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 10 }}>
-        {!updateForce ? (
-          <Pressable
-            onPress={() => setUpdateVisible(false)}
-            style={{ paddingVertical: 10, paddingHorizontal: 12 }}
-          >
-            <Text style={{ fontWeight: "800", color: "#6B7280" }}>Més tard</Text>
-          </Pressable>
         ) : null}
+      </View>
 
-        <Pressable
-          onPress={openStore}
+      {/* Update modal */}
+      <Modal visible={updateVisible} transparent animationType="fade">
+        <View
           style={{
-            paddingVertical: 10,
-            paddingHorizontal: 14,
-            borderRadius: 12,
-            backgroundColor: "#111827",
+            flex: 1,
+            backgroundColor: "rgba(0,0,0,0.45)",
+            justifyContent: "center",
+            padding: 18,
           }}
         >
-          <Text style={{ fontWeight: "900", color: "white" }}>Actualitzar</Text>
-        </Pressable>
-      </View>
-    </View>
-  </View>
-</Modal>
+          <View style={{ backgroundColor: "white", borderRadius: 18, padding: 16 }}>
+            <Text style={{ fontSize: 18, fontWeight: "900", marginBottom: 8 }}>
+              Nova versió disponible
+            </Text>
+
+            <Text style={{ fontSize: 14, color: "#374151", marginBottom: 14 }}>
+              {updateMessage ??
+                "Hi ha una actualització disponible. Ves a la botiga per instal·lar-la."}
+            </Text>
+
+            {updateLatest ? (
+              <Text style={{ fontSize: 13, color: "#6B7280", marginBottom: 14, fontWeight: "700" }}>
+                Versió instal·lada: {currentVersion} · Nova: {updateLatest}
+              </Text>
+            ) : null}
+
+            <View style={{ flexDirection: "row", justifyContent: "flex-end", gap: 10 }}>
+              {!updateForce ? (
+                <Pressable
+                  onPress={() => setUpdateVisible(false)}
+                  style={{ paddingVertical: 10, paddingHorizontal: 12 }}
+                >
+                  <Text style={{ fontWeight: "800", color: "#6B7280" }}>Més tard</Text>
+                </Pressable>
+              ) : null}
+
+              <Pressable
+                onPress={openStore}
+                style={{
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  borderRadius: 12,
+                  backgroundColor: "#111827",
+                }}
+              >
+                <Text style={{ fontWeight: "900", color: "white" }}>Actualitzar</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 18 }}>
-        
+
         {/* Grid 2 columnes */}
-{/* Aquesta setmana (accés ràpid) */}
-<View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
-    <Tile
-      title="🗓️ Aquesta setmana"
-      subtitle="Partits d’aquesta setmana"
-      onPress={() => router.push("/public-week-matches")}
-    />
-</View>
+        {/* Aquesta setmana (accés ràpid) */}
+        <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
+          <Tile
+            title="🗓️ Aquesta setmana"
+            subtitle="Partits d’aquesta setmana"
+            onPress={() => router.push("/public-week-matches")}
+          />
+        </View>
 
         <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
           <Tile
@@ -550,14 +550,14 @@ setLoading(false);
           />
         </View>
 
-        <View style={{ flexDirection: "row",gap: 12, marginBottom: 12 }}>
+        <View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
           <View style={{ flex: 1 }}>
-    <Tile
-      title="👨‍⚖️ Arbitratge"
-      subtitle="Entrar com àrbitre"
-      onPress={() => router.push("/login")}
-    />
-  </View>
+            <Tile
+              title="👨‍⚖️ Arbitratge"
+              subtitle="Entrar com àrbitre"
+              onPress={() => router.push("/login")}
+            />
+          </View>
         </View>
 
         <RefreshButton

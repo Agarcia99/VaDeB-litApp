@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -89,13 +89,42 @@ export default function Matches() {
   const [refereeNameMap, setRefereeNameMap] = useState<Record<number, string>>({});
   const [isAdmin, setIsAdmin] = useState(false);
 
+  useEffect(() => {
+    const checkAccess = async () => {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const { data } = await supabase
+        .from("referee_user")
+        .select("is_active")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!data?.is_active) {
+        await supabase.auth.signOut();
+
+        Alert.alert(
+          "Sessió tancada",
+          "El teu usuari ha estat desactivat."
+        );
+
+        router.replace("/login");
+      }
+    };
+
+    checkAccess();
+  }, []);
+
   useFocusEffect(
     useCallback(() => {
       loadMatches();
     }, [])
   );
 
-  
+
   async function loadRefereeNames(refIds: number[]) {
     const unique = Array.from(new Set(refIds.filter((x) => typeof x === "number" && x !== 1)));
     if (!unique.length) {
@@ -123,7 +152,7 @@ export default function Matches() {
     setRefereeNameMap(map);
   }
 
-async function loadMatches() {
+  async function loadMatches() {
     setLoading(true);
 
     const { data: sessionRes, error: sessionErr } = await supabase.auth.getSession();
@@ -141,27 +170,45 @@ async function loadMatches() {
       return;
     }
 
-     // Admin check (for config button)
-     const { data: adminData } = await supabase
-       .from("championship_admin_user")
-       .select("user_id")
-       .eq("user_id", user.id)
-       .maybeSingle();
-     setIsAdmin(!!adminData);
+    // Admin check (for config button)
+    const { data: adminData } = await supabase
+      .from("championship_admin_user")
+      .select("user_id")
+      .eq("user_id", user.id)
+      .maybeSingle();
+    setIsAdmin(!!adminData);
 
     const { data: refData, error: refErr } = await supabase
       .from("referee_user")
-      .select("referee_id")
+      .select("referee_id,is_active")
       .eq("user_id", user.id)
       .single();
 
-    if (refErr || !refData) {
-      Alert.alert("Error", "No s'ha trobat el teu referee_id (referee_user).");
+    if (refErr) {
+      Alert.alert("Error", "No s'ha pogut validar l'accés de l'àrbitre.");
+      await supabase.auth.signOut();
+      router.replace("/login");
       setLoading(false);
       return;
     }
 
-    setRef(refData);
+    if (!refData) {
+      Alert.alert("Accés denegat", "Aquest usuari no està vinculat a cap àrbitre.");
+      await supabase.auth.signOut();
+      router.replace("/login");
+      setLoading(false);
+      return;
+    }
+
+    if (!refData.is_active) {
+      Alert.alert("Usuari desactivat", "Aquest usuari està desactivat.");
+      await supabase.auth.signOut();
+      router.replace("/login");
+      setLoading(false);
+      return;
+    }
+
+    setRef({ referee_id: refData.referee_id });
 
     // ✅ FILTRE ACTIU: només partits d'avui (el dia)
     // Si vols DESACTIVAR el filtre per fer proves, comenta aquestes 3 línies:
@@ -238,14 +285,14 @@ async function loadMatches() {
           <Text style={{ fontWeight: "600" }}>Sortir</Text>
         </Pressable>
 
-<RefreshButton
+        <RefreshButton
           onPress={async () => {
-              try {
-                await loadMatches();
-              } catch (e: any) {
-                Alert.alert("Error", e?.message ?? "No s'ha pogut actualitzar.");
-              }
-            }}
+            try {
+              await loadMatches();
+            } catch (e: any) {
+              Alert.alert("Error", e?.message ?? "No s'ha pogut actualitzar.");
+            }
+          }}
           style={{ alignSelf: "center" }}
         />
         {isAdmin ? (
@@ -365,15 +412,15 @@ async function loadMatches() {
                 });
               }}
               style={{
-    backgroundColor: cardBg,
-    borderLeftWidth: 6,
-    borderLeftColor: leftColor,
-    padding: 14,
-    borderRadius: 10,
-    marginBottom: 12,
-    opacity: isFinished ? 0.9 : 1,
-  }}
->
+                backgroundColor: cardBg,
+                borderLeftWidth: 6,
+                borderLeftColor: leftColor,
+                padding: 14,
+                borderRadius: 10,
+                marginBottom: 12,
+                opacity: isFinished ? 0.9 : 1,
+              }}
+            >
               <Text style={{ fontWeight: "bold", fontSize: 16 }}>
                 {item.team_a_name} vs {item.team_b_name}
               </Text>

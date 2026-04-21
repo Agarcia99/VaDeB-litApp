@@ -253,6 +253,8 @@ export default function AdminHome() {
         <Btn title="🧩 Configuració" onPress={() => router.push("/admin/championship-config")} />
         <Btn title="👥 Equips" onPress={() => router.push("/admin/teams")} />
         <Btn title="🧍 Jugadors" onPress={() => router.push("/admin/players")} />
+        <Btn title="🧑‍⚖️ Àrbitres" onPress={() => router.push("/admin/referees")} />
+        <Btn title="👤 Usuaris" onPress={() => router.push("/admin/users")} />
         <Btn title="🗓️ Crear Calendari" onPress={() => router.push("/admin/create-calendar")} />
         <Btn title="🎲 Sorteig/Crear partits" onPress={() => router.push("/admin/draw-matches")} />
         <Btn title="🎲 Crear eliminatories" onPress={() => router.push("/admin/draw-elimination")} />

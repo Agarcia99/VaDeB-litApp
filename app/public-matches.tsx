@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState,useRef } from "react";
 import {
   View,
   Text,
@@ -150,13 +150,50 @@ const displayStart = pickingCustom ? draftStart : customStart;
 const displayEnd = pickingCustom ? draftEnd : customEnd;
 const [savedCalendarId, setSavedCalendarId] = useState<string | null>(null);
 const [savedCalendarTitle, setSavedCalendarTitle] = useState<string | null>(null);
+const listRef = useRef<FlatList<MatchRow>>(null);
+const scrollOffsetRef = useRef(0);
+const shouldRestoreScrollRef = useRef(false);
+const restoreMatchIdRef = useRef<number | null>(null);
+const [listVisible, setListVisible] = useState(true);
+const [initialLoaded, setInitialLoaded] = useState(false);
 
   useFocusEffect(
-    useCallback(() => {
-      load();
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [preset, status, teamId, customStart, customEnd])
-  );
+  useCallback(() => {
+    const run = async () => {
+      const mustRestore = shouldRestoreScrollRef.current;
+
+      if (mustRestore) {
+        setListVisible(false);
+      }
+
+      const loadedMatches = await load();
+
+      if (mustRestore && restoreMatchIdRef.current != null) {
+        const idx = (loadedMatches ?? []).findIndex(
+          (m) => m.id === restoreMatchIdRef.current
+        );
+
+        setTimeout(() => {
+          if (idx >= 0) {
+            listRef.current?.scrollToIndex({
+              index: idx,
+              animated: false,
+              viewPosition: 0.5,
+            });
+          }
+
+          shouldRestoreScrollRef.current = false;
+          setListVisible(true);
+        }, 120);
+      } else {
+        setListVisible(true);
+      }
+    };
+
+    run();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [preset, status, teamId, customStart, customEnd])
+);
 
   const teamChips = useMemo(() => {
     const base: Array<{ id: number | null; label: string }> = [{ id: null, label: "Tots" }];
@@ -285,7 +322,8 @@ async function clearSavedCalendarPreference() {
       Alert.alert("Error", chErr.message);
       setLoading(false);
       setRefreshing(false);
-      return;
+      setInitialLoaded(true);
+      return [];
     }
 
     if (!ch?.id) {
@@ -293,7 +331,8 @@ async function clearSavedCalendarPreference() {
       setTeams([]);
       setLoading(false);
       setRefreshing(false);
-      return;
+      setInitialLoaded(true);
+      return [];
     }
 
     // Teams for this championship (from team_player)
@@ -306,7 +345,8 @@ async function clearSavedCalendarPreference() {
       Alert.alert("Error", tpErr.message);
       setLoading(false);
       setRefreshing(false);
-      return;
+      setInitialLoaded(true);
+      return [];
     }
 
     const tMap = new Map<number, TeamMini>();
@@ -343,13 +383,16 @@ async function clearSavedCalendarPreference() {
       Alert.alert("Error", error.message);
       setLoading(false);
       setRefreshing(false);
-      return;
+      setInitialLoaded(true);
+      return [];
     }
 
     const sortedMatches = ((data ?? []) as unknown as MatchRow[]).slice().sort(compareMatches);
-setMatches(sortedMatches);
+    setMatches(sortedMatches);
     setLoading(false);
     setRefreshing(false);
+    setInitialLoaded(true);
+    return sortedMatches;
   }
 
   const onRefresh = useCallback(() => {
@@ -601,8 +644,7 @@ setMatches(sortedMatches);
       </View>
     </Modal>
   );
-
-  if (loading) {
+  if (!initialLoaded || loading) {
     return (
       <SafeAreaView edges={["left","right","bottom"]} style={styles.loadingWrap}>
         <ActivityIndicator size="large" />
@@ -614,6 +656,25 @@ setMatches(sortedMatches);
     <SafeAreaView edges={["left","right","bottom"]} style={styles.screen}>
       {calendarPickerModal}
 <FlatList
+        ref={listRef}
+        style={{ opacity: listVisible ? 1 : 0 }}
+  onScroll={(e) => {
+    scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
+  }}
+  scrollEventThrottle={16}
+  onScrollToIndexFailed={() => {
+    setTimeout(() => {
+      const targetId = restoreMatchIdRef.current;
+      const idx = matches.findIndex((m) => m.id === targetId);
+      if (idx >= 0) {
+        listRef.current?.scrollToIndex({
+          index: idx,
+          animated: false,
+          viewPosition: 0.5,
+        });
+      }
+    }, 150);
+  }}
         ListHeaderComponent={
           <View>
       	      {/* Back (same style as Rankings) */}
@@ -850,6 +911,8 @@ setMatches(sortedMatches);
                 }
 
                 if (canOpenSummary) {
+                  shouldRestoreScrollRef.current = true;
+                  restoreMatchIdRef.current = item.id;
                   router.push({ pathname: "/match-summary", params: { id: item.id } });
                   return;
                 }

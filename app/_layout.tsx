@@ -7,7 +7,6 @@ export default function Layout() {
 <SafeAreaView style={{ flex: 1 }} edges={["top"]}>
 <Stack
       screenOptions={{
-        headerShown: true,
         title: "",
         headerShown: false,
         headerStyle: { height: 30 },

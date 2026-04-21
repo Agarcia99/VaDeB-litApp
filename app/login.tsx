@@ -11,21 +11,57 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
-    setLoading(true);
+  setLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  });
 
+  if (error) {
     setLoading(false);
-
-    if (error) {
-      Alert.alert("Error", error.message);
-    } else {
-      router.replace("/matches");
-    }
+    Alert.alert("Error", error.message);
+    return;
   }
+
+  const userId = data.user?.id;
+
+  if (!userId) {
+    setLoading(false);
+    Alert.alert("Error", "No s'ha pogut validar l'usuari.");
+    return;
+  }
+
+  // 🔍 Comprobamos si tiene árbitro y si está activo
+  const { data: refereeUser, error: ruError } = await supabase
+    .from("referee_user")
+    .select("referee_id, is_active")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  setLoading(false);
+
+  if (ruError) {
+    await supabase.auth.signOut();
+    Alert.alert("Error", "No s'ha pogut comprovar l'accés.");
+    return;
+  }
+
+  if (!refereeUser) {
+    await supabase.auth.signOut();
+    Alert.alert("Accés denegat", "Aquest usuari no està vinculat a cap àrbitre.");
+    return;
+  }
+
+  if (!refereeUser.is_active) {
+    await supabase.auth.signOut();
+    Alert.alert("Usuari desactivat", "Aquest usuari està desactivat.");
+    return;
+  }
+
+  // ✅ TODO OK → entra
+  router.replace("/matches");
+}
 
   return (
     <View style={{ flex: 1 }}>
