@@ -11,6 +11,7 @@ import { useRouter } from "expo-router";
 import { supabase } from "../../src/supabase";
 import { BackButton } from "../../components/HeaderButtons";
 import { Keyboard } from "react-native";
+import { useAppTheme } from "../../src/theme";
 
 type MatchRow = {
   id: number;
@@ -41,6 +42,7 @@ function formatDateDDMMYYYY_HHMM(iso?: string | null) {
 
 export default function MatchPostponeScreen() {
   const router = useRouter();
+  const { colors } = useAppTheme();
 
   const [matchIdInput, setMatchIdInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -152,29 +154,29 @@ export default function MatchPostponeScreen() {
 const cannotPostpone = !!matchRow && (matchRow.is_finished || !!matchRow.started_at);
 
   return (
-    <View style={{ flex: 1, padding: 16, backgroundColor: "#F8FAFC" }}>
+    <View style={{ flex: 1, padding: 16, backgroundColor: colors.bg }}>
       <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
         <BackButton onPress={() => router.back()} />
       </View>
 
-      <Text style={{ fontSize: 22, fontWeight: "800", marginBottom: 6 }}>
+      <Text style={{ fontSize: 22, fontWeight: "800", marginBottom: 6, color: colors.text }}>
         🌧️ Ajornar partit
       </Text>
-      <Text style={{ color: "#4B5563", fontWeight: "700", marginBottom: 16 }}>
+      <Text style={{ color: colors.muted, fontWeight: "700", marginBottom: 16 }}>
         Busca un partit per ID i marca'l com ajornat o treu l'ajornament.
       </Text>
 
       <View
         style={{
-          backgroundColor: "white",
+          backgroundColor: colors.card,
           borderRadius: 14,
           padding: 14,
           borderWidth: 1,
-          borderColor: "#E5E7EB",
+          borderColor: colors.border,
           marginBottom: 14,
         }}
       >
-        <Text style={{ fontWeight: "800", marginBottom: 8 }}>ID del partit</Text>
+        <Text style={{ fontWeight: "800", marginBottom: 8, color: colors.text }}>ID del partit</Text>
         <TextInput
           value={matchIdInput}
           onChangeText={setMatchIdInput}
@@ -182,11 +184,12 @@ const cannotPostpone = !!matchRow && (matchRow.is_finished || !!matchRow.started
           placeholder="Ex: 123"
           style={{
             borderWidth: 1,
-            borderColor: "#D1D5DB",
+            borderColor: colors.border,
             borderRadius: 12,
             paddingHorizontal: 12,
             paddingVertical: 10,
             marginBottom: 12,
+            color: colors.text,
           }}
         />
 
@@ -196,15 +199,15 @@ const cannotPostpone = !!matchRow && (matchRow.is_finished || !!matchRow.started
           style={{
             paddingVertical: 12,
             borderRadius: 12,
-            backgroundColor: "#111827",
+            backgroundColor: colors.primary,
             alignItems: "center",
             opacity: loading ? 0.45 : 1,
           }}
         >
           {loading ? (
-            <ActivityIndicator color="white" />
+            <ActivityIndicator color={colors.primaryText} />
           ) : (
-            <Text style={{ color: "white", fontWeight: "900" }}>Carregar partit</Text>
+            <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Carregar partit</Text>
           )}
         </Pressable>
       </View>
@@ -212,26 +215,26 @@ const cannotPostpone = !!matchRow && (matchRow.is_finished || !!matchRow.started
       {matchRow ? (
         <View
           style={{
-            backgroundColor: "white",
+            backgroundColor: colors.card,
             borderRadius: 14,
             padding: 14,
             borderWidth: 1,
-            borderColor: "#E5E7EB",
+            borderColor: colors.border,
           }}
         >
-          <Text style={{ fontWeight: "900", fontSize: 16 }}>
+          <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>
             {matchRow.team_a?.name ?? `Equip ${matchRow.team_a_id}`} vs {matchRow.team_b?.name ?? `Equip ${matchRow.team_b_id}`}
           </Text>
 
-          <Text style={{ marginTop: 8, color: "#4B5563", fontWeight: "700" }}>
+          <Text style={{ marginTop: 8, color: colors.muted, fontWeight: "700" }}>
             Data: {formatDateDDMMYYYY_HHMM(matchRow.match_date)}
           </Text>
 
-          <Text style={{ marginTop: 4, color: "#4B5563", fontWeight: "700" }}>
+          <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "700" }}>
             Estat actual: {matchRow.display_status ?? "NORMAL"}
           </Text>
 
-          <Text style={{ marginTop: 4, color: "#4B5563", fontWeight: "700" }}>
+          <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "700" }}>
             Partit finalitzat: {matchRow.is_finished ? "Sí" : "No"}
           </Text>
 
@@ -263,13 +266,13 @@ const cannotPostpone = !!matchRow && (matchRow.is_finished || !!matchRow.started
                 paddingVertical: 12,
                 borderRadius: 12,
                 borderWidth: 1,
-                borderColor: "#D1D5DB",
-                backgroundColor: "white",
+                borderColor: colors.border,
+              backgroundColor: colors.card,
                 alignItems: "center",
                 opacity: saving || cannotPostpone ? 0.45 : 1,
               }}
             >
-              <Text style={{ color: "#111827", fontWeight: "900" }}>Treure ajornament</Text>
+              <Text style={{ color: colors.text, fontWeight: "900" }}>Treure ajornament</Text>
             </Pressable>
           </View>
         </View>

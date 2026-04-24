@@ -15,6 +15,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
 import { supabase } from "../../src/supabase";
 import { BackButton, RefreshButton } from "../../components/HeaderButtons";
+import { useAppTheme } from "../../src/theme";
 
 type UserRow = {
   referee_id: number;
@@ -47,6 +48,7 @@ function normalize(s: string) {
 
 export default function AdminUsersScreen() {
   const router = useRouter();
+  const { colors } = useAppTheme();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -258,7 +260,7 @@ if (password !== confirmPassword) {
 
   if (loading) {
     return (
-      <SafeAreaView edges={["left", "right", "bottom"]} style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#F6F7FB" }}>
+      <SafeAreaView edges={["left", "right", "bottom"]} style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: colors.bg }}>
         <Stack.Screen options={{ headerShown: false }} />
         <ActivityIndicator size="large" />
       </SafeAreaView>
@@ -266,7 +268,7 @@ if (password !== confirmPassword) {
   }
 
   return (
-    <SafeAreaView edges={["left", "right", "bottom"]} style={{ flex: 1, padding: 16, backgroundColor: "#F6F7FB" }}>
+    <SafeAreaView edges={["left", "right", "bottom"]} style={{ flex: 1, padding: 16, backgroundColor: colors.bg }}>
       <Stack.Screen options={{ headerShown: false }} />
 
       <ScrollView
@@ -280,10 +282,10 @@ if (password !== confirmPassword) {
           <RefreshButton onPress={() => load(true)} />
         </View>
 
-        <Text style={{ fontSize: 24, fontWeight: "900", color: "#111827", textAlign: "center" }}>
+        <Text style={{ fontSize: 24, fontWeight: "900", color: colors.text, textAlign: "center" }}>
           👤 Usuaris
         </Text>
-        <Text style={{ marginTop: 6, textAlign: "center", color: "#6B7280", fontWeight: "700" }}>
+        <Text style={{ marginTop: 6, textAlign: "center", color: colors.muted, fontWeight: "700" }}>
           Crea, activa, desactiva, reinicia contrasenyes i reasigna usuaris d'àrbitre.
         </Text>
 
@@ -333,27 +335,27 @@ if (password !== confirmPassword) {
           onPress={() => setCreateOpen(true)}
           style={{
             marginTop: 14,
-            backgroundColor: "#111827",
+            backgroundColor: colors.primary,
             borderRadius: 12,
             alignItems: "center",
             justifyContent: "center",
             paddingVertical: 12,
           }}
         >
-          <Text style={{ color: "white", fontWeight: "900" }}>＋ Afegir usuari</Text>
+          <Text style={{ color: colors.primaryText, fontWeight: "900" }}>＋ Afegir usuari</Text>
         </Pressable>
 
         <View
           style={{
             marginTop: 14,
-            backgroundColor: "white",
+            backgroundColor: colors.card,
             borderRadius: 16,
             padding: 14,
             borderWidth: 1,
-            borderColor: "#E5E7EB",
+            borderColor: colors.border,
           }}
         >
-          <Text style={{ fontWeight: "900", fontSize: 17, color: "#111827", marginBottom: 10 }}>
+          <Text style={{ fontWeight: "900", fontSize: 17, color: colors.text, marginBottom: 10 }}>
             Llistat actual
           </Text>
 
@@ -364,19 +366,19 @@ if (password !== confirmPassword) {
             placeholderTextColor="#9CA3AF"
             style={{
               borderWidth: 1,
-              borderColor: "#D1D5DB",
+              borderColor: colors.border,
               borderRadius: 12,
               paddingHorizontal: 12,
               paddingVertical: 10,
-              backgroundColor: "white",
+              backgroundColor: colors.card,
               marginBottom: 12,
             }}
           />
 
           {visibleRows.length === 0 ? (
             <View style={{ paddingVertical: 36, alignItems: "center" }}>
-              <Text style={{ fontWeight: "900", color: "#111827", fontSize: 18 }}>Sense resultats</Text>
-              <Text style={{ marginTop: 8, color: "#6B7280", fontWeight: "700" }}>
+              <Text style={{ fontWeight: "900", color: colors.text, fontSize: 18 }}>Sense resultats</Text>
+              <Text style={{ marginTop: 8, color: colors.muted, fontWeight: "700" }}>
                 No hi ha coincidències amb aquest filtre.
               </Text>
             </View>
@@ -386,22 +388,22 @@ if (password !== confirmPassword) {
                 key={row.referee_id}
                 style={{
                   borderWidth: 1,
-                  borderColor: "#E5E7EB",
+                  borderColor: colors.border,
                   borderRadius: 14,
                   padding: 14,
                   marginBottom: 10,
-                  backgroundColor: "white",
+                  backgroundColor: colors.card,
                 }}
               >
                 <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ fontWeight: "900", color: "#111827", fontSize: 16 }}>
+                    <Text style={{ fontWeight: "900", color: colors.text, fontSize: 16 }}>
                       {row.referee_name}
                     </Text>
-                    <Text style={{ marginTop: 4, color: "#6B7280", fontWeight: "700" }}>
+                    <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "700" }}>
                       ID #{row.referee_id} · Partits assignats: {row.assigned_matches}
                     </Text>
-                    <Text style={{ marginTop: 4, color: "#374151", fontWeight: "700" }}>
+                    <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "700" }}>
                       {row.email ?? "Sense usuari"}
                     </Text>
                     {row.has_user ? (
@@ -442,7 +444,7 @@ if (password !== confirmPassword) {
                 {row.has_user ? (
                   <>
                     <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 12 }}>
-                      <Text style={{ fontWeight: "800", color: "#111827" }}>
+                      <Text style={{ fontWeight: "800", color: colors.text }}>
                         Actiu
                       </Text>
                       <Switch value={row.is_active} onValueChange={(next) => toggleActive(row, next)} />
@@ -454,14 +456,14 @@ if (password !== confirmPassword) {
                         style={{
                           flex: 1,
                           borderWidth: 1,
-                          borderColor: "#D1D5DB",
+                          borderColor: colors.border,
                           borderRadius: 12,
                           paddingVertical: 10,
                           alignItems: "center",
-                          backgroundColor: "white",
+                          backgroundColor: colors.card,
                         }}
                       >
-                        <Text style={{ fontWeight: "900", color: "#111827" }}>Reset pass</Text>
+                        <Text style={{ fontWeight: "900", color: colors.text }}>Reset pass</Text>
                       </Pressable>
 
                       <Pressable
@@ -489,10 +491,9 @@ if (password !== confirmPassword) {
 
       <Modal visible={createOpen} transparent animationType="fade" onRequestClose={() => setCreateOpen(false)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", padding: 16 }}>
-          <View style={{ backgroundColor: "white", borderRadius: 16, padding: 16 }}>
-            <Text style={{ fontWeight: "900", fontSize: 18, color: "#111827" }}>Crear usuari</Text>
+          <View style={{ backgroundColor: colors.card, borderRadius: 16, padding: 16 }}>
 
-            <Text style={{ marginTop: 12, fontWeight: "800", color: "#111827" }}>Correu electrònic</Text>
+            <Text style={{ marginTop: 12, fontWeight: "800", color: colors.text }}>Correu electrònic</Text>
             <TextInput
               value={email}
               onChangeText={setEmail}
@@ -501,20 +502,20 @@ if (password !== confirmPassword) {
               keyboardType="email-address"
               placeholder="nom@exemple.com"
               placeholderTextColor="#9CA3AF"
-              style={{ borderWidth: 1, marginTop: 6, padding: 10, borderRadius: 10, borderColor: "#D1D5DB" }}
+              style={{ borderWidth: 1, marginTop: 6, padding: 10, borderRadius: 10, borderColor: colors.border }}
             />
 
-            <Text style={{ marginTop: 10, fontWeight: "800", color: "#111827" }}>Contrasenya</Text>
+            <Text style={{ marginTop: 10, fontWeight: "800", color: colors.text }}>Contrasenya</Text>
             <TextInput
               value={password}
               onChangeText={setPassword}
               secureTextEntry
               placeholderTextColor="#9CA3AF"
               placeholder="Escriu la contrasenya"
-              style={{ borderWidth: 1, marginTop: 6, padding: 10, borderRadius: 10, borderColor: "#D1D5DB" }}
+              style={{ borderWidth: 1, marginTop: 6, padding: 10, borderRadius: 10, borderColor: colors.border }}
             />
 
-            <Text style={{ marginTop: 10, fontWeight: "800", color: "#111827" }}>
+            <Text style={{ marginTop: 10, fontWeight: "800", color: colors.text }}>
               Repetir contrasenya
             </Text>
             <TextInput
@@ -528,11 +529,11 @@ if (password !== confirmPassword) {
                 marginTop: 6,
                 padding: 10,
                 borderRadius: 10,
-                borderColor: "#D1D5DB",
+                borderColor: colors.border,
               }}
             />
 
-            <Text style={{ marginTop: 12, fontWeight: "900", color: "#111827" }}>Selecciona àrbitre</Text>
+            <Text style={{ marginTop: 12, fontWeight: "900", color: colors.text }}>Selecciona àrbitre</Text>
             <ScrollView style={{ maxHeight: 180, marginTop: 6 }}>
               {freeReferees.map((r) => (
                 <Pressable
@@ -540,17 +541,17 @@ if (password !== confirmPassword) {
                   onPress={() => setSelectedRefereeId(r.referee_id)}
                   style={{
                     padding: 10,
-                    backgroundColor: selectedRefereeId === r.referee_id ? "#DDD6FE" : "#F3F4F6",
+                    backgroundColor: selectedRefereeId === r.referee_id ? "#DDD6FE" : colors.cardAlt,
                     marginTop: 6,
                     borderRadius: 8,
                   }}
                 >
-                  <Text style={{ fontWeight: "700", color: "#111827" }}>{r.referee_name}</Text>
+                  <Text style={{ fontWeight: "700", color: colors.text }}>{r.referee_name}</Text>
                 </Pressable>
               ))}
 
               {freeReferees.length === 0 ? (
-                <Text style={{ color: "#6B7280", fontWeight: "700", marginTop: 8 }}>
+                <Text style={{ color: colors.muted, fontWeight: "700", marginTop: 8 }}>
                   No hi ha àrbitres lliures per assignar.
                 </Text>
               ) : null}
@@ -565,9 +566,9 @@ if (password !== confirmPassword) {
                   setConfirmPassword("");
                   setSelectedRefereeId(null);
                 }}
-                style={{ flex: 1, padding: 12, borderWidth: 1, borderRadius: 10, borderColor: "#D1D5DB" }}
+                style={{ flex: 1, padding: 12, borderWidth: 1, borderRadius: 10, borderColor: colors.border }}
               >
-                <Text style={{ textAlign: "center", fontWeight: "800", color: "#111827" }}>Cancel·lar</Text>
+                <Text style={{ textAlign: "center", fontWeight: "800", color: colors.text }}>Cancel·lar</Text>
               </Pressable>
 
               <Pressable
@@ -580,12 +581,12 @@ if (password !== confirmPassword) {
                   password !== confirmPassword ||
                   !selectedRefereeId
                 }
-                style={{ flex: 1, backgroundColor: "#111827", padding: 12, borderRadius: 10, opacity:savingCreate ||!email.trim() ||!password.trim() ||!confirmPassword.trim() ||password !== confirmPassword ||!selectedRefereeId ? 0.5 : 1 }}
+                style={{ flex: 1, backgroundColor: colors.primary, padding: 12, borderRadius: 10, opacity:savingCreate ||!email.trim() ||!password.trim() ||!confirmPassword.trim() ||password !== confirmPassword ||!selectedRefereeId ? 0.5 : 1 }}
               >
                 {savingCreate ? (
-                  <ActivityIndicator color="white" />
+                  <ActivityIndicator color={colors.primaryText} />
                 ) : (
-                  <Text style={{ color: "white", textAlign: "center", fontWeight: "900" }}>
+                  <Text style={{ color: colors.primaryText, textAlign: "center", fontWeight: "900" }}>
                     Crear
                   </Text>
                 )}
@@ -597,41 +598,41 @@ if (password !== confirmPassword) {
 
       <Modal visible={resetOpen} transparent animationType="fade" onRequestClose={() => setResetOpen(false)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", padding: 16 }}>
-          <View style={{ backgroundColor: "white", borderRadius: 16, padding: 16 }}>
-            <Text style={{ fontWeight: "900", fontSize: 18, color: "#111827" }}>
+          <View style={{ backgroundColor: colors.card, borderRadius: 16, padding: 16 }}>
+            <Text style={{ fontWeight: "900", fontSize: 18, color: colors.text }}>
               Reset password
             </Text>
-            <Text style={{ marginTop: 6, color: "#6B7280", fontWeight: "700" }}>
+            <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "700" }}>
               {resetReferee?.referee_name} · {resetReferee?.email ?? "Sense email"}
             </Text>
 
-            <Text style={{ marginTop: 12, fontWeight: "800", color: "#111827" }}>Nova contrasenya</Text>
+            <Text style={{ marginTop: 12, fontWeight: "800", color: colors.text }}>Nova contrasenya</Text>
             <TextInput
               value={newPassword}
               onChangeText={setNewPassword}
               secureTextEntry
               placeholder="Mínim 6 caràcters"
               placeholderTextColor="#9CA3AF"
-              style={{ borderWidth: 1, marginTop: 6, padding: 10, borderRadius: 10, borderColor: "#D1D5DB" }}
+              style={{ borderWidth: 1, marginTop: 6, padding: 10, borderRadius: 10, borderColor: colors.border }}
             />
 
             <View style={{ flexDirection: "row", marginTop: 14, gap: 10 }}>
               <Pressable
                 onPress={() => setResetOpen(false)}
-                style={{ flex: 1, padding: 12, borderWidth: 1, borderRadius: 10, borderColor: "#D1D5DB" }}
+                style={{ flex: 1, padding: 12, borderWidth: 1, borderRadius: 10, borderColor: colors.border }}
               >
-                <Text style={{ textAlign: "center", fontWeight: "800", color: "#111827" }}>Cancel·lar</Text>
+                <Text style={{ textAlign: "center", fontWeight: "800", color: colors.text }}>Cancel·lar</Text>
               </Pressable>
 
               <Pressable
                 onPress={saveResetPassword}
                 disabled={savingReset}
-                style={{ flex: 1, backgroundColor: "#111827", padding: 12, borderRadius: 10, opacity: savingReset ? 0.5 : 1 }}
+                style={{ flex: 1, backgroundColor: colors.primary, padding: 12, borderRadius: 10, opacity: savingReset ? 0.5 : 1 }}
               >
                 {savingReset ? (
-                  <ActivityIndicator color="white" />
+                  <ActivityIndicator color={colors.primaryText} />
                 ) : (
-                  <Text style={{ color: "white", textAlign: "center", fontWeight: "900" }}>
+                  <Text style={{ color: colors.primaryText, textAlign: "center", fontWeight: "900" }}>
                     Guardar
                   </Text>
                 )}
@@ -643,15 +644,15 @@ if (password !== confirmPassword) {
 
       <Modal visible={reassignOpen} transparent animationType="fade" onRequestClose={() => setReassignOpen(false)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", padding: 16 }}>
-          <View style={{ backgroundColor: "white", borderRadius: 16, padding: 16 }}>
-            <Text style={{ fontWeight: "900", fontSize: 18, color: "#111827" }}>
+          <View style={{ backgroundColor: colors.card, borderRadius: 16, padding: 16 }}>
+            <Text style={{ fontWeight: "900", fontSize: 18, color: colors.text }}>
               Reassignar usuari
             </Text>
-            <Text style={{ marginTop: 6, color: "#6B7280", fontWeight: "700" }}>
+            <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "700" }}>
               Usuari actual de {reassignFrom?.referee_name}
             </Text>
 
-            <Text style={{ marginTop: 12, fontWeight: "900", color: "#111827" }}>Nou àrbitre</Text>
+            <Text style={{ marginTop: 12, fontWeight: "900", color: colors.text }}>Nou àrbitre</Text>
             <ScrollView style={{ maxHeight: 180, marginTop: 6 }}>
               {freeReferees.map((r) => (
                 <Pressable
@@ -659,12 +660,12 @@ if (password !== confirmPassword) {
                   onPress={() => setReassignToRefereeId(r.referee_id)}
                   style={{
                     padding: 10,
-                    backgroundColor: reassignToRefereeId === r.referee_id ? "#DDD6FE" : "#F3F4F6",
+                    backgroundColor: reassignToRefereeId === r.referee_id ? "#DDD6FE" : colors.cardAlt,
                     marginTop: 6,
                     borderRadius: 8,
                   }}
                 >
-                  <Text style={{ fontWeight: "700", color: "#111827" }}>{r.referee_name}</Text>
+                  <Text style={{ fontWeight: "700", color: colors.text }}>{r.referee_name}</Text>
                 </Pressable>
               ))}
             </ScrollView>
@@ -672,20 +673,20 @@ if (password !== confirmPassword) {
             <View style={{ flexDirection: "row", marginTop: 14, gap: 10 }}>
               <Pressable
                 onPress={() => setReassignOpen(false)}
-                style={{ flex: 1, padding: 12, borderWidth: 1, borderRadius: 10, borderColor: "#D1D5DB" }}
+                style={{ flex: 1, padding: 12, borderWidth: 1, borderRadius: 10, borderColor: colors.border }}
               >
-                <Text style={{ textAlign: "center", fontWeight: "800", color: "#111827" }}>Cancel·lar</Text>
+                <Text style={{ textAlign: "center", fontWeight: "800", color: colors.text }}>Cancel·lar</Text>
               </Pressable>
 
               <Pressable
                 onPress={saveReassign}
                 disabled={savingReassign}
-                style={{ flex: 1, backgroundColor: "#111827", padding: 12, borderRadius: 10, opacity: savingReassign ? 0.5 : 1 }}
+                style={{ flex: 1, backgroundColor: colors.primary, padding: 12, borderRadius: 10, opacity: savingReassign ? 0.5 : 1 }}
               >
                 {savingReassign ? (
-                  <ActivityIndicator color="white" />
+                  <ActivityIndicator color={colors.primaryText} />
                 ) : (
-                  <Text style={{ color: "white", textAlign: "center", fontWeight: "900" }}>
+                  <Text style={{ color: colors.primaryText, textAlign: "center", fontWeight: "900" }}>
                     Reassignar
                   </Text>
                 )}

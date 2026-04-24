@@ -15,6 +15,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import { useRouter, Stack } from "expo-router";
 import { supabase } from "../src/supabase";
 import { BackButton, RefreshButton } from "../components/HeaderButtons";
+import { useAppTheme, AppColors } from "../src/theme";
 
 type TeamMini = {
   id: number;
@@ -114,6 +115,8 @@ function labelWeekRange(start: Date, end: Date) {
 
 export default function PublicWeekMatches() {
   const router = useRouter();
+  const { colors, isDark } = useAppTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -197,7 +200,7 @@ export default function PublicWeekMatches() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" />
-          <Text style={{ marginTop: 10, color: "#6B7280", fontWeight: "700" }}>Carregant…</Text>
+          <Text style={{ marginTop: 10, color: colors.muted, fontWeight: "700" }}>Carregant…</Text>
         </View>
       </SafeAreaView>
     );
@@ -306,12 +309,12 @@ export default function PublicWeekMatches() {
   style={[
     styles.badge,
     isAjornat
-      ? styles.badgeAjornat
+      ? styles.pillAjornat
       : isLive
-      ? styles.badgeLive
+      ? styles.pillLive
       : item.is_finished
-      ? styles.badgeFinished
-      : styles.badgePending,
+      ? styles.pillFinished
+      : styles.pillPending,
   ]}
 >
   <Text
@@ -379,10 +382,11 @@ export default function PublicWeekMatches() {
   );
 }
 
-const styles = StyleSheet.create({
+function getStyles(colors: AppColors, isDark = false) {
+  return StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#F6F7FB",
+    backgroundColor: colors.bg,
     paddingHorizontal: 16,
     paddingTop: 8,
   },
@@ -416,7 +420,7 @@ bottomRow: {
 matchIdBottom: {
   fontSize: 11,
   fontWeight: "700",
-  color: "#9CA3AF",
+  color: colors.muted,
 },
   // top header (match-summary-like buttons)
   topBarRow: {
@@ -431,9 +435,9 @@ matchIdBottom: {
     paddingVertical: 8,
     paddingHorizontal: 10,
     borderRadius: 12,
-    backgroundColor: "white",
+    backgroundColor: colors.card,
     borderWidth: 1,
-    borderColor: "#E9EAF0",
+    borderColor: colors.border,
     ...Platform.select({
       ios: {
         shadowColor: "#000",
@@ -456,20 +460,20 @@ matchIdBottom: {
   title: {
     fontSize: 20,
     fontWeight: "900",
-    color: "#111827",
+    color: colors.text,
   },
   weekRange: {
     marginTop: 6,
-    color: "#6B7280",
+    color: colors.muted,
     fontWeight: "700",
   },
 
   summaryCard: {
-    backgroundColor: "white",
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#E9EAF0",
+    borderColor: colors.border,
     marginBottom: 12,
     ...Platform.select({
       ios: {
@@ -489,41 +493,45 @@ matchIdBottom: {
     flex: 1,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#EEE",
+    borderColor: colors.border,
     paddingVertical: 10,
     paddingHorizontal: 10,
-    backgroundColor: "#FAFAFF",
+    backgroundColor: colors.cardAlt,
   },
   pillFinished: {
-    backgroundColor: "#F2FFF7",
-    borderColor: "#D7F5E3",
+    backgroundColor: isDark ? "#122A1C" : "#F2FFF7",
+    borderColor: isDark ? "#22543D" : "#D7F5E3",
   },
   pillPending: {
-    backgroundColor: "#FFF9F2",
-    borderColor: "#F8E2C3",
+    backgroundColor: isDark ? "#2C1E03" : "#FFF9F2",
+    borderColor: isDark ? "#7B4F01" : "#F8E2C3",
   },
   pillLive: {
-    backgroundColor: "#EFF6FF",
-    borderColor: "#DBEAFE",
+    backgroundColor: isDark ? "#071529" : "#EFF6FF",
+    borderColor: isDark ? "#1E3A8A" : "#3B82F6",
+  },
+  pillAjornat: {
+    backgroundColor: isDark ? "#2C1E1E" : "#FEF2F2",
+    borderColor: isDark ? "#7B4F4F" : "#FCA5A5",
   },
   pillValue: {
     fontWeight: "900",
     fontSize: 18,
-    color: "#111827",
+    color: colors.text,
   },
   pillLabel: {
     marginTop: 2,
     fontWeight: "800",
-    color: "#6B7280",
+    color: isDark ? colors.text : colors.muted,
     fontSize: 12,
   },
 
   matchCard: {
-    backgroundColor: "white",
+    backgroundColor: colors.card,
     borderRadius: 18,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#E9EAF0",
+    borderColor: colors.border,
     marginBottom: 12,
     ...Platform.select({
       ios: {
@@ -538,17 +546,17 @@ matchIdBottom: {
   matchCardFinished: {
     borderLeftWidth: 6,
     borderLeftColor: "#22C55E",
-    backgroundColor: "#F2FFF7",
+    backgroundColor: isDark ? "#0D2818" : "#F2FFF7",
   },
   matchCardPending: {
     borderLeftWidth: 6,
     borderLeftColor: "#F59E0B",
-    backgroundColor: "white",
+    backgroundColor: colors.card,
   },
   matchCardLive: {
     borderLeftWidth: 6,
     borderLeftColor: "#3B82F6",
-    backgroundColor: "#EFF6FF",
+    backgroundColor: isDark ? "#071529" : "#EFF6FF",
   },
 
   matchTopRow: {
@@ -557,7 +565,7 @@ matchIdBottom: {
 matchTitle: {
   fontWeight: "900",
   fontSize: 14,
-  color: "#111827",
+  color: colors.text,
 },
 matchMetaRow: {
   flexDirection: "row",
@@ -579,7 +587,7 @@ matchBottomRow: {
 },
 phaseText: {
   flex: 1,
-  color: "#6B7280",
+  color: colors.muted,
   fontWeight: "800",
   fontSize: 12,
 },
@@ -589,16 +597,16 @@ scoreText: {
   textAlign: "right",
 },
   vs: {
-    color: "#6B7280",
+    color: colors.muted,
     fontWeight: "900",
   },
   metaText: {
-    color: "#374151",
+    color: colors.muted,
     fontWeight: "700",
     fontSize: 12,
   },
   metaMuted: {
-    color: "#9CA3AF",
+    color: colors.muted,
     fontWeight: "700",
     fontSize: 12,
   },
@@ -624,7 +632,7 @@ scoreText: {
   badgeText: {
     fontWeight: "900",
     fontSize: 12,
-    color: "#111827",
+    color: colors.text,
   },
   badgeTextLive: {
     color: "#1D4ED8",
@@ -642,13 +650,13 @@ scoreText: {
   pendingHint: {
     marginTop: 10,
     fontWeight: "700",
-    color: "#6B7280",
+    color: colors.muted,
     fontSize: 12,
   },
   openHint: {
     marginTop: 10,
     fontWeight: "800",
-    color: "#111827",
+    color: colors.text,
     fontSize: 12,
   },
 
@@ -659,12 +667,13 @@ scoreText: {
   emptyTitle: {
     fontWeight: "900",
     fontSize: 18,
-    color: "#111827",
+    color: colors.text,
   },
   emptySub: {
     marginTop: 8,
-    color: "#6B7280",
+    color: colors.muted,
     fontWeight: "700",
     textAlign: "center",
   },
-});
+  });
+}

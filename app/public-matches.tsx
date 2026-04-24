@@ -20,6 +20,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter, Stack } from "expo-router";
 import { supabase } from "../src/supabase";
 import { BackButton, RefreshButton } from "../components/HeaderButtons";
+import { useAppTheme, AppColors } from "../src/theme";
+import { formatDateDDMMYYYY_HHMM, pad2 } from "../src/utils/format";
+import { getFieldOrder } from "../src/utils/matchUtils";
 
 type TeamMini = {
   id: number;
@@ -52,32 +55,9 @@ type CalendarOption = {
 const CALENDAR_PREF_KEY = "preferred_calendar_id_v1";
 const CALENDAR_PREF_TITLE_KEY = "preferred_calendar_title_v1";
 
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function formatDateDDMMYYYY_HHMM(iso?: string | null) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const day = pad2(d.getDate());
-  const month = pad2(d.getMonth() + 1);
-  const year = d.getFullYear();
-  const hour = pad2(d.getHours());
-  const min = pad2(d.getMinutes());
-  return `${day}/${month}/${year} · ${hour}:${min}`;
-}
-
 function trimCharField(s?: string | null) {
   return (s ?? "").trim();
 }
-function getFieldOrder(fieldCode?: string | null) {
-  const code = (fieldCode ?? "").trim().toUpperCase();
-
-  if (code === "A") return 0;
-  if (code === "B") return 1;
-  return 99;
-}
-
 function compareMatches(a: MatchRow, b: MatchRow) {
   const timeA = a.match_date ? new Date(a.match_date).getTime() : Number.MAX_SAFE_INTEGER;
   const timeB = b.match_date ? new Date(b.match_date).getTime() : Number.MAX_SAFE_INTEGER;
@@ -121,6 +101,8 @@ function labelForStatus(s: StatusFilter) {
 
 export default function PublicMatches() {
   const router = useRouter();
+  const { colors, isDark } = useAppTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -539,35 +521,35 @@ async function clearSavedCalendarPreference() {
       >
         <View
           style={{
-            backgroundColor: "white",
+            backgroundColor: colors.card,
             borderRadius: 18,
             padding: 16,
             borderWidth: 1,
-            borderColor: "#E5E7EB",
+            borderColor: colors.border,
             maxHeight: "75%",
           }}
         >
-          <Text style={{ fontSize: 20, fontWeight: "900", color: "#111827", textAlign: "center" }}>
+          <Text style={{ fontSize: 20, fontWeight: "900", color: colors.text, textAlign: "center" }}>
             Selecciona calendari
           </Text>
-          <Text style={{ marginTop: 6, color: "#6B7280", fontWeight: "700", textAlign: "center" }}>
+          <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "700", textAlign: "center" }}>
             Tria on vols afegir aquest partit pendent.
           </Text>
           {savedCalendarId && savedCalendarTitle ? (
             <View
               style={{
                 marginTop: 12,
-                backgroundColor: "#F9FAFB",
+                backgroundColor: colors.cardAlt,
                 borderWidth: 1,
-                borderColor: "#E5E7EB",
+                borderColor: colors.border,
                 borderRadius: 12,
                 padding: 10,
               }}
             >
-              <Text style={{ color: "#374151", fontWeight: "700", textAlign: "center" }}>
+              <Text style={{ color: colors.muted, fontWeight: "700", textAlign: "center" }}>
                 Calendari guardat actual
               </Text>
-              <Text style={{ color: "#111827", fontWeight: "900", textAlign: "center", marginTop: 4 }}>
+              <Text style={{ color: colors.text, fontWeight: "900", textAlign: "center", marginTop: 4 }}>
                 {savedCalendarTitle}
               </Text>
             </View>
@@ -587,17 +569,17 @@ async function clearSavedCalendarPreference() {
                   }}
                   style={({ pressed }) => ({
                     borderWidth: 1,
-                    borderColor: "#E5E7EB",
+                    borderColor: colors.border,
                     borderRadius: 14,
                     padding: 14,
                     marginBottom: 10,
-                    backgroundColor: "white",
+                    backgroundColor: colors.card,
                     opacity: pressed ? 0.92 : 1,
                   })}
                 >
-                  <Text style={{ fontWeight: "900", color: "#111827", fontSize: 16 }}>{cal.title}</Text>
+                  <Text style={{ fontWeight: "900", color: colors.text, fontSize: 16 }}>{cal.title}</Text>
                   {cal.subtitle ? (
-                    <Text style={{ marginTop: 4, color: "#6B7280", fontWeight: "700" }}>{cal.subtitle}</Text>
+                    <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "700" }}>{cal.subtitle}</Text>
                   ) : null}
                 </Pressable>
               ))
@@ -638,7 +620,7 @@ async function clearSavedCalendarPreference() {
               alignItems: "center",
             }}
           >
-            <Text style={{ color: "#6B7280", fontWeight: "900" }}>Cancel·lar</Text>
+            <Text style={{ color: colors.muted, fontWeight: "900" }}>Cancel·lar</Text>
           </Pressable>
         </View>
       </View>
@@ -647,7 +629,7 @@ async function clearSavedCalendarPreference() {
   if (!initialLoaded || loading) {
     return (
       <SafeAreaView edges={["left","right","bottom"]} style={styles.loadingWrap}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color={colors.primary} />
       </SafeAreaView>
     );
   }
@@ -970,7 +952,7 @@ async function clearSavedCalendarPreference() {
   <View style={styles.matchMetaRow}>
     <View style={styles.metaRow}>
       {item.match_date ? (
-        <Text style={styles.metaText}>🗓️ {formatDateDDMMYYYY_HHMM(item.match_date)}</Text>
+        <Text style={styles.metaText}>🗓️ {formatDateDDMMYYYY_HHMM(item.match_date, "·")}</Text>
       ) : (
         <Text style={styles.metaMuted}>🗓️ Data pendent</Text>
       )}
@@ -983,12 +965,12 @@ async function clearSavedCalendarPreference() {
   style={[
     styles.badge,
     isAjornat
-      ? styles.badgeAjornat
+      ? styles.pillAjornat
       : isLive
-      ? styles.badgeLive
+      ? styles.pillLive
       : item.is_finished
-      ? styles.badgeFinished
-      : styles.badgePending,
+      ? styles.pillFinished
+      : styles.pillPending,
   ]}
 >
   <Text
@@ -1056,10 +1038,11 @@ async function clearSavedCalendarPreference() {
   );
 }
 
-const styles = StyleSheet.create({
+function getStyles(colors: AppColors, isDark = false) {
+  return StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#F6F7FB",
+    backgroundColor: colors.bg,
     paddingHorizontal: 16,
     paddingTop: 8,
   },
@@ -1070,11 +1053,11 @@ const styles = StyleSheet.create({
   },
 
   summaryCard: {
-    backgroundColor: "white",
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#E9EAF0",
+    borderColor: colors.border,
     marginBottom: 12,
     ...Platform.select({
       ios: {
@@ -1094,21 +1077,29 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#EEE",
+    borderColor: colors.border,
     paddingVertical: 10,
     paddingHorizontal: 10,
-    backgroundColor: "#FAFAFF",
+    backgroundColor: colors.cardAlt,
   },
   pillFinished: {
-    backgroundColor: "#F2FFF7",
-    borderColor: "#D7F5E3",
+    backgroundColor: isDark ? "#122A1C" : "#F2FFF7",
+    borderColor: isDark ? "#22543D" : "#D7F5E3",
   },
   pillPending: {
-    backgroundColor: "#FFF9F2",
-    borderColor: "#F4E3C9",
+    backgroundColor: isDark ? "#2C1E03" : "#FFF9F2",
+    borderColor: isDark ? "#7B4F01" : "#F4E3C9",
+  },
+  pillLive: {
+    backgroundColor: isDark ? "#071529" : "#EFF6FF",
+    borderColor: isDark ? "#1E3A8A" : "#3B82F6",
+  },
+  pillAjornat: {
+    backgroundColor: isDark ? "#2C1E1E" : "#FEF2F2",
+    borderColor: isDark ? "#7B4F4F" : "#FCA5A5",
   },
   summaryPillLabel: {
-    color: "#666",
+    color: isDark ? colors.text : colors.muted,
     fontSize: 12,
     fontWeight: "700",
   },
@@ -1116,11 +1107,11 @@ const styles = StyleSheet.create({
     marginTop: 2,
     fontSize: 18,
     fontWeight: "900",
-    color: "#111",
+    color: colors.text,
   },
   summarySub: {
     marginTop: 10,
-    color: "#666",
+    color: colors.muted,
     fontWeight: "700",
   },
 bottomRow: {
@@ -1133,14 +1124,14 @@ bottomRow: {
 matchIdBottom: {
   fontSize: 11,
   fontWeight: "700",
-  color: "#9CA3AF",
+  color: colors.muted,
 },
   filtersCard: {
-    backgroundColor: "white",
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#E9EAF0",
+    borderColor: colors.border,
     marginBottom: 12,
   },
   filtersHeader: {
@@ -1151,16 +1142,16 @@ matchIdBottom: {
   filtersTitle: {
     fontWeight: "900",
     fontSize: 16,
-    color: "#111",
+    color: colors.text,
   },
   filtersChevron: {
-    color: "#666",
+    color: colors.muted,
     fontWeight: "900",
     fontSize: 14,
   },
   sectionLabel: {
     fontWeight: "800",
-    color: "#111",
+    color: colors.text,
     marginBottom: 8,
   },
   chipsWrap: {
@@ -1175,21 +1166,21 @@ matchIdBottom: {
     borderWidth: 1,
   },
   chipActive: {
-    backgroundColor: "#111",
-    borderColor: "#111",
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   chipInactive: {
-    backgroundColor: "white",
-    borderColor: "#DDD",
+    backgroundColor: colors.card,
+    borderColor: colors.border,
   },
   chipText: {
     fontWeight: "800",
   },
   chipTextActive: {
-    color: "white",
+    color: colors.primaryText,
   },
   chipTextInactive: {
-    color: "#111",
+    color: colors.text,
   },
 matchCardAjornat: {
   borderLeftWidth: 6,
@@ -1208,37 +1199,37 @@ scoreAjornat: {
 },
   pickerButton: {
     borderWidth: 1,
-    borderColor: "#DDD",
+    borderColor: colors.border,
     borderRadius: 14,
     paddingVertical: 12,
     paddingHorizontal: 12,
-    backgroundColor: "#FAFAFF",
+    backgroundColor: colors.cardAlt,
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
   },
   pickerButtonText: {
     fontWeight: "800",
-    color: "#111",
+    color: colors.text,
     flex: 1,
     marginRight: 10,
   },
   pickerPanel: {
     marginTop: 10,
     borderWidth: 1,
-    borderColor: "#E9EAF0",
+    borderColor: colors.border,
     borderRadius: 14,
-    backgroundColor: "white",
+    backgroundColor: colors.card,
     padding: 10,
     maxHeight: 220,
   },
 
   matchCard: {
-    backgroundColor: "white",
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#E9EAF0",
+    borderColor: colors.border,
     marginBottom: 12,
     ...Platform.select({
       ios: {
@@ -1257,7 +1248,7 @@ scoreAjornat: {
   matchCardLive: {
     borderLeftWidth: 6,
     borderLeftColor: "#3B82F6", // blue
-    backgroundColor: "#EFF6FF",
+    backgroundColor: isDark ? "#071529" : "#EFF6FF",
   },
   matchCardPending: {
     borderLeftWidth: 6,
@@ -1269,10 +1260,10 @@ scoreAjornat: {
   matchTitle: {
   fontSize: 14,
   fontWeight: "900",
-  color: "#111",
+  color: colors.text,
 },
   vs: {
-    color: "#666",
+    color: colors.muted,
     fontWeight: "800",
   },
   metaRow: {
@@ -1294,16 +1285,16 @@ matchBottomRow: {
   gap: 12,
 },
   metaText: {
-    color: "#444",
+    color: colors.muted,
     fontWeight: "700",
   },
   metaMuted: {
-    color: "#777",
+    color: colors.muted,
     fontWeight: "700",
   },
   phaseText: {
   flex: 1,
-  color: "#6B7280",
+  color: colors.muted,
   fontWeight: "800",
 },
   badge: {
@@ -1329,12 +1320,12 @@ matchBottomRow: {
   badgeText: {
     fontWeight: "900",
     fontSize: 12,
-    color: "#111",
+    color: colors.text,
     letterSpacing: 0.3,
   },
 
   badgeTextLive: {
-    color: "#2563EB",
+    color: colors.text,
   },
   scoreText: {
   fontWeight: "900",
@@ -1353,13 +1344,13 @@ matchBottomRow: {
   },
   pendingHint: {
     marginTop: 10,
-    color: "#666",
+    color: colors.muted,
     fontWeight: "700",
     fontSize:13,
   },
   openHint: {
     marginTop: 10,
-    color: "#444",
+    color: colors.muted,
     fontWeight: "800",
   },
 
@@ -1372,13 +1363,14 @@ matchBottomRow: {
   emptyTitle: {
     fontSize: 18,
     fontWeight: "900",
-    color: "#111",
+    color: colors.text,
   },
   emptySub: {
     marginTop: 8,
     textAlign: "center",
     fontSize: 14,
-    color: "#666",
+    color: colors.muted,
     fontWeight: "700",
   },
-});
+  });
+}

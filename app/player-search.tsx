@@ -12,6 +12,7 @@ import { useRouter, Stack } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../src/supabase";
 import { BackButton } from "../components/HeaderButtons";
+import { useAppTheme } from "../src/theme";
 
 type PlayerSearchRow = {
   player_id: number;
@@ -24,6 +25,7 @@ type PlayerSearchRow = {
 
 export default function PlayerSearchScreen() {
   const router = useRouter();
+  const { colors } = useAppTheme();
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<PlayerSearchRow[]>([]);
@@ -79,24 +81,24 @@ export default function PlayerSearchScreen() {
   }
 
   return (
-    <SafeAreaView edges={["left", "right", "bottom"]} style={{ flex: 1, backgroundColor: "#F6F7FB", padding: 16 }}>
+    <SafeAreaView edges={["left", "right", "bottom"]} style={{ flex: 1, backgroundColor: colors.bg, padding: 16 }}>
       <Stack.Screen options={{ headerShown: false }} />
 
       <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 5 }}>
         <BackButton onPress={() => router.back()} />
       </View>
 
-      <Text style={{ fontSize: 22, fontWeight: "900", textAlign: "center", color: "#111827", marginTop: 14 }}>
+      <Text style={{ fontSize: 22, fontWeight: "900", textAlign: "center", color: colors.text, marginTop: 14 }}>
         Cercar jugador
       </Text>
 
       <View
         style={{
           marginTop: 14,
-          backgroundColor: "white",
+          backgroundColor: colors.card,
           borderRadius: 14,
           borderWidth: 1,
-          borderColor: "#e5e5e5",
+          borderColor: colors.border,
           paddingHorizontal: 12,
           paddingVertical: 10,
           ...(Platform.select({
@@ -111,7 +113,7 @@ export default function PlayerSearchScreen() {
           }) as any),
         }}
       >
-        <Text style={{ fontSize: 13, fontWeight: "800", color: "#374151" }}>
+        <Text style={{ fontSize: 13, fontWeight: "800", color: colors.muted }}>
           Busca per nom, equip o codi
         </Text>
         <TextInput
@@ -125,11 +127,11 @@ export default function PlayerSearchScreen() {
             paddingHorizontal: 12,
             borderRadius: 12,
             borderWidth: 1,
-            borderColor: "#E5E7EB",
-            backgroundColor: "#FAFAFA",
+            borderColor: colors.border,
+            backgroundColor: colors.cardAlt,
             fontSize: 15,
             fontWeight: "600",
-            color: "#111827",
+            color: colors.text,
           }}
         />
       </View>
@@ -146,8 +148,8 @@ export default function PlayerSearchScreen() {
           contentContainerStyle={{ paddingBottom: 24 }}
           ListEmptyComponent={
             <View style={{ paddingVertical: 48, alignItems: "center" }}>
-              <Text style={{ fontWeight: "900", fontSize: 18, color: "#111827" }}>Sense jugadors</Text>
-              <Text style={{ color: "#6B7280", fontWeight: "700", marginTop: 8 }}>
+              <Text style={{ fontWeight: "900", fontSize: 18, color: colors.text }}>Sense jugadors</Text>
+              <Text style={{ color: colors.muted, fontWeight: "700", marginTop: 8 }}>
                 No hi ha coincidències al campionat actiu.
               </Text>
             </View>
@@ -163,18 +165,18 @@ export default function PlayerSearchScreen() {
                   })
                 }
                 style={({ pressed }) => ({
-                  backgroundColor: "white",
+                  backgroundColor: colors.card,
                   borderRadius: 14,
                   borderWidth: 1,
-                  borderColor: "#E5E7EB",
+                  borderColor: colors.border,
                   padding: 14,
                   marginBottom: 12,
                   opacity: pressed ? 0.9 : 1,
                 })}
               >
-                <Text style={{ fontWeight: "900", color: "#111827", fontSize: 16 }}>{item.player_name}</Text>
+                <Text style={{ fontWeight: "900", color: colors.text, fontSize: 16 }}>{item.player_name}</Text>
                 {subtitle ? (
-                  <Text style={{ marginTop: 4, color: "#6B7280", fontWeight: "700" }}>{subtitle}</Text>
+                  <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "700" }}>{subtitle}</Text>
                 ) : null}
               </Pressable>
             );

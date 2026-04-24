@@ -3,9 +3,11 @@ import { View, Text, TextInput, Pressable, Alert } from "react-native";
 import { supabase } from "../src/supabase";
 import { Stack, useRouter } from "expo-router";
 import { BackButton, RefreshButton } from "../components/HeaderButtons";
+import { useAppTheme } from "../src/theme";
 
 export default function Login() {
   const router = useRouter();
+  const { colors } = useAppTheme();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -64,7 +66,7 @@ export default function Login() {
 }
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Stack.Screen options={{ headerTitle: "" }} />
 
       {/* Botó just sota el header */}
@@ -77,49 +79,55 @@ export default function Login() {
 
       {/* Login com abans */}
       <View style={{ flex: 1, padding: 24 }}>
-        <Text style={{ fontSize: 28, fontWeight: "bold", marginBottom: 24, textAlign: "center" }}>
+        <Text style={{ fontSize: 28, fontWeight: "bold", marginBottom: 24, textAlign: "center", color: colors.text }}>
           Àrbitres
         </Text>
 
-        <Text>Email</Text>
+        <Text style={{ color: colors.text }}>Email</Text>
         <TextInput
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
+          placeholderTextColor={colors.muted}
           style={{
             borderWidth: 1,
-            borderColor: "#ccc",
+            borderColor: colors.border,
             borderRadius: 8,
             padding: 12,
             marginBottom: 12,
+            backgroundColor: colors.card,
+            color: colors.text,
           }}
         />
 
-        <Text>Password</Text>
+        <Text style={{ color: colors.text }}>Password</Text>
         <TextInput
           value={password}
           onChangeText={setPassword}
           secureTextEntry
+          placeholderTextColor={colors.muted}
           style={{
             borderWidth: 1,
-            borderColor: "#ccc",
+            borderColor: colors.border,
             borderRadius: 8,
             padding: 12,
             marginBottom: 20,
+            backgroundColor: colors.card,
+            color: colors.text,
           }}
         />
 
         <Pressable
           onPress={handleLogin}
           style={{
-            backgroundColor: "#111",
+            backgroundColor: colors.primary,
             padding: 14,
             borderRadius: 8,
             alignItems: "center",
           }}
         >
-          <Text style={{ color: "white", fontWeight: "bold" }}>
+          <Text style={{ color: colors.primaryText, fontWeight: "bold" }}>
             {loading ? "Entrant..." : "Entrar"}
           </Text>
         </Pressable>

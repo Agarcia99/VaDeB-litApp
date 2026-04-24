@@ -1,20 +1,33 @@
+import { useEffect } from "react";
 import { Stack } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { View } from "react-native";
+import { initSupabaseSession } from "../src/supabase";
+import { ThemeProvider, useAppTheme } from "../src/theme";
+
+function RootStack() {
+  const { colors } = useAppTheme();
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={["top"]}>
+      <Stack
+        screenOptions={{
+          title: "",
+          headerShown: false,
+          contentStyle: { backgroundColor: colors.bg },
+        }}
+      />
+    </SafeAreaView>
+  );
+}
 
 export default function Layout() {
+  useEffect(() => {
+    initSupabaseSession();
+  }, []);
+
   return (
-<SafeAreaView style={{ flex: 1 }} edges={["top"]}>
-<Stack
-      screenOptions={{
-        title: "",
-        headerShown: false,
-        headerStyle: { height: 30 },
-        headerBackVisible: false, // amaga el botó de tornar
-        headerLeft: () => null,   // per assegurar que no surt res a l'esquerra
-        headerShadowVisible: false, // opcional: treu la línia inferior
-      }}
-    /></SafeAreaView>
+    <ThemeProvider>
+      <RootStack />
+    </ThemeProvider>
   );
 }
 

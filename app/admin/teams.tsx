@@ -15,6 +15,9 @@ import { useRouter, Stack } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "../../src/supabase";
 import { BackButton, RefreshButton } from "../../components/HeaderButtons";
+import { formatDateTime } from "../../src/utils/format";
+import { useAdminGuard } from "../../hooks/use-admin-guard";
+import { useAppTheme } from "@/src/theme";
 
 type Championship = { id: number; name: string | null; year: number | null; is_active: boolean | null };
 type Team = {
@@ -32,25 +35,10 @@ type GameSlot = { id: number; name: string | null; description: string | null };
 type ChampionshipTeam = { team_id: number };
 type ChampTeamPref = { team_id: number; game_slot_id: number };
 
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-function formatDateTime(iso?: string | null) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()} ${pad2(d.getHours())}:${pad2(
-    d.getMinutes()
-  )}`;
-}
-
 export default function AdminTeams() {
   const router = useRouter();
-
-  // access
-  const [checking, setChecking] = useState(true);
-  const [allowed, setAllowed] = useState(false);
-
+  const { checking, isAdmin: allowed, recheck: checkAccess } = useAdminGuard();
+  const { colors } = useAppTheme(); 
   // lookups
   const [championships, setChampionships] = useState<Championship[]>([]);
   const [selectedChampionshipId, setSelectedChampionshipId] = useState<number | null>(null);
@@ -83,29 +71,6 @@ export default function AdminTeams() {
   // prefs UI
   const [showPrefs, setShowPrefs] = useState(false);
   const [selectedSlotIds, setSelectedSlotIds] = useState<Set<number>>(new Set());
-
-  const checkAccess = useCallback(async () => {
-    setChecking(true);
-    const { data: sessionRes } = await supabase.auth.getSession();
-    const user = sessionRes.session?.user;
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
-    const { data, error } = await supabase
-      .from("championship_admin_user")
-      .select("user_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (error) {
-      Alert.alert("Error", error.message);
-      setAllowed(false);
-    } else {
-      setAllowed(!!data);
-    }
-    setChecking(false);
-  }, [router]);
 
   const loadLookups = useCallback(async () => {
     const [{ data: ch, error: chErr }, { data: gs, error: gsErr }] = await Promise.all([
@@ -178,10 +143,6 @@ export default function AdminTeams() {
     setLoading(false);
   }, [loadLookups, loadTeams, loadChampionshipRelations]);
 
-  useEffect(() => {
-    checkAccess();
-  }, [checkAccess]);
-
   useFocusEffect(
     useCallback(() => {
       checkAccess();
@@ -193,13 +154,6 @@ export default function AdminTeams() {
     // When championship changes, reload relations for it
     loadChampionshipRelations();
   }, [loadChampionshipRelations]);
-
-  useEffect(() => {
-    if (!checking && !allowed) {
-      Alert.alert("Accés denegat", "Aquesta secció és només per gestors.");
-      router.back();
-    }
-  }, [checking, allowed, router]);
 
   // Championship search (keep outside other hooks to avoid changing hook order)
   const filteredChampionships = useMemo(() => {
@@ -522,8 +476,8 @@ export default function AdminTeams() {
         padding: 16,
         borderRadius: 18,
         borderWidth: 1,
-        borderColor: "#eee",
-        backgroundColor: "#fafafa",
+        borderColor: colors.border,
+        backgroundColor: colors.bg,
         marginBottom: 14,
       }}
     >
@@ -531,8 +485,8 @@ export default function AdminTeams() {
           onPress={() => router.back()}
           style={{ marginBottom:15 }}
         />
-      <Text style={{ fontWeight: "900", fontSize: 18 }}>Gestió d'equips</Text>
-      <Text style={{ marginTop: 6, color: "#666", fontWeight: "600" }}>
+      <Text style={{ fontWeight: "900", fontSize: 18, color: colors.text }}>Gestió d'equips</Text>
+      <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "600" }}>
         Mantén el catàleg d&apos;equips i afegeix/treu equips del campionat. Les preferències de pista són per campionat.
       </Text>
 
@@ -544,12 +498,12 @@ export default function AdminTeams() {
             paddingVertical: 12,
             borderRadius: 14,
             borderWidth: 1,
-            borderColor: "#d7f2df",
-            backgroundColor: "#e6f7ed",
+            borderColor: colors.success,
+            backgroundColor: colors.successBg,
             alignItems: "center",
           }}
         >
-          <Text style={{ fontWeight: "900" }}>＋ Nou equip</Text>
+          <Text style={{ fontWeight: "900", color: colors.text }}>＋ Nou equip</Text>
         </Pressable>
 
         <Pressable
@@ -559,18 +513,18 @@ export default function AdminTeams() {
             paddingVertical: 12,
             borderRadius: 14,
             borderWidth: 1,
-            borderColor: "#ddd",
-            backgroundColor: "white",
+            borderColor: colors.border,
+            backgroundColor: colors.bg,
             alignItems: "center",
           }}
         >
-          <Text style={{ fontWeight: "900" }}>↻ Refrescar</Text>
+          <Text style={{ fontWeight: "900" ,color: colors.text}}>↻ Refrescar</Text>
         </Pressable>
       </View>
 
       {/* Championship filter chips */}
       <View style={{ marginTop: 12 }}>
-        <Text style={{ fontWeight: "800", color: "#666" }}>Campionat</Text>
+        <Text style={{ fontWeight: "800", color: colors.muted }}>Campionat</Text>
         <Pressable
           onPress={() => setChampModalOpen(true)}
           style={{
@@ -579,15 +533,15 @@ export default function AdminTeams() {
             paddingHorizontal: 12,
             borderRadius: 14,
             borderWidth: 1,
-            borderColor: "#ddd",
-            backgroundColor: "white",
+            borderColor: colors.border,
+            backgroundColor: colors.bg,
             flexDirection: "row",
             alignItems: "center",
             justifyContent: "space-between",
           }}
         >
-          <Text style={{ fontWeight: "800" }}>{champLabel}</Text>
-          <Text style={{ color: "#666", fontWeight: "800" }}>▾</Text>
+          <Text style={{ fontWeight: "800", color: colors.text }}>{champLabel}</Text>
+          <Text style={{ color: colors.muted, fontWeight: "800" }}>▾</Text>
         </Pressable>
 
         <Modal visible={champModalOpen} animationType="slide" transparent>
@@ -601,14 +555,14 @@ export default function AdminTeams() {
           >
             <View
               style={{
-                backgroundColor: "white",
+                backgroundColor: colors.bg,
                 borderRadius: 18,
                 padding: 14,
                 maxHeight: "80%",
               }}
             >
               <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-                <Text style={{ fontWeight: "900", fontSize: 16 }}>Selecciona campionat</Text>
+                <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>Selecciona campionat</Text>
                 <Pressable
                   onPress={() => {
                     setChampModalOpen(false);
@@ -616,7 +570,7 @@ export default function AdminTeams() {
                   }}
                   style={{ paddingVertical: 6, paddingHorizontal: 10 }}
                 >
-                  <Text style={{ fontWeight: "900" }}>Tancar</Text>
+                  <Text style={{ fontWeight: "900", color: colors.text }}>Tancar</Text>
                 </Pressable>
               </View>
 
@@ -628,10 +582,11 @@ export default function AdminTeams() {
                 style={{
                   marginTop: 10,
                   borderWidth: 1,
-                  borderColor: "#ddd",
+                  borderColor: colors.border,
                   borderRadius: 12,
                   paddingHorizontal: 12,
                   paddingVertical: Platform.OS === "ios" ? 12 : 10,
+                  color: colors.text,
                 }}
               />
 
@@ -654,10 +609,10 @@ export default function AdminTeams() {
                         paddingVertical: 12,
                         paddingHorizontal: 10,
                         borderRadius: 12,
-                        backgroundColor: selected ? "#eef6ff" : "transparent",
+                        backgroundColor: selected ? colors.cardblue : "transparent",
                       }}
                     >
-                      <Text style={{ fontWeight: selected ? "900" : "800" }}>{label}</Text>
+                      <Text style={{ fontWeight: selected ? "900" : "800", color: colors.text }}>{label}</Text>
                     </Pressable>
                   );
                 }}
@@ -674,17 +629,17 @@ export default function AdminTeams() {
             paddingHorizontal: 12,
             borderRadius: 14,
             borderWidth: 1,
-            borderColor: "#ddd",
-            backgroundColor: "white",
+            borderColor: colors.border,
+            backgroundColor: colors.bg,
             alignSelf: "flex-start",
           }}
         >
-          <Text style={{ fontWeight: "900" }}>
+          <Text style={{ fontWeight: "900", color: colors.text }}>
             {onlyInChampionship ? "Mostrant: equips del campionat" : "Mostrant: tots els equips"}
           </Text>
         </Pressable>
 
-        <Text style={{ marginTop: 10, color: "#888", fontWeight: "600" }}>Campionat seleccionat: {champLabel}</Text>
+        <Text style={{ marginTop: 10, color: colors.muted, fontWeight: "600" }}>Campionat seleccionat: {champLabel}</Text>
       </View>
     </View>
   );
@@ -710,8 +665,8 @@ export default function AdminTeams() {
           ListHeaderComponent={Hero}
           ListEmptyComponent={() => (
             <View style={{ alignItems: "center", marginTop: 50 }}>
-              <Text style={{ color: "#666", fontWeight: "800" }}>No hi ha equips per mostrar.</Text>
-              <Text style={{ color: "#888", marginTop: 6 }}>
+              <Text style={{ color: colors.muted, fontWeight: "800" }}>No hi ha equips per mostrar.</Text>
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
                 {onlyInChampionship ? "Afegeix equips al campionat o canvia el filtre." : "Crea'n un amb “Nou equip”."}
               </Text>
             </View>
@@ -728,15 +683,15 @@ export default function AdminTeams() {
                   padding: 14,
                   borderRadius: 16,
                   borderWidth: 1,
-                  borderColor: "#e6e6e6",
-                  backgroundColor: "white",
+                  borderColor: colors.border,
+                  backgroundColor: colors.bg,
                   marginBottom: 12,
                 }}
               >
                 <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-                      <Text style={{ fontWeight: "900", fontSize: 16, flex: 1 }} numberOfLines={2}>
+                      <Text style={{ fontWeight: "900", fontSize: 16, flex: 1, color: colors.text }} numberOfLines={2}>
                         {item.name ?? `Equip #${item.id}`}
                         {item.short_name ? ` · ${item.short_name}` : ""}
                       </Text>
@@ -747,36 +702,36 @@ export default function AdminTeams() {
                           paddingHorizontal: 10,
                           borderRadius: 999,
                           borderWidth: 1,
-                          borderColor: isIn ? "#d7f2df" : "#eee",
-                          backgroundColor: isIn ? "#e6f7ed" : "#fafafa",
+                          borderColor: isIn ? colors.success : colors.border,
+                          backgroundColor: isIn ? colors.successBg : colors.bg,
                         }}
                       >
-                        <Text style={{ fontWeight: "900" }}>{isIn ? "AL CAMPIONAT" : "FORA"}</Text>
+                        <Text style={{ fontWeight: "900", color: colors.text }}>{isIn ? "AL CAMPIONAT" : "FORA"}</Text>
                       </View>
                     </View>
 
                     {item.shirt_color ? (
-                      <Text style={{ marginTop: 6, color: "#666", fontWeight: "700" }}>
+                      <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "700" }}>
                         Color samarreta: {item.shirt_color}
                       </Text>
                     ) : null}
 
-                    <Text style={{ marginTop: 6, color: "#888" }}>
+                    <Text style={{ marginTop: 6, color: colors.muted }}>
                       Creat: {formatDateTime(item.created_at) || "—"}
                     </Text>
 
                     {isIn ? (
                       slotIds.length ? (
-                        <Text style={{ marginTop: 8, color: "#666", fontWeight: "700" }} numberOfLines={2}>
+                        <Text style={{ marginTop: 8, color: colors.muted, fontWeight: "700" }} numberOfLines={2}>
                           Preferències ({champLabel}): {slotLabels}
                         </Text>
                       ) : (
-                        <Text style={{ marginTop: 8, color: "#888", fontWeight: "700" }}>
+                        <Text style={{ marginTop: 8, color: colors.muted, fontWeight: "700" }}>
                           Sense preferències per aquest campionat
                         </Text>
                       )
                     ) : (
-                      <Text style={{ marginTop: 8, color: "#888", fontWeight: "700" }}>
+                      <Text style={{ marginTop: 8, color: colors.muted, fontWeight: "700" }}>
                         Afegeix l&apos;equip al campionat per posar preferències
                       </Text>
                     )}
@@ -790,14 +745,14 @@ export default function AdminTeams() {
                         paddingHorizontal: 10,
                         borderRadius: 12,
                         borderWidth: 1,
-                        borderColor: isIn ? "#f3d0d0" : "#d7f2df",
-                        backgroundColor: isIn ? "#ffecec" : "#e6f7ed",
+                        borderColor: isIn ? colors.danger : colors.success,
+                        backgroundColor: isIn ? colors.dangerBg : colors.successBg,
                         height: 44,
                         alignItems: "center",
                         justifyContent: "center",
                       }}
                     >
-                      <Text style={{ fontWeight: "900" }}>{isIn ? "— Treure" : "＋ Afegir"}</Text>
+                      <Text style={{ fontWeight: "900" ,color: colors.text}}>{isIn ? "— Treure" : "＋ Afegir"}</Text>
                     </Pressable>
 
                     <Pressable
@@ -808,20 +763,20 @@ export default function AdminTeams() {
                         paddingHorizontal: 10,
                         borderRadius: 12,
                         borderWidth: 1,
-                        borderColor: "#f3d0d0",
-                        backgroundColor: "#ffecec",
+                        borderColor: colors.danger,
+                        backgroundColor: colors.dangerBg,
                         height: 44,
                         opacity: deleting === item.id ? 0.6 : 1,
                         alignItems: "center",
                         justifyContent: "center",
                       }}
                     >
-                      <Text style={{ fontWeight: "900" }}>{deleting === item.id ? "…" : "🗑️"}</Text>
+                      <Text style={{ fontWeight: "900", color: colors.text }}>{deleting === item.id ? "…" : "🗑️"}</Text>
                     </Pressable>
                   </View>
                 </View>
 
-                <Text style={{ marginTop: 10, color: "#777", fontWeight: "700" }}>
+                <Text style={{ marginTop: 10, color: colors.muted, fontWeight: "700" }}>
                   Toca per editar (nom/curt/color + preferències per campionat)
                 </Text>
               </Pressable>
@@ -833,11 +788,11 @@ export default function AdminTeams() {
       {/* Modal */}
       <Modal transparent visible={modalOpen} animationType={Platform.OS === "ios" ? "slide" : "fade"}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", padding: 16 }}>
-          <View style={{ backgroundColor: "white", borderRadius: 18, padding: 16, borderWidth: 1, borderColor: "#eee" }}>
-            <Text style={{ fontWeight: "900", fontSize: 18 }}>{editing ? "Editar equip" : "Nou equip"}</Text>
+          <View style={{ backgroundColor: colors.bg, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: colors.border }}>
+            <Text style={{ fontWeight: "900", fontSize: 18, color: colors.text }}>{editing ? "Editar equip" : "Nou equip"}</Text>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 10, paddingBottom: 20 }}>
-              <Text style={{ marginTop: 12, color: "#666", fontWeight: "800" }}>Nom</Text>
+              <Text style={{ marginTop: 12, color: colors.muted, fontWeight: "800" }}>Nom</Text>
               <TextInput
                 value={name}
                 onChangeText={setName}
@@ -849,11 +804,12 @@ export default function AdminTeams() {
                   paddingHorizontal: 12,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: "#ddd",
+                  borderColor: colors.border,
+                  color: colors.text,
                 }}
               />
 
-              <Text style={{ marginTop: 12, color: "#666", fontWeight: "800" }}>Nom curt</Text>
+              <Text style={{ marginTop: 12, color: colors.muted, fontWeight: "800" }}>Nom curt</Text>
               <TextInput
                 value={shortName}
                 onChangeText={setShortName}
@@ -865,11 +821,12 @@ export default function AdminTeams() {
                   paddingHorizontal: 12,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: "#ddd",
+                  borderColor: colors.border,
+                  color: colors.text,
                 }}
               />
 
-              <Text style={{ marginTop: 12, color: "#666", fontWeight: "800" }}>Color samarreta</Text>
+              <Text style={{ marginTop: 12, color: colors.muted, fontWeight: "800" }}>Color samarreta</Text>
               <TextInput
                 value={shirtColor}
                 onChangeText={setShirtColor}
@@ -881,7 +838,8 @@ export default function AdminTeams() {
                   paddingHorizontal: 12,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: "#ddd",
+                  borderColor: colors.border,
+                  color: colors.text,
                 }}
               />
 
@@ -894,20 +852,20 @@ export default function AdminTeams() {
                     paddingHorizontal: 12,
                     borderRadius: 14,
                     borderWidth: 1,
-                    borderColor: "#ddd",
-                    backgroundColor: "#fafafa",
+                    borderColor: colors.border,
+                    backgroundColor: colors.bg,
                     flexDirection: "row",
                     alignItems: "center",
                     justifyContent: "space-between",
                   }}
                 >
                   <View style={{ flex: 1, paddingRight: 10 }}>
-                    <Text style={{ fontWeight: "900" }}>Preferències de pista</Text>
-                    <Text style={{ marginTop: 4, color: "#666", fontWeight: "600" }} numberOfLines={1}>
+                    <Text style={{ fontWeight: "900", color: colors.text }}>Preferències de pista</Text>
+                    <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "600" }} numberOfLines={1}>
                       {selectedSlotIds.size ? `${selectedSlotIds.size} seleccionades` : "Cap seleccionada"} · {champLabel}
                     </Text>
                   </View>
-                  <Text style={{ fontWeight: "900", fontSize: 16 }}>{showPrefs ? "▴" : "▾"}</Text>
+                  <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>{showPrefs ? "▴" : "▾"}</Text>
                 </Pressable>
 
                 {showPrefs ? (
@@ -917,11 +875,11 @@ export default function AdminTeams() {
                       padding: 12,
                       borderRadius: 14,
                       borderWidth: 1,
-                      borderColor: "#eee",
-                      backgroundColor: "white",
+                      borderColor: colors.border,
+                      backgroundColor: colors.bg,
                     }}
                   >
-                    <Text style={{ color: "#666", fontWeight: "700" }}>
+                    <Text style={{ color: colors.muted, fontWeight: "700" }}>
                       Aquestes preferències són per {champLabel}.
                     </Text>
 
@@ -937,25 +895,25 @@ export default function AdminTeams() {
                               paddingHorizontal: 12,
                               borderRadius: 999,
                               borderWidth: 1,
-                              borderColor: selected ? "#000" : "#ddd",
+                              borderColor: selected ? colors.text : colors.border,
                               marginRight: 8,
-                              backgroundColor: "white",
+                              backgroundColor: selected ? colors.successBg : colors.bg,
                             }}
                           >
-                            <Text style={{ fontWeight: "800" }}>{s.description ?? `Slot ${s.id}`}</Text>
+                            <Text style={{ fontWeight: "800" ,color: colors.text}}>{s.description ?? `Slot ${s.id}`}</Text>
                           </Pressable>
                         );
                       })}
                     </ScrollView>
 
-                    <Text style={{ marginTop: 10, color: "#888", fontWeight: "600" }}>
+                    <Text style={{ marginTop: 10, color: colors.muted, fontWeight: "600" }}>
                       Si marques preferències i l&apos;equip encara no és al campionat, l&apos;afegirem automàticament.
                     </Text>
                   </View>
                 ) : null}
               </View>
 
-              <Text style={{ marginTop: 12, color: "#888", fontWeight: "600" }}>
+              <Text style={{ marginTop: 12, color: colors.muted, fontWeight: "600" }}>
                 Consell: també pots afegir/treure equips del campionat des de la llista principal.
               </Text>
             </ScrollView>
@@ -972,12 +930,12 @@ export default function AdminTeams() {
                   paddingVertical: 12,
                   borderRadius: 14,
                   borderWidth: 1,
-                  borderColor: "#ddd",
+                  borderColor: colors.border,
                   alignItems: "center",
                   opacity: saving ? 0.6 : 1,
                 }}
               >
-                <Text style={{ fontWeight: "900" }}>Cancel·lar</Text>
+                <Text style={{ fontWeight: "900", color: colors.text }}>Cancel·lar</Text>
               </Pressable>
 
               <Pressable
@@ -988,13 +946,13 @@ export default function AdminTeams() {
                   paddingVertical: 12,
                   borderRadius: 14,
                   borderWidth: 1,
-                  borderColor: "#d7f2df",
-                  backgroundColor: "#e6f7ed",
+                  borderColor: colors.border,
+                  backgroundColor: colors.successBg,
                   alignItems: "center",
                   opacity: saving ? 0.6 : 1,
                 }}
               >
-                <Text style={{ fontWeight: "900" }}>{saving ? "Desant…" : "Desar"}</Text>
+                <Text style={{ fontWeight: "900",color:colors.text }}>{saving ? "Desant…" : "Desar"}</Text>
               </Pressable>
             </View>
           </View>

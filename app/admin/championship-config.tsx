@@ -15,6 +15,9 @@ import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "../../src/supabase";
 import { BackButton } from "../../components/HeaderButtons";
+import { formatDateTime } from "../../src/utils/format";
+import { useAdminGuard } from "../../hooks/use-admin-guard";
+import { useAppTheme } from "@/src/theme";
 
 type Championship = {
   id: number;
@@ -59,17 +62,6 @@ type PhasePickerProps = {
   noneLabel?: string;
 };
 
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-function formatDateTime(iso?: string | null) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()} ${pad2(
-    d.getHours()
-  )}:${pad2(d.getMinutes())}`;
-}
 function safeJsonStringify(v: any) {
   try {
     return JSON.stringify(v ?? {}, null, 2);
@@ -88,6 +80,7 @@ function ChampionshipPicker({
 }: ChampionshipPickerProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  const colors = useAppTheme().colors;
 
   const selected = useMemo(() => options.find((c) => c.id === value) ?? null, [options, value]);
   const filtered = useMemo(() => {
@@ -102,7 +95,7 @@ function ChampionshipPicker({
 
   return (
     <View style={{ marginTop: 12 }}>
-      <Text style={{ fontWeight: "800", color: includeAll ? "#666" : "#111" }}>{label}</Text>
+      <Text style={{ fontWeight: "800", color: includeAll ? colors.muted : colors.text }}>{label}</Text>
       <Pressable
         onPress={() => setOpen(true)}
         style={{
@@ -111,14 +104,14 @@ function ChampionshipPicker({
           paddingHorizontal: 12,
           borderRadius: 14,
           borderWidth: 1,
-          borderColor: "#ddd",
-          backgroundColor: "white",
+          borderColor: colors.border,
+          backgroundColor: colors.bg,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
         }}
       >
-        <Text style={{ fontWeight: "800", color: value == null ? "#888" : "#111" }} numberOfLines={1}>
+        <Text style={{ fontWeight: "800", color: value == null ? colors.muted : colors.text }} numberOfLines={1}>
           {value == null
             ? includeAll
               ? allLabel ?? "Tots"
@@ -130,8 +123,8 @@ function ChampionshipPicker({
 
       <Modal transparent visible={open} animationType={Platform.OS === "ios" ? "slide" : "fade"}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", padding: 16 }}>
-          <View style={{ backgroundColor: "white", borderRadius: 18, padding: 16, borderWidth: 1, borderColor: "#eee" }}>
-            <Text style={{ fontWeight: "900", fontSize: 18 }}>{label}</Text>
+          <View style={{ backgroundColor: colors.bg, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: colors.border }}>
+            <Text style={{ fontWeight: "900", fontSize: 18, color: colors.text }}>{label}</Text>
 
             <TextInput
               value={search}
@@ -144,7 +137,8 @@ function ChampionshipPicker({
                 paddingHorizontal: 12,
                 borderRadius: 12,
                 borderWidth: 1,
-                borderColor: "#ddd",
+                borderColor: colors.border,
+                backgroundColor: colors.bg,
               }}
             />
 
@@ -161,12 +155,12 @@ function ChampionshipPicker({
                     paddingHorizontal: 12,
                     borderRadius: 14,
                     borderWidth: 1,
-                    borderColor: value == null ? "#000" : "#ddd",
-                    backgroundColor: "white",
+                    borderColor: value == null ? colors.text : colors.border,
+                    backgroundColor: colors.bg,
                     marginBottom: 8,
                   }}
                 >
-                  <Text style={{ fontWeight: "900" }}>{allLabel ?? "Tots"}</Text>
+                  <Text style={{ fontWeight: "900", color: colors.text }}>{allLabel ?? "Tots"}</Text>
                 </Pressable>
               ) : null}
 
@@ -185,16 +179,16 @@ function ChampionshipPicker({
                       paddingHorizontal: 12,
                       borderRadius: 14,
                       borderWidth: 1,
-                      borderColor: isSelected ? "#000" : "#ddd",
-                      backgroundColor: "white",
+                      borderColor: isSelected ? colors.text : colors.border,
+                      backgroundColor: colors.bg,
                       marginBottom: 8,
                     }}
                   >
-                    <Text style={{ fontWeight: "900" }} numberOfLines={1}>
+                    <Text style={{ fontWeight: "900", color: colors.text }} numberOfLines={1}>
                       {c.name} {c.year ? `· ${c.year}` : ""}
                     </Text>
                     {c.is_active ? (
-                      <Text style={{ marginTop: 4, color: "#1a7f37", fontWeight: "800" }}>Actiu</Text>
+                      <Text style={{ marginTop: 4, color: colors.success, fontWeight: "800" }}>Actiu</Text>
                     ) : null}
                   </Pressable>
                 );
@@ -226,6 +220,7 @@ function ChampionshipPicker({
 
 
 function PhasePicker({ label, value, onChange, options, includeNone, noneLabel }: PhasePickerProps) {
+  const colors = useAppTheme().colors;
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
 
@@ -243,7 +238,7 @@ function PhasePicker({ label, value, onChange, options, includeNone, noneLabel }
 
   return (
     <View style={{ marginTop: 12 }}>
-      <Text style={{ fontWeight: "800", color: "#111" }}>{label}</Text>
+      <Text style={{ fontWeight: "800", color: colors.text }}>{label}</Text>
       <Pressable
         onPress={() => setOpen(true)}
         style={{
@@ -252,14 +247,14 @@ function PhasePicker({ label, value, onChange, options, includeNone, noneLabel }
           paddingHorizontal: 12,
           borderRadius: 14,
           borderWidth: 1,
-          borderColor: "#ddd",
-          backgroundColor: "white",
+          borderColor: colors.border,
+          backgroundColor: colors.bg,
           flexDirection: "row",
           alignItems: "center",
           justifyContent: "space-between",
         }}
       >
-        <Text style={{ fontWeight: "800", color: value == null ? "#888" : "#111" }} numberOfLines={1}>
+        <Text style={{ fontWeight: "800", color: value == null ? colors.text : colors.text }} numberOfLines={1}>
           {value == null
             ? includeNone
               ? noneLabel ?? "— Sense fase —"
@@ -271,8 +266,8 @@ function PhasePicker({ label, value, onChange, options, includeNone, noneLabel }
 
       <Modal transparent visible={open} animationType={Platform.OS === "ios" ? "slide" : "fade"}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", padding: 16 }}>
-          <View style={{ backgroundColor: "white", borderRadius: 18, padding: 16, borderWidth: 1, borderColor: "#eee" }}>
-            <Text style={{ fontWeight: "900", fontSize: 18 }}>{label}</Text>
+          <View style={{ backgroundColor: colors.bg, borderRadius: 18, padding: 16, borderWidth: 1, borderColor: colors.border }}>
+            <Text style={{ fontWeight: "900", fontSize: 18, color: colors.text }}>{label}</Text>
 
             <TextInput
               value={search}
@@ -285,7 +280,8 @@ function PhasePicker({ label, value, onChange, options, includeNone, noneLabel }
                 paddingHorizontal: 12,
                 borderRadius: 12,
                 borderWidth: 1,
-                borderColor: "#ddd",
+                borderColor: colors.border,
+                color: colors.text,
               }}
             />
 
@@ -302,12 +298,12 @@ function PhasePicker({ label, value, onChange, options, includeNone, noneLabel }
                     paddingHorizontal: 12,
                     borderRadius: 14,
                     borderWidth: 1,
-                    borderColor: value == null ? "#000" : "#ddd",
-                    backgroundColor: "white",
+                    borderColor: value == null ? colors.text : colors.border,
+                    backgroundColor: colors.bg,
                     marginBottom: 8,
                   }}
                 >
-                  <Text style={{ fontWeight: "900" }}>{noneLabel ?? "— Sense fase —"}</Text>
+                  <Text style={{ fontWeight: "900", color: colors.text }}>{noneLabel ?? "— Sense fase —"}</Text>
                 </Pressable>
               ) : null}
 
@@ -326,16 +322,16 @@ function PhasePicker({ label, value, onChange, options, includeNone, noneLabel }
                       paddingHorizontal: 12,
                       borderRadius: 14,
                       borderWidth: 1,
-                      borderColor: isSelected ? "#000" : "#ddd",
-                      backgroundColor: "white",
+                      borderColor: isSelected ? colors.text : colors.border,
+                      backgroundColor: colors.bg,
                       marginBottom: 8,
                     }}
                   >
-                    <Text style={{ fontWeight: "900" }} numberOfLines={1}>
+                    <Text style={{ fontWeight: "900", color: colors.text }} numberOfLines={1}>
                       {p.code} {p.name ? `— ${p.name}` : ""}
                     </Text>
                     {p.description ? (
-                      <Text style={{ marginTop: 4, color: "#666", fontWeight: "700" }} numberOfLines={2}>
+                      <Text style={{ marginTop: 4, color: colors.text, fontWeight: "700" }} numberOfLines={2}>
                         {p.description}
                       </Text>
                     ) : null}
@@ -354,11 +350,11 @@ function PhasePicker({ label, value, onChange, options, includeNone, noneLabel }
                 paddingVertical: 12,
                 borderRadius: 14,
                 borderWidth: 1,
-                borderColor: "#ddd",
+                borderColor: colors.border,
                 alignItems: "center",
               }}
             >
-              <Text style={{ fontWeight: "900" }}>Tancar</Text>
+              <Text style={{ fontWeight: "900", color: colors.text }}>Tancar</Text>
             </Pressable>
           </View>
         </View>
@@ -370,11 +366,8 @@ function PhasePicker({ label, value, onChange, options, includeNone, noneLabel }
 
 export default function AdminChampionshipConfig() {
   const router = useRouter();
-
-  // access
-  const [checking, setChecking] = useState(true);
-  const [allowed, setAllowed] = useState(false);
-
+  const { checking, isAdmin: allowed, recheck: checkAccess } = useAdminGuard();
+  const { colors } = useAppTheme();
   // lookups
   const [championships, setChampionships] = useState<Championship[]>([]);
   const [phases, setPhases] = useState<Phase[]>([]);
@@ -458,23 +451,6 @@ export default function AdminChampionshipConfig() {
     }
   }, [modalOpen, pendingDupOpen]);
 
-  const checkAccess = useCallback(async () => {
-    setChecking(true);
-    const { data: sessionRes } = await supabase.auth.getSession();
-    const user = sessionRes.session?.user;
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
-    const { data } = await supabase
-      .from("championship_admin_user")
-      .select("user_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    setAllowed(!!data);
-    setChecking(false);
-  }, [router]);
-
   const loadLookups = useCallback(async () => {
     const [{ data: ch, error: chErr }, { data: ph, error: phErr }] = await Promise.all([
       supabase
@@ -512,10 +488,6 @@ export default function AdminChampionshipConfig() {
     setLoading(false);
   }, [filterChampionshipId]);
 
-  useEffect(() => {
-    checkAccess();
-  }, [checkAccess]);
-
   useFocusEffect(
     useCallback(() => {
       checkAccess();
@@ -523,13 +495,6 @@ export default function AdminChampionshipConfig() {
       load();
     }, [checkAccess, loadLookups, load])
   );
-
-  useEffect(() => {
-    if (!checking && !allowed) {
-      Alert.alert("Accés denegat", "Aquesta secció és només per gestors.");
-      router.back();
-    }
-  }, [checking, allowed, router]);
 
   const validate = useCallback(() => {
     if (!championshipId) return "Selecciona un campionat.";
@@ -719,8 +684,8 @@ export default function AdminChampionshipConfig() {
               padding: 16,
               borderRadius: 18,
               borderWidth: 1,
-              borderColor: "#eee",
-              backgroundColor: "#fafafa",
+              borderColor: colors.border,
+              backgroundColor: colors.bg,
               marginBottom: 14,
             }}
           >
@@ -733,12 +698,12 @@ export default function AdminChampionshipConfig() {
                   paddingVertical: 12,
                   borderRadius: 14,
                   borderWidth: 1,
-                  borderColor: "#d7f2df",
-                  backgroundColor: "#e6f7ed",
+                  borderColor: colors.success,
+                  backgroundColor: colors.successBg,
                   alignItems: "center",
                 }}
               >
-                <Text style={{ fontWeight: "900" }}>＋ Nova configuració</Text>
+                <Text style={{ fontWeight: "900" ,color:colors.text}}>＋ Nova configuració</Text>
               </Pressable>
 
               <Pressable
@@ -748,12 +713,12 @@ export default function AdminChampionshipConfig() {
                   paddingVertical: 12,
                   borderRadius: 14,
                   borderWidth: 1,
-                  borderColor: "#ddd",
-                  backgroundColor: "white",
+                  borderColor: colors.border,
+                  backgroundColor: colors.bg,
                   alignItems: "center",
                 }}
               >
-                <Text style={{ fontWeight: "900" }}>↻ Refrescar</Text>
+                <Text style={{ fontWeight: "900", color: colors.text }}>↻ Refrescar</Text>
               </Pressable>
             </View>
 
@@ -778,31 +743,32 @@ export default function AdminChampionshipConfig() {
                 padding: 14,
                 borderRadius: 16,
                 borderWidth: 1,
-                borderColor: "#e6e6e6",
-                backgroundColor: "white",
+                borderColor: colors.border,
+                backgroundColor: colors.bg,
                 marginBottom: 12,
               }}
             >
-              <Text style={{ fontWeight: "900", fontSize: 16 }} numberOfLines={2}>
+              <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }} numberOfLines={2}>
                 {item.key} · {champ?.name ?? "Campionat"} {champ?.year ? `(${champ.year})` : ""}
               </Text>
 
               {phase ? (
-                <Text style={{ marginTop: 6, color: "#666", fontWeight: "700" }} numberOfLines={2}>
+                <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "700" }} numberOfLines={2}>
                   Fase: {phase.code} — {phase.name}
                 </Text>
               ) : (
-                <Text style={{ marginTop: 6, color: "#888", fontWeight: "700" }} numberOfLines={1}>
+                <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "700" }} numberOfLines={1}>
                   Sense fase
                 </Text>
               )}
 
-              <Text style={{ marginTop: 6, color: "#888" }}>{formatDateTime(item.updated_at || item.created_at)}</Text>
+              <Text style={{ marginTop: 6, color: colors.muted }}>{formatDateTime(item.updated_at || item.created_at)}</Text>
 
               <Text
                 style={{
                   marginTop: 8,
                   fontFamily: Platform.select({ ios: "Menlo", android: "monospace" }),
+                  color: colors.text,
                 }}
                 numberOfLines={6}
               >
@@ -818,15 +784,15 @@ export default function AdminChampionshipConfig() {
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", padding: 16 }}>
           <View
             style={{
-              backgroundColor: "white",
+              backgroundColor: colors.bg,
               borderRadius: 18,
               padding: 16,
               borderWidth: 1,
-              borderColor: "#eee",
+              borderColor: colors.border,
               height: "80%",
             }}
           >
-            <Text style={{ fontWeight: "900", fontSize: 18 }}>
+            <Text style={{ fontWeight: "900", fontSize: 18, color: colors.text }}>
               {editing ? "Editar configuració" : "Nova configuració"}
             </Text>
 
@@ -851,20 +817,20 @@ export default function AdminChampionshipConfig() {
                     paddingHorizontal: 12,
                     borderRadius: 14,
                     borderWidth: 1,
-                    borderColor: "#ddd",
-                    backgroundColor: "#fafafa",
+                    borderColor: colors.border,
+                    backgroundColor: colors.bg,
                     flexDirection: "row",
                     alignItems: "center",
                     justifyContent: "space-between",
                   }}
                 >
                   <View style={{ flex: 1, paddingRight: 10 }}>
-                    <Text style={{ fontWeight: "900" }}>Fase (opcional)</Text>
-                    <Text style={{ marginTop: 4, color: "#666", fontWeight: "600" }} numberOfLines={1}>
+                    <Text style={{ fontWeight: "900", color: colors.text }}>Fase (opcional)</Text>
+                    <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "600" }} numberOfLines={1}>
                       {selectedPhase ? `${selectedPhase.code} — ${selectedPhase.name}` : "— Sense fase —"}
                     </Text>
                   </View>
-                  <Text style={{ fontWeight: "900", fontSize: 16 }}>{showPhaseSection ? "▴" : "▾"}</Text>
+                  <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>{showPhaseSection ? "▴" : "▾"}</Text>
                 </Pressable>
 
                 {showPhaseSection ? (
@@ -874,8 +840,8 @@ export default function AdminChampionshipConfig() {
                       padding: 12,
                       borderRadius: 14,
                       borderWidth: 1,
-                      borderColor: "#eee",
-                      backgroundColor: "white",
+                      borderColor: colors.border,
+                      backgroundColor: colors.bg,
                     }}
                   >
                     <TextInput
@@ -888,7 +854,9 @@ export default function AdminChampionshipConfig() {
                         paddingHorizontal: 12,
                         borderRadius: 12,
                         borderWidth: 1,
-                        borderColor: "#ddd",
+                        borderColor: colors.border,
+                        backgroundColor: colors.bg,
+                        color: colors.text,
                       }}
                     />
 
@@ -900,11 +868,11 @@ export default function AdminChampionshipConfig() {
                         paddingHorizontal: 12,
                         borderRadius: 12,
                         borderWidth: 1,
-                        borderColor: phaseId == null ? "#000" : "#ddd",
-                        backgroundColor: "white",
+                        borderColor: phaseId == null ? colors.text : colors.border,
+                        backgroundColor: colors.bg,
                       }}
                     >
-                      <Text style={{ fontWeight: "800" }}>— Sense fase —</Text>
+                      <Text style={{ fontWeight: "800", color: colors.text }}>— Sense fase —</Text>
                     </Pressable>
 
                     <ScrollView
@@ -922,16 +890,16 @@ export default function AdminChampionshipConfig() {
                               paddingHorizontal: 12,
                               borderRadius: 12,
                               borderWidth: 1,
-                              borderColor: selected ? "#000" : "#ddd",
-                              backgroundColor: "white",
+                              borderColor: selected ? colors.text : colors.border,
+                              backgroundColor: colors.bg,
                               marginBottom: 8,
                             }}
                           >
-                            <Text style={{ fontWeight: "800" }}>
+                            <Text style={{ fontWeight: "800", color: colors.text }}>
                               {p.code} — {p.name}
                             </Text>
                             {p.description ? (
-                              <Text style={{ marginTop: 4, color: "#666", fontWeight: "600" }} numberOfLines={2}>
+                              <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "600" }} numberOfLines={2}>
                                 {p.description}
                               </Text>
                             ) : null}
@@ -944,7 +912,7 @@ export default function AdminChampionshipConfig() {
               </View>
 
               {/* Key */}
-              <Text style={{ marginTop: 14, fontWeight: "800" }}>Key</Text>
+              <Text style={{ marginTop: 14, fontWeight: "800", color: colors.text }}>Key</Text>
               <TextInput
                 value={cfgKey}
                 onChangeText={setCfgKey}
@@ -956,12 +924,14 @@ export default function AdminChampionshipConfig() {
                   paddingHorizontal: 12,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: "#ddd",
+                  borderColor: colors.border,
+                  backgroundColor: colors.bg,
+                  color: colors.text,
                 }}
               />
 
               {/* Value */}
-              <Text style={{ marginTop: 12, fontWeight: "800" }}>Value (JSON)</Text>
+              <Text style={{ marginTop: 12, fontWeight: "800", color: colors.text }}>Value (JSON)</Text>
               <TextInput
                 value={valueText}
                 onChangeText={setValueText}
@@ -973,14 +943,16 @@ export default function AdminChampionshipConfig() {
                   padding: 12,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: "#ddd",
+                  borderColor: colors.border,
+                  backgroundColor: colors.bg,
+                  color: colors.text,
                   minHeight: 160,
                   textAlignVertical: "top",
                   fontFamily: Platform.select({ ios: "Menlo", android: "monospace" }),
                 }}
               />
 
-              <Text style={{ marginTop: 10, color: "#888", fontWeight: "600" }}>
+              <Text style={{ marginTop: 10, color: colors.muted, fontWeight: "600" }}>
                 Tip: enganxa un JSON i el validarem abans de desar.
               </Text>
             </ScrollView>
@@ -997,12 +969,13 @@ export default function AdminChampionshipConfig() {
                   paddingVertical: 12,
                   borderRadius: 14,
                   borderWidth: 1,
-                  borderColor: "#ddd",
+                  borderColor: colors.border,
+                  backgroundColor: colors.bg,
                   alignItems: "center",
                   opacity: saving ? 0.6 : 1,
                 }}
               >
-                <Text style={{ fontWeight: "900" }}>Cancel·lar</Text>
+                <Text style={{ fontWeight: "900", color: colors.text }}>Cancel·lar</Text>
               </Pressable>
 
               {editing ? (
@@ -1014,13 +987,13 @@ export default function AdminChampionshipConfig() {
                     paddingVertical: 12,
                     borderRadius: 14,
                     borderWidth: 1,
-                    borderColor: "#dbeafe",
-                    backgroundColor: "#eff6ff",
+                    borderColor: colors.primary,
+                    backgroundColor: colors.cardblue,
                     alignItems: "center",
                     opacity: saving ? 0.6 : 1,
                   }}
                 >
-                  <Text style={{ fontWeight: "900" }}>Duplicar</Text>
+                  <Text style={{ fontWeight: "900", color: colors.text }}>Duplicar</Text>
                 </Pressable>
               ) : null}
 
@@ -1032,13 +1005,13 @@ export default function AdminChampionshipConfig() {
                   paddingVertical: 12,
                   borderRadius: 14,
                   borderWidth: 1,
-                  borderColor: "#d7f2df",
-                  backgroundColor: "#e6f7ed",
+                  borderColor: colors.success,
+                  backgroundColor: colors.successBg,
                   alignItems: "center",
                   opacity: saving ? 0.6 : 1,
                 }}
               >
-                <Text style={{ fontWeight: "900" }}>{saving ? "Desant…" : "Desar"}</Text>
+                <Text style={{ fontWeight: "900", color: colors.text }}>{saving ? "Desant…" : "Desar"}</Text>
               </Pressable>
             </View>
           </View>
@@ -1107,12 +1080,12 @@ export default function AdminChampionshipConfig() {
                   paddingVertical: 12,
                   borderRadius: 14,
                   borderWidth: 1,
-                  borderColor: "#ddd",
+                  borderColor: colors.border,
                   alignItems: "center",
                   opacity: duplicating ? 0.6 : 1,
                 }}
               >
-                <Text style={{ fontWeight: "900" }}>Cancel·lar</Text>
+                <Text style={{ fontWeight: "900", color: colors.text }}>Cancel·lar</Text>
               </Pressable>
 
               <Pressable
@@ -1123,13 +1096,13 @@ export default function AdminChampionshipConfig() {
                   paddingVertical: 12,
                   borderRadius: 14,
                   borderWidth: 1,
-                  borderColor: "#d7f2df",
-                  backgroundColor: "#e6f7ed",
+                  borderColor: colors.success,
+                  backgroundColor: colors.successBg,
                   alignItems: "center",
                   opacity: duplicating ? 0.6 : 1,
                 }}
               >
-                <Text style={{ fontWeight: "900" }}>{duplicating ? "Duplicant…" : "Duplicar"}</Text>
+                <Text style={{ fontWeight: "900", color: colors.text }}>{duplicating ? "Duplicant…" : "Duplicar"}</Text>
               </Pressable>
             </View>
           </View>

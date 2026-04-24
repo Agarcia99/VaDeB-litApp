@@ -16,6 +16,8 @@ import { useRouter, Stack } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "../../src/supabase";
 import { BackButton, RefreshButton } from "../../components/HeaderButtons";
+import { useAdminGuard } from "../../hooks/use-admin-guard";
+import { useAppTheme } from "@/src/theme";
 
 type Championship = { id: number; name: string | null; year: number | null; is_active: boolean | null };
 type Team = { id: number; name: string | null; short_name: string | null };
@@ -32,10 +34,8 @@ type TeamPlayer = {
 
 export default function AdminPlayers() {
   const router = useRouter();
-
-  const [checking, setChecking] = useState(true);
-  const [allowed, setAllowed] = useState(false);
-
+  const { checking, isAdmin: allowed, recheck: checkAccess } = useAdminGuard();
+  const { colors } = useAppTheme(); 
   const [loading, setLoading] = useState(true);
 
   const [championships, setChampionships] = useState<Championship[]>([]);
@@ -89,29 +89,6 @@ export default function AdminPlayers() {
     const max = nums.length ? Math.max(...nums) : 0;
     return max + 1;
   }, [rows]);
-
-  const checkAccess = useCallback(async () => {
-    setChecking(true);
-    const { data: sessionRes } = await supabase.auth.getSession();
-    const user = sessionRes.session?.user;
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
-    const { data, error } = await supabase
-      .from("championship_admin_user")
-      .select("user_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (error) {
-      Alert.alert("Error", error.message);
-      setAllowed(false);
-    } else {
-      setAllowed(!!data);
-    }
-    setChecking(false);
-  }, [router]);
 
   const loadLookups = useCallback(async () => {
     const [{ data: ch, error: chErr }, { data: t, error: tErr }, { data: p, error: pErr }] =
@@ -198,10 +175,6 @@ export default function AdminPlayers() {
     setLoading(false);
   }, [selectedChampionshipId, selectedTeamId]);
 
-  useEffect(() => {
-    checkAccess();
-  }, [checkAccess]);
-
   useFocusEffect(
     useCallback(() => {
       checkAccess();
@@ -218,13 +191,6 @@ export default function AdminPlayers() {
   useEffect(() => {
     loadRows();
   }, [loadRows]);
-
-  useEffect(() => {
-    if (!checking && !allowed) {
-      Alert.alert("Accés denegat", "Aquesta secció és només per gestors.");
-      router.back();
-    }
-  }, [checking, allowed, router]);
 
   const playerNameById = useMemo(() => {
     const m = new Map<number, string>();
@@ -463,8 +429,8 @@ export default function AdminPlayers() {
           padding: 16,
           borderRadius: 18,
           borderWidth: 1,
-          borderColor: "#eee",
-          backgroundColor: "#fafafa",
+          borderColor: colors.border,
+          backgroundColor: colors.bg,
           marginBottom: 14,
         }}
       >
@@ -472,13 +438,13 @@ export default function AdminPlayers() {
           onPress={() => router.back()}
           style={{ marginBottom:15 }}
         />
-        <Text style={{ fontWeight: "900", fontSize: 18 }}>Jugadors per equip</Text>
-        <Text style={{ marginTop: 6, color: "#666", fontWeight: "600" }}>
+        <Text style={{ fontWeight: "900", fontSize: 18, color: colors.text }}>Jugadors per equip</Text>
+        <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "600" }}>
           Dorsal automàtic (següent número) i un jugador no pot estar en 2 equips del mateix campionat.
         </Text>
 
         <View style={{ marginTop: 12 }}>
-          <Text style={{ fontWeight: "800", color: "#666" }}>Campionat</Text>
+          <Text style={{ fontWeight: "800", color: colors.muted }}>Campionat</Text>
           <Pressable
             onPress={() => setChampModalOpen(true)}
             style={{
@@ -487,22 +453,22 @@ export default function AdminPlayers() {
               paddingHorizontal: 12,
               borderRadius: 14,
               borderWidth: 1,
-              borderColor: "#ddd",
-              backgroundColor: "white",
+              borderColor: colors.border,
+              backgroundColor: colors.bg,
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
             }}
           >
             <View style={{ flex: 1, paddingRight: 10 }}>
-              <Text style={{ fontWeight: "900" }} numberOfLines={1}>
+              <Text style={{ fontWeight: "900", color: colors.text }} numberOfLines={1}>
                 {champLabel}
               </Text>
-              <Text style={{ marginTop: 4, color: "#666", fontWeight: "600" }} numberOfLines={1}>
+              <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "600" }} numberOfLines={1}>
                 Toca per canviar de campionat
               </Text>
             </View>
-            <Text style={{ fontWeight: "900", fontSize: 16 }}>▾</Text>
+            <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>▾</Text>
           </Pressable>
 
           <Modal
@@ -523,9 +489,9 @@ export default function AdminPlayers() {
             >
               <Pressable
                 onPress={() => null}
-                style={{ backgroundColor: "white", borderRadius: 18, padding: 14, maxHeight: "80%" as any }}
+                style={{ backgroundColor: colors.bg, borderRadius: 18, padding: 14, maxHeight: "80%" as any }}
               >
-                <Text style={{ fontWeight: "900", fontSize: 16 }}>Selecciona campionat</Text>
+                <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>Selecciona campionat</Text>
 
                 <TextInput
                   value={champSearch}
@@ -538,8 +504,9 @@ export default function AdminPlayers() {
                     paddingHorizontal: 12,
                     borderRadius: 12,
                     borderWidth: 1,
-                    borderColor: "#ddd",
-                    backgroundColor: "white",
+                    borderColor: colors.border,
+                    backgroundColor: colors.bg,
+                    color: colors.text,
                   }}
                 />
 
@@ -563,18 +530,18 @@ export default function AdminPlayers() {
                           paddingHorizontal: 12,
                           borderRadius: 12,
                           borderWidth: 1,
-                          borderColor: selected ? "#000" : "#ddd",
-                          backgroundColor: "white",
+                          borderColor: selected ? colors.text : colors.border,
+                          backgroundColor: selected ? colors.successBg : colors.bg,
                           marginBottom: 8,
                         }}
                       >
-                        <Text style={{ fontWeight: "800" }}>{label}</Text>
+                        <Text style={{ fontWeight: "800", color: colors.text }}>{label}</Text>
                       </Pressable>
                     );
                   }}
                   ListEmptyComponent={() => (
                     <View style={{ paddingVertical: 10, paddingHorizontal: 2 }}>
-                      <Text style={{ color: "#666", fontWeight: "700" }}>No hi ha campionats.</Text>
+                      <Text style={{ color: colors.muted, fontWeight: "700" }}>No hi ha campionats.</Text>
                     </View>
                   )}
                 />
@@ -589,12 +556,12 @@ export default function AdminPlayers() {
                     paddingVertical: 12,
                     borderRadius: 14,
                     borderWidth: 1,
-                    borderColor: "#ddd",
-                    backgroundColor: "#fff",
+                    borderColor: colors.border,
+                    backgroundColor: colors.bg,
                     alignItems: "center",
                   }}
                 >
-                  <Text style={{ fontWeight: "900" }}>Tancar</Text>
+                  <Text style={{ fontWeight: "900", color: colors.text }}>Tancar</Text>
                 </Pressable>
               </Pressable>
             </Pressable>
@@ -602,7 +569,7 @@ export default function AdminPlayers() {
         </View>
 
         <View style={{ marginTop: 12 }}>
-          <Text style={{ fontWeight: "800", color: "#666" }}>Equip</Text>
+          <Text style={{ fontWeight: "800", color: colors.muted }}>Equip</Text>
 
           <Pressable
             onPress={() => setShowTeamSection((s) => !s)}
@@ -612,22 +579,22 @@ export default function AdminPlayers() {
               paddingHorizontal: 12,
               borderRadius: 14,
               borderWidth: 1,
-              borderColor: "#ddd",
-              backgroundColor: "white",
+              borderColor: colors.border,
+              backgroundColor: colors.bg,
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
             }}
           >
             <View style={{ flex: 1, paddingRight: 10 }}>
-              <Text style={{ fontWeight: "900" }} numberOfLines={1}>
+              <Text style={{ fontWeight: "900", color: colors.text }} numberOfLines={1}>
                 {teamLabel}
               </Text>
-              <Text style={{ marginTop: 4, color: "#666", fontWeight: "600" }} numberOfLines={1}>
+              <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "600" }} numberOfLines={1}>
                 {selectedTeamId ? "Toca per canviar d'equip" : "Selecciona un equip"}
               </Text>
             </View>
-            <Text style={{ fontWeight: "900", fontSize: 16 }}>{showTeamSection ? "▴" : "▾"}</Text>
+            <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>{showTeamSection ? "▴" : "▾"}</Text>
           </Pressable>
 
           {showTeamSection ? (
@@ -637,8 +604,8 @@ export default function AdminPlayers() {
                 padding: 12,
                 borderRadius: 14,
                 borderWidth: 1,
-                borderColor: "#eee",
-                backgroundColor: "#fafafa",
+                borderColor: colors.border,
+                backgroundColor: colors.bg,
               }}
             >
               <TextInput
@@ -651,8 +618,9 @@ export default function AdminPlayers() {
                   paddingHorizontal: 12,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: "#ddd",
-                  backgroundColor: "white",
+                  borderColor: colors.border,
+                  backgroundColor: colors.bg,
+                  color: colors.text,
                 }}
               />
 
@@ -673,19 +641,19 @@ export default function AdminPlayers() {
                         paddingHorizontal: 12,
                         borderRadius: 12,
                         borderWidth: 1,
-                        borderColor: selected ? "#000" : "#ddd",
-                        backgroundColor: "white",
+                        borderColor: selected ? colors.text : colors.border,
+                        backgroundColor:selected ? colors.success :  colors.bg,
                         marginBottom: 8,
                       }}
                     >
-                      <Text style={{ fontWeight: "800" }}>{label}</Text>
+                      <Text style={{ fontWeight: "800", color: colors.text }}>{label}</Text>
                     </Pressable>
                   );
                 })}
 
                 {!filteredTeams.length ? (
                   <View style={{ paddingVertical: 10, paddingHorizontal: 2 }}>
-                    <Text style={{ color: "#666", fontWeight: "700" }}>
+                    <Text style={{ color: colors.muted, fontWeight: "700" }}>
                       No hi ha equips al campionat. Afegeix-los des de la pantalla d&apos;Equips.
                     </Text>
                   </View>
@@ -703,13 +671,13 @@ export default function AdminPlayers() {
               paddingVertical: 12,
               borderRadius: 14,
               borderWidth: 1,
-              borderColor: "#d7f2df",
-              backgroundColor: "#e6f7ed",
+              borderColor: colors.success,
+              backgroundColor: colors.successBg,
               alignItems: "center",
               opacity: selectedChampionshipId && selectedTeamId ? 1 : 0.6,
             }}
           >
-            <Text style={{ fontWeight: "900" }}>＋ Afegir jugador</Text>
+            <Text style={{ fontWeight: "900", color: colors.text }}>＋ Afegir jugador</Text>
           </Pressable>
 
           <Pressable
@@ -719,16 +687,16 @@ export default function AdminPlayers() {
               paddingVertical: 12,
               borderRadius: 14,
               borderWidth: 1,
-              borderColor: "#ddd",
-              backgroundColor: "white",
+              borderColor: colors.border,
+              backgroundColor: colors.bg,
               alignItems: "center",
             }}
           >
-            <Text style={{ fontWeight: "900" }}>↻ Refrescar</Text>
+            <Text style={{ fontWeight: "900", color: colors.text }}>↻ Refrescar</Text>
           </Pressable>
         </View>
 
-        <Text style={{ marginTop: 10, color: "#888", fontWeight: "600" }}>
+        <Text style={{ marginTop: 10, color: colors.muted, fontWeight: "600" }}>
           Següent dorsal automàtic: {nextNumber}
         </Text>
       </View>
@@ -749,8 +717,8 @@ return (
 
                 ListEmptyComponent={() => (loading ? null : (
                   <View style={{ alignItems: "center", marginTop: 50 }}>
-                    <Text style={{ color: "#666", fontWeight: "800" }}>Cap jugador assignat.</Text>
-                    <Text style={{ color: "#888", marginTop: 6 }}>Afegeix-ne amb “Afegir jugador”.</Text>
+                    <Text style={{ color: colors.muted, fontWeight: "800" }}>Cap jugador assignat.</Text>
+                    <Text style={{ color: colors.muted, marginTop: 6 }}>Afegeix-ne amb “Afegir jugador”.</Text>
                   </View>
                 ))}
                 renderItem={({ item }) => {
@@ -762,18 +730,18 @@ return (
                         padding: 14,
                         borderRadius: 16,
                         borderWidth: 1,
-                        borderColor: "#e6e6e6",
-                        backgroundColor: "white",
+                        borderColor: colors.border,
+                        backgroundColor: colors.bg,
                         marginBottom: 12,
                       }}
                     >
                       <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 12 }}>
                         <View style={{ flex: 1 }}>
-                          <Text style={{ fontWeight: "900", fontSize: 16 }} numberOfLines={2}>
+                          <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }} numberOfLines={2}>
                             {item.is_captain ? "⭐ " : ""}
                             {nm}
                           </Text>
-                          <Text style={{ marginTop: 6, color: "#666", fontWeight: "700" }}>
+                          <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "700" }}>
                             Dorsal: {item.player_number ?? "—"} · ID: {item.player_id}
                           </Text>
                         </View>
@@ -786,8 +754,8 @@ return (
                             paddingHorizontal: 10,
                             borderRadius: 12,
                             borderWidth: 1,
-                            borderColor: "#f3d0d0",
-                            backgroundColor: "#ffecec",
+                            borderColor: colors.danger,
+                            backgroundColor: colors.dangerBg,
                             height: 44,
                             opacity: deleting === item.id ? 0.6 : 1,
                             alignItems: "center",
@@ -798,7 +766,7 @@ return (
                         </Pressable>
                       </View>
 
-                      <Text style={{ marginTop: 10, color: "#777", fontWeight: "700" }}>Toca per editar</Text>
+                      <Text style={{ marginTop: 10, color: colors.muted, fontWeight: "700" }}>Toca per editar</Text>
                     </Pressable>
                   );
                 }}
@@ -808,17 +776,17 @@ return (
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", padding: 16 }}>
           <View
             style={{
-              backgroundColor: "white",
+              backgroundColor: colors.bg,
               borderRadius: 18,
               padding: 16,
               borderWidth: 1,
-              borderColor: "#eee",
+              borderColor: colors.border,
               height: Platform.OS === "android" ? ("85%" as any) : undefined,
               maxHeight: Platform.OS === "android" ? ("85%" as any) : ("90%" as any),
               alignSelf: "stretch",
             }}
           >
-            <Text style={{ fontWeight: "900", fontSize: 18 }}>{editing ? "Editar jugador" : "Afegir jugador"}</Text>
+            <Text style={{ fontWeight: "900", fontSize: 18, color: colors.text }}>{editing ? "Editar jugador" : "Afegir jugador"}</Text>
 
             <ScrollView
               nestedScrollEnabled
@@ -833,13 +801,13 @@ return (
                     padding: 12,
                     borderRadius: 14,
                     borderWidth: 1,
-                    borderColor: "#eee",
-                    backgroundColor: "#fafafa",
+                    borderColor: colors.border,
+                    backgroundColor: colors.bg,
                   }}
                 >
-                  <Text style={{ fontWeight: "900" }}>Dorsal assignat automàticament</Text>
-                  <Text style={{ marginTop: 6, color: "#666", fontWeight: "700" }}>
-                    Aquest jugador rebrà el dorsal <Text style={{ fontWeight: "900" }}>{nextNumber}</Text>.
+                  <Text style={{ fontWeight: "900", color: colors.text }}>Dorsal assignat automàticament</Text>
+                  <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "700" }}>
+                    Aquest jugador rebrà el dorsal <Text style={{ fontWeight: "900", color: colors.text }}>{nextNumber}</Text>.
                   </Text>
                 </View>
               ) : null}
@@ -852,18 +820,18 @@ return (
                     paddingVertical: 10,
                     borderRadius: 14,
                     borderWidth: 1,
-                    borderColor: showCreatePlayer ? "#000" : "#ddd",
-                    backgroundColor: "white",
+                    borderColor: showCreatePlayer ? colors.text : colors.border,
+                    backgroundColor: colors.bg,
                     alignItems: "center",
                   }}
                 >
-                  <Text style={{ fontWeight: "900" }}>{showCreatePlayer ? "Triar existent" : "＋ Nou jugador"}</Text>
+                  <Text style={{ fontWeight: "900", color: colors.text }}>{showCreatePlayer ? "Triar existent" : "＋ Nou jugador"}</Text>
                 </Pressable>
               </View>
 
               {showCreatePlayer ? (
                 <View style={{ marginTop: 12 }}>
-                  <Text style={{ color: "#666", fontWeight: "800" }}>Nom del jugador</Text>
+                  <Text style={{ color: colors.muted, fontWeight: "800" }}>Nom del jugador</Text>
                   <TextInput
                     value={newPlayerName}
                     onChangeText={setNewPlayerName}
@@ -875,7 +843,8 @@ return (
                       paddingHorizontal: 12,
                       borderRadius: 12,
                       borderWidth: 1,
-                      borderColor: "#ddd",
+                      borderColor: colors.border,
+                      color: colors.text,
                     }}
                   />
                   <Pressable
@@ -886,18 +855,18 @@ return (
                       paddingVertical: 12,
                       borderRadius: 14,
                       borderWidth: 1,
-                      borderColor: "#d7f2df",
-                      backgroundColor: "#e6f7ed",
+                      borderColor: colors.success,
+                      backgroundColor: colors.successBg,
                       alignItems: "center",
                       opacity: saving ? 0.6 : 1,
                     }}
                   >
-                    <Text style={{ fontWeight: "900" }}>{saving ? "Creant…" : "Crear i seleccionar"}</Text>
+                    <Text style={{ fontWeight: "900" ,color: colors.text}}>{saving ? "Creant…" : "Crear i seleccionar"}</Text>
                   </Pressable>
                 </View>
               ) : (
                 <View style={{ marginTop: 12 }}>
-                  <Text style={{ color: "#666", fontWeight: "800" }}>Jugador</Text>
+                  <Text style={{ color: colors.muted, fontWeight: "800" }}>Jugador</Text>
                   <TextInput
                     value={playerSearch}
                     onChangeText={setPlayerSearch}
@@ -909,11 +878,12 @@ return (
                       paddingHorizontal: 12,
                       borderRadius: 12,
                       borderWidth: 1,
-                      borderColor: "#ddd",
+                      borderColor: colors.border,
+                      color: colors.text,
                     }}
                   />
 
-                  <View style={{ marginTop: 10, borderWidth: 1, borderColor: "#eee", borderRadius: 14, padding: 10 }}>
+                  <View style={{ marginTop: 10, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 10 }}>
                     {playerSearch.trim().length > 0 ? (
                       <ScrollView
                         nestedScrollEnabled
@@ -932,22 +902,22 @@ return (
                                 paddingHorizontal: 12,
                                 borderRadius: 12,
                                 borderWidth: 1,
-                                borderColor: selected ? "#000" : "#ddd",
-                                backgroundColor: "white",
+                                borderColor: selected ? colors.text : colors.border,
+                                backgroundColor: selected ? colors.successBg : colors.bg,
                                 marginBottom: 8,
                               }}
                             >
-                              <Text style={{ fontWeight: "800" }}>{p.name ?? `Jugador ${p.id}`}</Text>
+                              <Text style={{ fontWeight: "800", color: colors.text }}>{p.name ?? `Jugador ${p.id}`}</Text>
                             </Pressable>
                           );
                         })}
                       </ScrollView>
                     ) : (
-                      <Text style={{ paddingVertical: 8, color: "#888", fontWeight: "600" }}>
+                      <Text style={{ paddingVertical: 8, color: colors.muted, fontWeight: "600" }}>
                         Escriu al cercador per veure jugadors.
                       </Text>
                     )}
-                    <Text style={{ marginTop: 6, color: "#888", fontWeight: "600" }}>
+                    <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "600" }}>
                       Seleccionat: {playerId ? playerNameById.get(playerId) ?? `Jugador ${playerId}` : "—"}
                     </Text>
                   </View>
@@ -956,15 +926,15 @@ return (
 
               <View style={{ marginTop: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
                 <View style={{ flex: 1, paddingRight: 12 }}>
-                  <Text style={{ fontWeight: "900" }}>Capità</Text>
-                  <Text style={{ marginTop: 4, color: "#666", fontWeight: "600" }}>
+                  <Text style={{ fontWeight: "900", color:colors.text }}>Capità</Text>
+                  <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "600" }}>
                     Marca si aquest jugador és el capità de l&apos;equip.
                   </Text>
                 </View>
                 <Switch value={isCaptain} onValueChange={setIsCaptain} />
               </View>
 
-              <Text style={{ marginTop: 12, color: "#888", fontWeight: "600" }}>
+              <Text style={{ marginTop: 12, color: colors.muted, fontWeight: "600" }}>
                 Assignació: {champLabel} · {teamLabel}
               </Text>
             </ScrollView>
@@ -981,12 +951,12 @@ return (
                   paddingVertical: 12,
                   borderRadius: 14,
                   borderWidth: 1,
-                  borderColor: "#ddd",
+                  borderColor: colors.border,
                   alignItems: "center",
                   opacity: saving ? 0.6 : 1,
                 }}
               >
-                <Text style={{ fontWeight: "900" }}>Cancel·lar</Text>
+                <Text style={{ fontWeight: "900", color: colors.text }}>Cancel·lar</Text>
               </Pressable>
 
               <Pressable
@@ -997,13 +967,13 @@ return (
                   paddingVertical: 12,
                   borderRadius: 14,
                   borderWidth: 1,
-                  borderColor: "#d7f2df",
-                  backgroundColor: "#e6f7ed",
+                  borderColor: colors.border,
+                  backgroundColor: colors.successBg,
                   alignItems: "center",
                   opacity: saving ? 0.6 : 1,
                 }}
               >
-                <Text style={{ fontWeight: "900" }}>{saving ? "Desant…" : "Desar"}</Text>
+                <Text style={{ fontWeight: "900", color: colors.text }}>{saving ? "Desant…" : "Desar"}</Text>
               </Pressable>
             </View>
           </View>

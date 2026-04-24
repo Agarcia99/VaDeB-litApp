@@ -14,6 +14,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
 import { supabase } from "../../src/supabase";
 import { BackButton, RefreshButton } from "../../components/HeaderButtons";
+import { useAppTheme } from "../../src/theme";
 
 type RefereeRow = {
   id: number;
@@ -43,6 +44,7 @@ function formatDate(iso?: string | null) {
 
 export default function AdminRefereesScreen() {
   const router = useRouter();
+  const { colors } = useAppTheme();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -247,18 +249,18 @@ export default function AdminRefereesScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView edges={["left", "right", "bottom"]} style={{ flex: 1, backgroundColor: "#F6F7FB", padding: 16 }}>
+      <SafeAreaView edges={["left", "right", "bottom"]} style={{ flex: 1, backgroundColor: colors.bg, padding: 16 }}>
         <Stack.Screen options={{ headerShown: false }} />
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator size="large" />
-          <Text style={{ marginTop: 10, color: "#6B7280", fontWeight: "700" }}>Carregant…</Text>
+          <Text style={{ marginTop: 10, color: colors.muted, fontWeight: "700" }}>Carregant…</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView edges={["left", "right", "bottom"]} style={{ flex: 1, backgroundColor: "#F6F7FB", padding: 16 }}>
+    <SafeAreaView edges={["left", "right", "bottom"]} style={{ flex: 1, backgroundColor: colors.bg, padding: 16 }}>
       <Stack.Screen options={{ headerShown: false }} />
 
       <ScrollView
@@ -272,10 +274,10 @@ export default function AdminRefereesScreen() {
           <RefreshButton onPress={() => load(true)} />
         </View>
 
-        <Text style={{ fontSize: 24, fontWeight: "900", color: "#111827", textAlign: "center" }}>
+        <Text style={{ fontSize: 24, fontWeight: "900", color: colors.text, textAlign: "center" }}>
           👨‍⚖️ Gestió d'àrbitres
         </Text>
-        <Text style={{ marginTop: 6, textAlign: "center", color: "#6B7280", fontWeight: "700" }}>
+        <Text style={{ marginTop: 6, textAlign: "center", color: colors.muted, fontWeight: "700" }}>
           Crea, edita i controla quins àrbitres tenen usuari assignat.
         </Text>
 
@@ -319,14 +321,14 @@ export default function AdminRefereesScreen() {
         <View
           style={{
             marginTop: 14,
-            backgroundColor: "white",
+            backgroundColor: colors.card,
             borderRadius: 16,
             padding: 14,
             borderWidth: 1,
-            borderColor: "#E5E7EB",
+            borderColor: colors.border,
           }}
         >
-          <Text style={{ fontWeight: "900", fontSize: 17, color: "#111827", marginBottom: 10 }}>
+          <Text style={{ fontWeight: "900", fontSize: 17, color: colors.text, marginBottom: 10 }}>
             Afegir àrbitre
           </Text>
 
@@ -337,11 +339,11 @@ export default function AdminRefereesScreen() {
             placeholderTextColor="#9CA3AF"
             style={{
               borderWidth: 1,
-              borderColor: "#D1D5DB",
+              borderColor: colors.border,
               borderRadius: 12,
               paddingHorizontal: 12,
               paddingVertical: 10,
-              backgroundColor: "white",
+              backgroundColor: colors.card,
             }}
           />
 
@@ -350,7 +352,7 @@ export default function AdminRefereesScreen() {
             disabled={savingCreate}
             style={{
               marginTop: 12,
-              backgroundColor: "#111827",
+              backgroundColor: colors.primary,
               borderRadius: 12,
               alignItems: "center",
               justifyContent: "center",
@@ -358,21 +360,21 @@ export default function AdminRefereesScreen() {
               opacity: savingCreate ? 0.5 : 1,
             }}
           >
-            {savingCreate ? <ActivityIndicator color="white" /> : <Text style={{ color: "white", fontWeight: "900" }}>Afegir àrbitre</Text>}
+            {savingCreate ? <ActivityIndicator color={colors.primaryText} /> : <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Afegir àrbitre</Text>}
           </Pressable>
         </View>
 
         <View
           style={{
             marginTop: 14,
-            backgroundColor: "white",
+            backgroundColor: colors.card,
             borderRadius: 16,
             padding: 14,
             borderWidth: 1,
-            borderColor: "#E5E7EB",
+            borderColor: colors.border,
           }}
         >
-          <Text style={{ fontWeight: "900", fontSize: 17, color: "#111827", marginBottom: 10 }}>
+          <Text style={{ fontWeight: "900", fontSize: 17, color: colors.text, marginBottom: 10 }}>
             Llistat actual
           </Text>
 
@@ -383,19 +385,19 @@ export default function AdminRefereesScreen() {
             placeholderTextColor="#9CA3AF"
             style={{
               borderWidth: 1,
-              borderColor: "#D1D5DB",
+              borderColor: colors.border,
               borderRadius: 12,
               paddingHorizontal: 12,
               paddingVertical: 10,
-              backgroundColor: "white",
+              backgroundColor: colors.card,
               marginBottom: 12,
             }}
           />
 
           {visibleRows.length === 0 ? (
             <View style={{ paddingVertical: 36, alignItems: "center" }}>
-              <Text style={{ fontWeight: "900", color: "#111827", fontSize: 18 }}>Sense àrbitres</Text>
-              <Text style={{ marginTop: 8, color: "#6B7280", fontWeight: "700" }}>
+              <Text style={{ fontWeight: "900", color: colors.text, fontSize: 18 }}>Sense àrbitres</Text>
+              <Text style={{ marginTop: 8, color: colors.muted, fontWeight: "700" }}>
                 No hi ha coincidències amb aquest filtre.
               </Text>
             </View>
@@ -412,19 +414,19 @@ export default function AdminRefereesScreen() {
                   key={item.id}
                   style={{
                     borderWidth: 1,
-                    borderColor: "#E5E7EB",
+                    borderColor: colors.border,
                     borderRadius: 14,
                     padding: 14,
                     marginBottom: 10,
-                    backgroundColor: item.is_protected ? "#F9FAFB" : "white",
+                    backgroundColor: item.is_protected ? colors.cardAlt : colors.card,
                   }}
                 >
                   <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ fontWeight: "900", color: "#111827", fontSize: 16 }}>
+                      <Text style={{ fontWeight: "900", color: colors.text, fontSize: 16 }}>
                         {item.name}
                       </Text>
-                      <Text style={{ marginTop: 4, color: "#6B7280", fontWeight: "700" }}>
+                      <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "700" }}>
                         ID #{item.id}
                         {item.created_at ? ` · creat ${formatDate(item.created_at)}` : ""}
                       </Text>
@@ -493,15 +495,15 @@ export default function AdminRefereesScreen() {
                       style={{
                         flex: 1,
                         borderWidth: 1,
-                        borderColor: "#D1D5DB",
+                        borderColor: colors.border,
                         borderRadius: 12,
                         paddingVertical: 10,
                         alignItems: "center",
-                        backgroundColor: "white",
+                        backgroundColor: colors.card,
                         opacity: item.is_protected ? 0.45 : 1,
                       }}
                     >
-                      <Text style={{ fontWeight: "900", color: "#111827" }}>Editar</Text>
+                      <Text style={{ fontWeight: "900", color: colors.text }}>Editar</Text>
                     </Pressable>
 
                     <Pressable
@@ -539,14 +541,14 @@ export default function AdminRefereesScreen() {
         >
           <View
             style={{
-              backgroundColor: "white",
+              backgroundColor: colors.card,
               borderRadius: 16,
               padding: 16,
               borderWidth: 1,
-              borderColor: "#E5E7EB",
+              borderColor: colors.border,
             }}
           >
-            <Text style={{ fontSize: 19, fontWeight: "900", color: "#111827", marginBottom: 12 }}>
+            <Text style={{ fontSize: 19, fontWeight: "900", color: colors.text, marginBottom: 12 }}>
               Editar àrbitre
             </Text>
 
@@ -557,11 +559,11 @@ export default function AdminRefereesScreen() {
               placeholderTextColor="#9CA3AF"
               style={{
                 borderWidth: 1,
-                borderColor: "#D1D5DB",
+                borderColor: colors.border,
                 borderRadius: 12,
                 paddingHorizontal: 12,
                 paddingVertical: 10,
-                backgroundColor: "white",
+                backgroundColor: colors.card,
               }}
             />
 
@@ -571,13 +573,13 @@ export default function AdminRefereesScreen() {
                 style={{
                   flex: 1,
                   borderWidth: 1,
-                  borderColor: "#D1D5DB",
+                  borderColor: colors.border,
                   borderRadius: 12,
                   paddingVertical: 12,
                   alignItems: "center",
                 }}
               >
-                <Text style={{ fontWeight: "900", color: "#111827" }}>Cancel·lar</Text>
+                <Text style={{ fontWeight: "900", color: colors.text }}>Cancel·lar</Text>
               </Pressable>
 
               <Pressable
@@ -585,14 +587,14 @@ export default function AdminRefereesScreen() {
                 disabled={savingEdit}
                 style={{
                   flex: 1,
-                  backgroundColor: "#111827",
+                  backgroundColor: colors.primary,
                   borderRadius: 12,
                   paddingVertical: 12,
                   alignItems: "center",
                   opacity: savingEdit ? 0.45 : 1,
                 }}
               >
-                {savingEdit ? <ActivityIndicator color="white" /> : <Text style={{ color: "white", fontWeight: "900" }}>Guardar</Text>}
+                {savingEdit ? <ActivityIndicator color={colors.primaryText} /> : <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Guardar</Text>}
               </Pressable>
             </View>
           </View>

@@ -12,6 +12,8 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../src/supabase";
+import { useAppTheme } from "../src/theme";
+import { BackButton } from "@/components/HeaderButtons";
 
 type PlayerItem = {
   player_id: number;
@@ -36,6 +38,8 @@ export default function LineupScreen() {
   const params = useLocalSearchParams<{ matchId?: string; roundId?: string }>();
   const matchId = Number(params.matchId);
   const roundIdParam = params.roundId ? Number(params.roundId) : null;
+
+  const { colors } = useAppTheme();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -99,92 +103,92 @@ export default function LineupScreen() {
     return [...rest, captain];
   }
 
-  
+
   async function refreshScoreboardForMatch(matchIdNum: number, aId: number, bId: number) {
-  setScoreLoading(true);
-  try {
-  const { data: rounds, error: rErr } = await supabase
-  .from("v_rounds_by_match")
-  .select("round_id, attacking_team_id, defending_team_id")
-  .eq("match_id", matchIdNum);
+    setScoreLoading(true);
+    try {
+      const { data: rounds, error: rErr } = await supabase
+        .from("v_rounds_by_match")
+        .select("round_id, attacking_team_id, defending_team_id")
+        .eq("match_id", matchIdNum);
 
-  if (rErr) throw rErr;
-  const list = rounds ?? [];
-  if (!list.length) {
-  setScoreA(0);
-  setScoreB(0);
-  return;
+      if (rErr) throw rErr;
+      const list = rounds ?? [];
+      if (!list.length) {
+        setScoreA(0);
+        setScoreB(0);
+        return;
+      }
+
+      const roundMap = new Map<number, { atk: number; def: number }>();
+      for (const r of list as any[]) {
+        roundMap.set(r.round_id, { atk: r.attacking_team_id, def: r.defending_team_id });
+      }
+
+      const roundIds = (list as any[]).map((r) => r.round_id);
+
+      const { data: plays, error: pErr } = await supabase
+        .from("play")
+        .select("id, round_id")
+        .in("round_id", roundIds);
+
+      if (pErr) throw pErr;
+
+      const playRows = plays ?? [];
+      if (!playRows.length) {
+        setScoreA(0);
+        setScoreB(0);
+        return;
+      }
+
+      const playIdToRound = new Map<number, number>();
+      const playIds: number[] = [];
+      for (const p of playRows as any[]) {
+        playIdToRound.set(p.id, p.round_id);
+        playIds.push(p.id);
+      }
+
+      const { data: events, error: eErr } = await supabase
+        .from("play_event")
+        .select("play_id, event_type, value")
+        .in("play_id", playIds);
+
+      if (eErr) throw eErr;
+
+      const totals = new Map<number, number>(); // team_id -> score
+      for (const ev of (events ?? []) as any[]) {
+        const rid = playIdToRound.get(ev.play_id);
+        if (!rid) continue;
+        const map = roundMap.get(rid);
+        if (!map) continue;
+
+        const v = typeof ev.value === "number" ? ev.value : 0;
+
+        if (ev.event_type === "CANAS_SCORED") {
+          totals.set(map.atk, (totals.get(map.atk) ?? 0) + v);
+        } else if (ev.event_type === "TEAM_BONUS_CANAS") {
+          totals.set(map.atk, (totals.get(map.atk) ?? 0) + v);
+        } else if (ev.event_type === "DEFENDER_BONUS_CANAS") {
+          totals.set(map.def, (totals.get(map.def) ?? 0) + v);
+        }
+      }
+
+      setScoreA(totals.get(aId) ?? 0);
+      setScoreB(totals.get(bId) ?? 0);
+    } catch (e: any) {
+      console.warn("refreshScoreboardForMatch error:", e?.message ?? e);
+    } finally {
+      setScoreLoading(false);
+    }
   }
 
-  const roundMap = new Map<number, { atk: number; def: number }>();
-  for (const r of list as any[]) {
-  roundMap.set(r.round_id, { atk: r.attacking_team_id, def: r.defending_team_id });
-  }
-
-  const roundIds = (list as any[]).map((r) => r.round_id);
-
-  const { data: plays, error: pErr } = await supabase
-  .from("play")
-  .select("id, round_id")
-  .in("round_id", roundIds);
-
-  if (pErr) throw pErr;
-
-  const playRows = plays ?? [];
-  if (!playRows.length) {
-  setScoreA(0);
-  setScoreB(0);
-  return;
-  }
-
-  const playIdToRound = new Map<number, number>();
-  const playIds: number[] = [];
-  for (const p of playRows as any[]) {
-  playIdToRound.set(p.id, p.round_id);
-  playIds.push(p.id);
-  }
-
-  const { data: events, error: eErr } = await supabase
-  .from("play_event")
-  .select("play_id, event_type, value")
-  .in("play_id", playIds);
-
-  if (eErr) throw eErr;
-
-  const totals = new Map<number, number>(); // team_id -> score
-  for (const ev of (events ?? []) as any[]) {
-  const rid = playIdToRound.get(ev.play_id);
-  if (!rid) continue;
-  const map = roundMap.get(rid);
-  if (!map) continue;
-
-  const v = typeof ev.value === "number" ? ev.value : 0;
-
-  if (ev.event_type === "CANAS_SCORED") {
-  totals.set(map.atk, (totals.get(map.atk) ?? 0) + v);
-  } else if (ev.event_type === "TEAM_BONUS_CANAS") {
-  totals.set(map.atk, (totals.get(map.atk) ?? 0) + v);
-  } else if (ev.event_type === "DEFENDER_BONUS_CANAS") {
-  totals.set(map.def, (totals.get(map.def) ?? 0) + v);
-  }
-  }
-
-  setScoreA(totals.get(aId) ?? 0);
-  setScoreB(totals.get(bId) ?? 0);
-  } catch (e: any) {
-  console.warn("refreshScoreboardForMatch error:", e?.message ?? e);
-  } finally {
-  setScoreLoading(false);
-  }
-  }
-
-useEffect(() => {
+  useEffect(() => {
     if (!matchId || Number.isNaN(matchId)) return;
     init();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId, roundIdParam]);
 
-  
+
   async function pickNextRoundAction(
     matchIdNum: number
   ): Promise<{ action: "lineup" | "play"; round: RoundRow } | null> {
@@ -328,8 +332,8 @@ useEffect(() => {
 
     setTeamAId(matchRow.team_a_id ?? null);
     setTeamBId(matchRow.team_b_id ?? null);
-    setTeamAName(matchRow.team_a?.name ?? "Equip A");
-    setTeamBName(matchRow.team_b?.name ?? "Equip B");
+    setTeamAName(matchRow.team_a?.[0]?.name ?? "Equip A");
+    setTeamBName(matchRow.team_b?.[0]?.name ?? "Equip B");
 
     const { data: cfg } = await supabase
       .from("championship_config")
@@ -467,7 +471,7 @@ useEffect(() => {
     setAttackPlayers(attList);
     setDefensePlayers(defList);
 
-    
+
     return { ok: true, attackList: attList, defenseList: defList };
   }
 
@@ -517,10 +521,10 @@ useEffect(() => {
       setDefensePlayers((prev) => prev.map((p) => ({ ...p, is_captain: playerId ? p.player_id === playerId : p.player_id === (originalCaptainByTeam[teamId] ?? -1) })));
     }
   }
-const canEditCaptain = useMemo(() => {
-  if (!roundRow) return false;
-  return roundRow.match_round_number === 1 && roundRow.turn === 1;
-}, [roundRow]);
+  const canEditCaptain = useMemo(() => {
+    if (!roundRow) return false;
+    return roundRow.match_round_number === 1 && roundRow.turn === 1;
+  }, [roundRow]);
 
   function showCaptainDialog(teamId: number, role: AddRole, player: PlayerItem) {
     if (!teamId || !Number.isFinite(teamId)) return;
@@ -642,26 +646,26 @@ const canEditCaptain = useMemo(() => {
 
   // ==== Afegir jugadors (mateixa lògica que tens) ====
   async function getTeamRoster(teamId: number, champId: number): Promise<PlayerItem[]> {
-  const { data, error } = await supabase
-    .from("team_player")
-    .select("player_id, player_number, is_captain, player:player_id(name, external_code)")
-    .eq("team_id", teamId)
-    .eq("championship_id", champId);
+    const { data, error } = await supabase
+      .from("team_player")
+      .select("player_id, player_number, is_captain, player:player_id(name, external_code)")
+      .eq("team_id", teamId)
+      .eq("championship_id", champId);
 
-  if (error) throw error;
+    if (error) throw error;
 
-  const list: PlayerItem[] =
-    (data ?? []).map((x: any) => ({
-      player_id: x.player_id,
-      player_number: x.player_number,
-      is_captain: !!x.is_captain,
-      player_name: x.player?.name ?? `#${x.player_id}`,
-      external_code: x.player?.external_code ?? null,
-    })) ?? [];
+    const list: PlayerItem[] =
+      (data ?? []).map((x: any) => ({
+        player_id: x.player_id,
+        player_number: x.player_number,
+        is_captain: !!x.is_captain,
+        player_name: x.player?.name ?? `#${x.player_id}`,
+        external_code: x.player?.external_code ?? null,
+      })) ?? [];
 
-  list.sort((a, b) => a.player_number - b.player_number);
-  return list;
-}
+    list.sort((a, b) => a.player_number - b.player_number);
+    return list;
+  }
 
   async function canRemovePlayerEverywhere(playerId: number): Promise<boolean> {
     const { data: rl, error: rlErr } = await supabase
@@ -695,13 +699,13 @@ const canEditCaptain = useMemo(() => {
   }
 
   function openAddPlayer(role: AddRole) {
-if ([2, 3, 4, 5].includes(matchPhaseId ?? -1)) {
-  Alert.alert(
-    "No disponible",
-    "A vuitens, quarts, semis i final no es poden afegir jugadors."
-  );
-  return;
-}
+    if ([2, 3, 4, 5].includes(matchPhaseId ?? -1)) {
+      Alert.alert(
+        "No disponible",
+        "A vuitens, quarts, semis i final no es poden afegir jugadors."
+      );
+      return;
+    }
     const teamId = role === "attack" ? attackingTeamId : defendingTeamId;
     if (!teamId) {
       Alert.alert("Error", "No s'ha pogut detectar l'equip.");
@@ -716,18 +720,18 @@ if ([2, 3, 4, 5].includes(matchPhaseId ?? -1)) {
   }
 
   async function searchExistingInChampionship(q: string) {
-  if (!championshipId) return;
+    if (!championshipId) return;
 
-  const term = q.trim().toLowerCase();
+    const term = q.trim().toLowerCase();
 
-  if (term.length < 2) {
-    setDuplicateNameCount(0);
-    return;
-  }
+    if (term.length < 2) {
+      setDuplicateNameCount(0);
+      return;
+    }
 
-  const { data, error } = await supabase
-    .from("team_player")
-    .select(`
+    const { data, error } = await supabase
+      .from("team_player")
+      .select(`
       player_id,
       player:player_id (
         id,
@@ -735,91 +739,91 @@ if ([2, 3, 4, 5].includes(matchPhaseId ?? -1)) {
         external_code
       )
     `)
-    .eq("championship_id", championshipId)
-    .limit(500);
+      .eq("championship_id", championshipId)
+      .limit(500);
 
-  if (error) {
-    setDuplicateNameCount(0);
-    return;
-  }
-
-  const exactSameNameRows = (data ?? []).filter(
-    (r: any) => (r.player?.name ?? "").trim().toLowerCase() === term
-  );
-
-  const ids = new Set<number>();
-  for (const r of exactSameNameRows) {
-    const id = r.player?.id;
-    if (typeof id === "number") ids.add(id);
-  }
-
-  setDuplicateNameCount(ids.size);
-}
-
-  async function submitAddOrReplace() {
-  if (!teamForAdd || !championshipId) {
-    Alert.alert("Error", "Falten dades de campionat/equip.");
-    return;
-  }
-
-  const name = newPlayerName.trim();
-  if (name.length < 2) {
-    Alert.alert("Nom invàlid", "Introdueix un nom de jugador.");
-    return;
-  }
-
-  setSaving(true);
-
-  try {
-    const roster = await getTeamRoster(teamForAdd, championshipId);
-
-    let playerNumber =
-      roster.length === 0 ? 1 : Math.max(...roster.map((p) => p.player_number)) + 1;
-
-    let isReplacement = false;
-    let replacedPlayerNumber: number | null = null;
-
-    if (roster.length >= maxTeamPlayers) {
-      if (!replaceTargetPlayerId) {
-        setRosterForReplace(roster);
-        setAddModalVisible(false);
-        setSaving(false);
-        setTimeout(() => setReplaceModalVisible(true), 50);
-        return;
-      }
-
-      const ok = await canRemovePlayerEverywhere(replaceTargetPlayerId);
-      if (!ok) {
-        Alert.alert(
-          "No es pot substituir",
-          "Aquest jugador ja té dades relacionades. No es pot canviar."
-        );
-        setSaving(false);
-        return;
-      }
-
-      const replaced = roster.find((p) => p.player_id === replaceTargetPlayerId);
-      if (!replaced) {
-        Alert.alert("Error", "No s'ha pogut trobar el jugador a substituir.");
-        setSaving(false);
-        return;
-      }
-
-      isReplacement = true;
-      replacedPlayerNumber = replaced.player_number;
-      playerNumber = replaced.player_number;
-
-      setAttackSelected((prev) => prev.filter((x) => x.player_id !== replaceTargetPlayerId));
-      setDefenseSelectedIds((prev) => {
-        const next = new Set(prev);
-        next.delete(replaceTargetPlayerId);
-        return next;
-      });
+    if (error) {
+      setDuplicateNameCount(0);
+      return;
     }
 
-    const { data: sameNameRows, error: snErr } = await supabase
-      .from("team_player")
-      .select(`
+    const exactSameNameRows = (data ?? []).filter(
+      (r: any) => (r.player?.name ?? "").trim().toLowerCase() === term
+    );
+
+    const ids = new Set<number>();
+    for (const r of exactSameNameRows) {
+      const id = r.player?.[0]?.id;
+      if (typeof id === "number") ids.add(id);
+    }
+
+    setDuplicateNameCount(ids.size);
+  }
+
+  async function submitAddOrReplace() {
+    if (!teamForAdd || !championshipId) {
+      Alert.alert("Error", "Falten dades de campionat/equip.");
+      return;
+    }
+
+    const name = newPlayerName.trim();
+    if (name.length < 2) {
+      Alert.alert("Nom invàlid", "Introdueix un nom de jugador.");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      const roster = await getTeamRoster(teamForAdd, championshipId);
+
+      let playerNumber =
+        roster.length === 0 ? 1 : Math.max(...roster.map((p) => p.player_number)) + 1;
+
+      let isReplacement = false;
+      let replacedPlayerNumber: number | null = null;
+
+      if (roster.length >= maxTeamPlayers) {
+        if (!replaceTargetPlayerId) {
+          setRosterForReplace(roster);
+          setAddModalVisible(false);
+          setSaving(false);
+          setTimeout(() => setReplaceModalVisible(true), 50);
+          return;
+        }
+
+        const ok = await canRemovePlayerEverywhere(replaceTargetPlayerId);
+        if (!ok) {
+          Alert.alert(
+            "No es pot substituir",
+            "Aquest jugador ja té dades relacionades. No es pot canviar."
+          );
+          setSaving(false);
+          return;
+        }
+
+        const replaced = roster.find((p) => p.player_id === replaceTargetPlayerId);
+        if (!replaced) {
+          Alert.alert("Error", "No s'ha pogut trobar el jugador a substituir.");
+          setSaving(false);
+          return;
+        }
+
+        isReplacement = true;
+        replacedPlayerNumber = replaced.player_number;
+        playerNumber = replaced.player_number;
+
+        setAttackSelected((prev) => prev.filter((x) => x.player_id !== replaceTargetPlayerId));
+        setDefenseSelectedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(replaceTargetPlayerId);
+          return next;
+        });
+      }
+
+      const { data: sameNameRows, error: snErr } = await supabase
+        .from("team_player")
+        .select(`
         player_id,
         player:player_id (
           id,
@@ -827,112 +831,112 @@ if ([2, 3, 4, 5].includes(matchPhaseId ?? -1)) {
           external_code
         )
       `)
-      .eq("championship_id", championshipId)
-      .limit(500);
-
-    if (snErr) throw snErr;
-
-    const normalizedName = name.trim().toLowerCase();
-
-    const exactSameNameRows = (sameNameRows ?? []).filter(
-      (r: any) => (r.player?.name ?? "").trim().toLowerCase() === normalizedName
-    );
-
-    const sameNameInChampionship = exactSameNameRows.length > 0;
-
-    let externalCodeForNewPlayer: string | null = null;
-
-    if (sameNameInChampionship) {
-      const numericCodes = exactSameNameRows
-        .map((r: any) => {
-          const raw = String(r.player?.external_code ?? "").trim();
-          const n = parseInt(raw, 10);
-          return Number.isFinite(n) ? n : 0;
-        })
-        .filter((n: number) => n > 0);
-
-      const nextCode = numericCodes.length > 0 ? Math.max(...numericCodes) + 1 : 2;
-      externalCodeForNewPlayer = String(nextCode);
-    }
-
-    const { data: newPlayer, error: pErr } = await supabase
-      .from("player")
-      .insert({
-        name,
-        external_code: externalCodeForNewPlayer,
-      })
-      .select("id")
-      .single();
-
-    if (pErr || !newPlayer) {
-      throw pErr ?? new Error("No s'ha pogut crear el player");
-    }
-
-    if (isReplacement && replaceTargetPlayerId) {
-      const { error: tpErr } = await supabase
-        .from("team_player")
-        .update({
-          player_id: newPlayer.id,
-          player_number: replacedPlayerNumber ?? playerNumber,
-          is_captain: false,
-        })
         .eq("championship_id", championshipId)
-        .eq("team_id", teamForAdd)
-        .eq("player_id", replaceTargetPlayerId);
+        .limit(500);
 
-      if (tpErr) throw tpErr;
-    } else {
-      const { error: tpErr } = await supabase
-        .from("team_player")
-        .insert({
-          championship_id: championshipId,
-          team_id: teamForAdd,
-          player_id: newPlayer.id,
-          player_number: playerNumber,
-          is_captain: false,
-        });
+      if (snErr) throw snErr;
 
-      if (tpErr) throw tpErr;
-    }
+      const normalizedName = name.trim().toLowerCase();
 
-    if (attackingTeamId && defendingTeamId) {
-      const loaded2 = await loadPlayersForTeams(
-        attackingTeamId,
-        defendingTeamId,
-        championshipId
+      const exactSameNameRows = (sameNameRows ?? []).filter(
+        (r: any) => (r.player?.name ?? "").trim().toLowerCase() === normalizedName
       );
 
-      if (loaded2.ok) {
-        await loadCaptainOverridesForMatch(
+      const sameNameInChampionship = exactSameNameRows.length > 0;
+
+      let externalCodeForNewPlayer: string | null = null;
+
+      if (sameNameInChampionship) {
+        const numericCodes = exactSameNameRows
+          .map((r: any) => {
+            const raw = String(r.player?.external_code ?? "").trim();
+            const n = parseInt(raw, 10);
+            return Number.isFinite(n) ? n : 0;
+          })
+          .filter((n: number) => n > 0);
+
+        const nextCode = numericCodes.length > 0 ? Math.max(...numericCodes) + 1 : 2;
+        externalCodeForNewPlayer = String(nextCode);
+      }
+
+      const { data: newPlayer, error: pErr } = await supabase
+        .from("player")
+        .insert({
+          name,
+          external_code: externalCodeForNewPlayer,
+        })
+        .select("id")
+        .single();
+
+      if (pErr || !newPlayer) {
+        throw pErr ?? new Error("No s'ha pogut crear el player");
+      }
+
+      if (isReplacement && replaceTargetPlayerId) {
+        const { error: tpErr } = await supabase
+          .from("team_player")
+          .update({
+            player_id: newPlayer.id,
+            player_number: replacedPlayerNumber ?? playerNumber,
+            is_captain: false,
+          })
+          .eq("championship_id", championshipId)
+          .eq("team_id", teamForAdd)
+          .eq("player_id", replaceTargetPlayerId);
+
+        if (tpErr) throw tpErr;
+      } else {
+        const { error: tpErr } = await supabase
+          .from("team_player")
+          .insert({
+            championship_id: championshipId,
+            team_id: teamForAdd,
+            player_id: newPlayer.id,
+            player_number: playerNumber,
+            is_captain: false,
+          });
+
+        if (tpErr) throw tpErr;
+      }
+
+      if (attackingTeamId && defendingTeamId) {
+        const loaded2 = await loadPlayersForTeams(
           attackingTeamId,
           defendingTeamId,
-          loaded2.attackList,
-          loaded2.defenseList
+          championshipId
         );
+
+        if (loaded2.ok) {
+          await loadCaptainOverridesForMatch(
+            attackingTeamId,
+            defendingTeamId,
+            loaded2.attackList,
+            loaded2.defenseList
+          );
+        }
       }
+
+      setAddModalVisible(false);
+      setReplaceModalVisible(false);
+      setReplaceTargetPlayerId(null);
+      setNewPlayerName("");
+
+      Alert.alert(
+        "Fet ✅",
+        isReplacement
+          ? sameNameInChampionship
+            ? `Jugador substituït correctament (codi ${externalCodeForNewPlayer}).`
+            : "Jugador substituït correctament."
+          : sameNameInChampionship
+            ? `Jugador creat amb external_code ${externalCodeForNewPlayer}.`
+            : "Jugador creat."
+      );
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "Error afegint/substituint jugador.");
+    } finally {
+      setSaving(false);
     }
-
-    setAddModalVisible(false);
-    setReplaceModalVisible(false);
-    setReplaceTargetPlayerId(null);
-    setNewPlayerName("");
-
-    Alert.alert(
-      "Fet ✅",
-      isReplacement
-        ? sameNameInChampionship
-          ? `Jugador substituït correctament (codi ${externalCodeForNewPlayer}).`
-          : "Jugador substituït correctament."
-        : sameNameInChampionship
-        ? `Jugador creat amb external_code ${externalCodeForNewPlayer}.`
-        : "Jugador creat."
-    );
-  } catch (e: any) {
-    Alert.alert("Error", e?.message ?? "Error afegint/substituint jugador.");
-  } finally {
-    setSaving(false);
   }
-}
 
   async function saveLineup(): Promise<boolean> {
     if (!roundRow) return false;
@@ -1017,47 +1021,34 @@ if ([2, 3, 4, 5].includes(matchPhaseId ?? -1)) {
     );
   }
 
-  const captainCardStyle = { borderColor: "#2e86de", backgroundColor: "#eaf3ff" };
+  const captainCardStyle = { borderColor: "#2e86de", backgroundColor: colors.primary + "22" };
   const canAddPlayers = ![2, 3, 4, 5].includes(matchPhaseId ?? -1);
 
   return (
     <>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 40 }}>
-        <Pressable
-          onPress={() => {
-            if (Number.isNaN(matchId) || !matchId) {
-              router.back();
-              return;
-            }
-            router.replace({ pathname: "/match", params: { id: String(matchId) } });
-          }}
-          style={{
-            alignSelf: "flex-start",
-            paddingVertical: 8,
-            paddingHorizontal: 12,
-            borderRadius: 10,
-            borderWidth: 1,
-            borderColor: "#ccc",
-            marginBottom: 12,
-          }}
-        >
-          <Text style={{ fontWeight: "600" }}>← Tornar</Text>
-        </Pressable>
+        <BackButton onPress={() => {
+          if (Number.isNaN(matchId) || !matchId) {
+            router.back();
+            return;
+          }
+          router.replace({ pathname: "/match", params: { id: String(matchId) } });
+        }} />
 
-        
         {/* ✅ Marcador (només si NO és Round 1 Torn 1) */}
         {roundRow && !(roundRow.match_round_number === 1 && roundRow.turn === 1) ? (
           <View
             style={{
               marginBottom: 12,
+              marginTop: 8,
               padding: 12,
               borderRadius: 12,
               borderWidth: 1,
-              borderColor: "#e5e5e5",
-              backgroundColor: "white",
+              borderColor: colors.border,
+              backgroundColor: colors.card,
             }}
           >
-            <Text style={{ textAlign: "center", fontWeight: "900", fontSize: 16 }}>
+            <Text style={{ textAlign: "center", fontWeight: "900", fontSize: 16,color: colors.text }}>
               Marcador
             </Text>
 
@@ -1067,17 +1058,17 @@ if ([2, 3, 4, 5].includes(matchPhaseId ?? -1)) {
               <>
                 <View style={{ flexDirection: "row", alignItems: "center", marginTop: 10 }}>
                   <View style={{ flex: 1, paddingRight: 8 }}>
-                    <Text numberOfLines={1} style={{ fontWeight: "800" }}>
+                    <Text numberOfLines={1} style={{ fontWeight: "800", color: colors.text }}>
                       {teamAName}
                     </Text>
                   </View>
 
-                  <Text style={{ fontSize: 20, fontWeight: "900" }}>
+                  <Text style={{ fontSize: 20, fontWeight: "900", color: colors.text }}>
                     {scoreA} - {scoreB}
                   </Text>
 
                   <View style={{ flex: 1, paddingLeft: 8, alignItems: "flex-end" }}>
-                    <Text numberOfLines={1} style={{ fontWeight: "800" }}>
+                    <Text numberOfLines={1} style={{ fontWeight: "800", color: colors.text }}>
                       {teamBName}
                     </Text>
                   </View>
@@ -1089,6 +1080,7 @@ if ([2, 3, 4, 5].includes(matchPhaseId ?? -1)) {
                     textAlign: "center",
                     fontWeight: "500",
                     fontSize: 12,
+                    color:colors.text
                   }}
                 >
                   Diferència: {Math.abs(scoreA - scoreB)}
@@ -1098,44 +1090,40 @@ if ([2, 3, 4, 5].includes(matchPhaseId ?? -1)) {
           </View>
         ) : null}
 
-        <Text style={{ fontSize: 20, fontWeight: "bold", textAlign: "center" }}>
+        <Text style={{ fontSize: 20, fontWeight: "bold", textAlign: "center", color: colors.text }}>
           Alineació
         </Text>
 
-        <Text style={{ textAlign: "center", color: "#666", marginTop: 6 }}>
+        <Text style={{ textAlign: "center", color: colors.muted, marginTop: 6 }}>
           {roundTitle} · Max jugadors/equip: {maxTeamPlayers}
         </Text>
 
         <View style={{ height: 18 }} />
 
         {/* ATACANTS */}
-        <View style={{ padding: 14, borderRadius: 12, borderWidth: 1, borderColor: "#ddd", backgroundColor: "#fafafa" }}>
+        <View style={{ padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Text style={{ fontWeight: "800", fontSize: 16 }}>Atacants (4-6) · amb ordre</Text>
+            <Text style={{ fontWeight: "800", fontSize: 16, color: colors.text }}>Atacants (4-6) · amb ordre</Text>
 
             {canAddPlayers ? (
-  <Pressable
-    disabled={saving}
-    onPress={() => openAddPlayer("attack")}
-    style={{
-      paddingVertical: 8,
-      paddingHorizontal: 10,
-      borderRadius: 10,
-      borderWidth: 1,
-      borderColor: "#ccc",
-      opacity: saving ? 0.6 : 1,
-    }}
-  >
-    <Text style={{ fontWeight: "700" }}>+ Jugador</Text>
-  </Pressable>
-) : null}
+              <Pressable
+                disabled={saving}
+                onPress={() => openAddPlayer("attack")}
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 10,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  opacity: saving ? 0.6 : 1,
+                }}
+              >
+                <Text style={{ fontWeight: "700", color: colors.text }}>+ Jugador</Text>
+              </Pressable>
+            ) : null}
           </View>
 
-          <Text style={{ marginTop: 6, color: "#666" }}>Si selecciones el capità (C), sempre quedarà últim.</Text>
-
-          <View style={{ height: 12 }} />
-
-          <Text style={{ fontWeight: "700" }}>Seleccionats:</Text>
+          <Text style={{ marginTop: 6, color: colors.muted }}>Si selecciones el capità (C), sempre quedarà últim.</Text>
           {attackSelected.length === 0 ? (
             <Text style={{ color: "#777", marginTop: 6 }}>Encara no n'has seleccionat cap.</Text>
           ) : (
@@ -1149,7 +1137,7 @@ if ([2, 3, 4, 5].includes(matchPhaseId ?? -1)) {
                   borderRadius: 10,
                   borderWidth: 1,
                   borderColor: p.is_captain ? captainCardStyle.borderColor : "#d6eadf",
-                  backgroundColor: p.is_captain ? captainCardStyle.backgroundColor : "#e6f7ed",
+                  backgroundColor: p.is_captain ? colors.primary + "75" : "#e6f7ed",
                 }}
               >
                 <Text style={{ fontWeight: "700" }}>
@@ -1161,78 +1149,78 @@ if ([2, 3, 4, 5].includes(matchPhaseId ?? -1)) {
 
           <View style={{ height: 14 }} />
 
-          <Text style={{ fontWeight: "700" }}>Disponibles:</Text>
+          <Text style={{ fontWeight: "700", color: colors.text }}>Disponibles:</Text>
 
-{attackPlayers.map((p) => {
-  const selected = attackSelected.some((x) => x.player_id === p.player_id);
-  return (
-    <Pressable
-      key={`${attackingTeamId ?? "atk"}-${p.player_id}`}
-      onPress={() => addAttack(p)}
-      onLongPress={
-        canEditCaptain
-          ? () => showCaptainDialog(roundRow?.attacking_team_id ?? 0, "attack", p)
-          : undefined
-      }
-      delayLongPress={350}
-      style={{
-        marginTop: 8,
-        padding: 10,
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: selected ? "#bbb" : p.is_captain ? captainCardStyle.borderColor : "#ddd",
-        backgroundColor: selected ? "#f0f0f0" : p.is_captain ? captainCardStyle.backgroundColor : "white",
-        opacity: selected ? 0.6 : 1,
-      }}
-    >
-      <Text style={{ fontWeight: "600" }}>
-        {displayName(p)} {selected ? "(seleccionat)" : ""}
-      </Text>
-    </Pressable>
-  );
-})}
+          {attackPlayers.map((p) => {
+            const selected = attackSelected.some((x) => x.player_id === p.player_id);
+            return (
+              <Pressable
+                key={`${attackingTeamId ?? "atk"}-${p.player_id}`}
+                onPress={() => addAttack(p)}
+                onLongPress={
+                  canEditCaptain
+                    ? () => showCaptainDialog(roundRow?.attacking_team_id ?? 0, "attack", p)
+                    : undefined
+                }
+                delayLongPress={350}
+                style={{
+                  marginTop: 8,
+                  padding: 10,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: selected ? colors.border : p.is_captain ? captainCardStyle.borderColor : colors.border,
+                  backgroundColor: selected ? colors.cardAlt : p.is_captain ? captainCardStyle.backgroundColor : colors.card,
+                  opacity: selected ? 0.6 : 1,
+                }}
+              >
+                <Text style={{ fontWeight: "600", color: colors.text }}>
+                  {displayName(p)} {selected ? "(seleccionat)" : ""}
+                </Text>
+              </Pressable>
+            );
+          })}
 
-{/* Info només quan NO es pot canviar capità */}
-{!canEditCaptain ? (
-  <Text style={{ marginTop: 10, color: "#6B7280", fontWeight: "700" }}>
-    ℹ️ El capità només es pot canviar a Ronda 1 · Torn 1.
-  </Text>
-) : null}
+          {/* Info només quan NO es pot canviar capità */}
+          {!canEditCaptain ? (
+            <Text style={{ marginTop: 10, color: colors.muted, fontWeight: "700" }}>
+              ℹ️ El capità només es pot canviar a Ronda 1 · Torn 1.
+            </Text>
+          ) : null}
 
         </View>
 
         <View style={{ height: 16 }} />
 
         {/* DEFENSORS */}
-        <View style={{ padding: 14, borderRadius: 12, borderWidth: 1, borderColor: "#ddd", backgroundColor: "#fafafa" }}>
-  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-    <Text style={{ fontWeight: "800", fontSize: 16 }}>Defensors (4-8)</Text>
+        <View style={{ padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg }}>
+          <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+            <Text style={{ fontWeight: "800", fontSize: 16, color: colors.text }}>Defensors (4-8)</Text>
 
-    {canAddPlayers ? (
-      <Pressable
-        disabled={saving}
-        onPress={() => openAddPlayer("defense")}
-        style={{
-          paddingVertical: 8,
-          paddingHorizontal: 10,
-          borderRadius: 10,
-          borderWidth: 1,
-          borderColor: "#ccc",
-          opacity: saving ? 0.6 : 1,
-        }}
-      >
-        <Text style={{ fontWeight: "700" }}>+ Jugador</Text>
-      </Pressable>
-    ) : null}
-  </View>
+            {canAddPlayers ? (
+              <Pressable
+                disabled={saving}
+                onPress={() => openAddPlayer("defense")}
+                style={{
+                  paddingVertical: 8,
+                  paddingHorizontal: 10,
+                  borderRadius: 10,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  opacity: saving ? 0.6 : 1,
+                }}
+              >
+                <Text style={{ fontWeight: "700", color: colors.text }}>+ Jugador</Text>
+              </Pressable>
+            ) : null}
+          </View>
 
-  <Text style={{ marginTop: 6, color: "#666" }}>
-    Selecciona exactament 8 (tap per marcar/desmarcar).
-  </Text>
+          <Text style={{ marginTop: 6, color: colors.muted }}>
+            Selecciona exactament 8 (tap per marcar/desmarcar).
+          </Text>
 
-  <Text style={{ marginTop: 10, fontWeight: "700" }}>
-    Seleccionats: {defenseSelectedIds.size}/8
-  </Text>
+          <Text style={{ marginTop: 10, fontWeight: "700", color: colors.text }}>
+            Seleccionats: {defenseSelectedIds.size}/8
+          </Text>
 
           {defensePlayers.map((p) => {
             const selected = defenseSelectedIds.has(p.player_id);
@@ -1241,31 +1229,31 @@ if ([2, 3, 4, 5].includes(matchPhaseId ?? -1)) {
                 key={`${defendingTeamId ?? "def"}-${p.player_id}`}
                 onPress={() => toggleDefense(p.player_id)}
                 onLongPress={
-  canEditCaptain
-    ? () => showCaptainDialog(roundRow?.defending_team_id ?? 0, "defense", p)
-    : undefined
-}
-delayLongPress={350}
+                  canEditCaptain
+                    ? () => showCaptainDialog(roundRow?.defending_team_id ?? 0, "defense", p)
+                    : undefined
+                }
+                delayLongPress={350}
                 style={{
                   marginTop: 8,
                   padding: 10,
                   borderRadius: 10,
                   borderWidth: 1,
-                  borderColor: selected ? "#f1c40f" : p.is_captain ? captainCardStyle.borderColor : "#ddd",
-                  backgroundColor: selected ? "#fff8db" : p.is_captain ? captainCardStyle.backgroundColor : "white",
+                  borderColor: selected ? "#f1c40f" : p.is_captain ? captainCardStyle.borderColor : colors.border,
+                  backgroundColor: selected ? "#615a3d" : p.is_captain ? captainCardStyle.backgroundColor : colors.card,
                 }}
               >
-                <Text style={{ fontWeight: "600" }}>
+                <Text style={{ fontWeight: "600", color: colors.text }}>
                   {displayName(p)} {selected ? "✅" : ""}
                 </Text>
               </Pressable>
             );
           })}
-{!canEditCaptain ? (
-  <Text style={{ marginTop: 10, color: "#6B7280", fontWeight: "700" }}>
-    ℹ️ El capità només es pot canviar a Ronda 1 · Torn 1.
-  </Text>
-) : null}
+          {!canEditCaptain ? (
+            <Text style={{ marginTop: 10, color: colors.muted, fontWeight: "700" }}>
+              ℹ️ El capità només es pot canviar a Ronda 1 · Torn 1.
+            </Text>
+          ) : null}
         </View>
 
         <View style={{ height: 18 }} />
@@ -1277,27 +1265,27 @@ delayLongPress={350}
             paddingVertical: 14,
             borderRadius: 12,
             alignItems: "center",
-            backgroundColor: "#111",
+            backgroundColor: colors.primary,
             opacity: saving ? 0.7 : 1,
           }}
         >
-          <Text style={{ color: "white", fontWeight: "800" }}>{saving ? "Guardant..." : "Arbitrar"}</Text>
+          <Text style={{ color: colors.primaryText, fontWeight: "800" }}>{saving ? "Guardant..." : "Arbitrar"}</Text>
         </Pressable>
       </ScrollView>
 
       {/* MODAL: Afegir */}
       <Modal visible={addModalVisible} transparent animationType="fade" onRequestClose={() => setAddModalVisible(false)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", padding: 18 }}>
-          <View style={{ backgroundColor: "white", borderRadius: 14, padding: 16 }}>
-            <Text style={{ fontSize: 16, fontWeight: "800" }}>
+          <View style={{ backgroundColor: colors.card, borderRadius: 14, padding: 16 }}>
+            <Text style={{ fontSize: 16, fontWeight: "800", color: colors.text }}>
               Afegir jugador ({addRole === "attack" ? "Atacants" : "Defensors"})
             </Text>
 
-            <Text style={{ marginTop: 8, color: "#666" }}>
+            <Text style={{ marginTop: 8, color: colors.muted }}>
               Escriu el nom. Si ja existeix al campionat, el crearem igualment amb un external_code únic per diferenciar-lo.
             </Text>
 
-            <Text style={{ marginTop: 12, fontWeight: "700" }}>Nom del jugador</Text>
+            <Text style={{ marginTop: 12, fontWeight: "700", color: colors.text }}>Nom del jugador</Text>
             <TextInput
               value={newPlayerName}
               onChangeText={(t) => {
@@ -1307,7 +1295,7 @@ delayLongPress={350}
               placeholder="Ex: Joan Garcia"
               style={{
                 borderWidth: 1,
-                borderColor: "#ddd",
+                borderColor: colors.border,
                 borderRadius: 10,
                 padding: 12,
                 marginTop: 8,
@@ -1317,7 +1305,7 @@ delayLongPress={350}
             {duplicateNameCount > 0 ? (
               <View style={{ marginTop: 12 }}>
                 <Text style={{ fontWeight: "700" }}>⚠️ Ja existeix al campionat</Text>
-                <Text style={{ color: "#666", marginTop: 4 }}>
+                <Text style={{ color: colors.muted, marginTop: 4 }}>
                   S'han trobat {duplicateNameCount} jugador(s) amb aquest mateix nom al campionat. Es crearà un nou jugador amb un external_code únic.
                 </Text>
               </View>
@@ -1333,7 +1321,7 @@ delayLongPress={350}
                 }}
                 style={{ paddingVertical: 10, paddingHorizontal: 12 }}
               >
-                <Text style={{ fontWeight: "700" }}>Cancel·lar</Text>
+                <Text style={{ fontWeight: "700", color: colors.text }}>Cancel·lar</Text>
               </Pressable>
 
               <Pressable
@@ -1345,11 +1333,11 @@ delayLongPress={350}
                   paddingHorizontal: 14,
                   borderRadius: 10,
                   borderWidth: 1,
-                  borderColor: "#111",
+                  borderColor: colors.primary,
                   opacity: saving ? 0.6 : 1,
                 }}
               >
-                <Text style={{ fontWeight: "800" }}>{saving ? "..." : "Crear nou"}</Text>
+                <Text style={{ fontWeight: "800", color: colors.text }}>{saving ? "..." : "Crear nou"}</Text>
               </Pressable>
             </View>
           </View>
@@ -1359,9 +1347,9 @@ delayLongPress={350}
       {/* MODAL: Triar jugador a substituir */}
       <Modal visible={replaceModalVisible} transparent animationType="fade" onRequestClose={() => setReplaceModalVisible(false)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", padding: 18 }}>
-          <View style={{ backgroundColor: "white", borderRadius: 14, padding: 16, maxHeight: "80%" }}>
+          <View style={{ backgroundColor: colors.card, borderRadius: 14, padding: 16, maxHeight: "80%" }}>
             <Text style={{ fontSize: 16, fontWeight: "800" }}>Equip ple ({maxTeamPlayers})</Text>
-            <Text style={{ marginTop: 8, color: "#666" }}>
+            <Text style={{ marginTop: 8, color: colors.muted }}>
               Tria quin jugador vols substituir (només si no té dades relacionades).
             </Text>
 
@@ -1376,8 +1364,8 @@ delayLongPress={350}
                       padding: 10,
                       borderRadius: 10,
                       borderWidth: 1,
-                      borderColor: selected ? "#111" : "#ddd",
-                      backgroundColor: selected ? "#f0f0f0" : "white",
+                      borderColor: selected ? colors.text : colors.border,
+                      backgroundColor: selected ? colors.cardAlt : colors.card,
                       marginBottom: 8,
                     }}
                   >
@@ -1412,7 +1400,7 @@ delayLongPress={350}
                   paddingHorizontal: 14,
                   borderRadius: 10,
                   borderWidth: 1,
-                  borderColor: "#111",
+                  borderColor: colors.primary,
                   opacity: saving || !replaceTargetPlayerId ? 0.5 : 1,
                 }}
               >

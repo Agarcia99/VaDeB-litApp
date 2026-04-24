@@ -12,6 +12,8 @@ import {
 import { useRouter } from "expo-router";
 import { supabase } from "../../src/supabase";
 import { BackButton, RefreshButton } from "../../components/HeaderButtons";
+import { useAdminGuard } from "../../hooks/use-admin-guard";
+import { useAppTheme } from "@/src/theme";
 
 type Championship = { id: number; name: string; year: number; is_active: boolean };
 type MatchSlot = {
@@ -39,9 +41,8 @@ type TeamRow = { id: number; name: string };
 
 export default function AdminCalendar() {
   const router = useRouter();
-
-  const [allowed, setAllowed] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const { checking: loading, isAdmin: allowed } = useAdminGuard();
+  const { colors, isDark } = useAppTheme();
 
   const [championship, setChampionship] = useState<Championship | null>(null);
   const [matches, setMatches] = useState<MatchRow[]>([]);
@@ -55,43 +56,6 @@ export default function AdminCalendar() {
   const [selectedMatch, setSelectedMatch] = useState<MatchRow | null>(null);
   const [availableSlots, setAvailableSlots] = useState<MatchSlot[]>([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
-
-  // --- Admin gate ---
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-
-      const { data: sessionRes } = await supabase.auth.getSession();
-      const user = sessionRes.session?.user;
-
-      if (!user) {
-        router.replace("/login");
-        return;
-      }
-
-      const { data: adminRow, error } = await supabase
-        .from("championship_admin_user")
-        .select("user_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (error) {
-        Alert.alert("Error", error.message);
-        setAllowed(false);
-      } else {
-        setAllowed(!!adminRow);
-      }
-
-      setLoading(false);
-    })();
-  }, []);
-
-  useEffect(() => {
-    if (!loading && !allowed) {
-      Alert.alert("Accés denegat", "Aquesta secció és només per gestors del campionat.");
-      router.back();
-    }
-  }, [loading, allowed]);
 
   const loadCalendar = async () => {
     // Pick active championship
@@ -369,23 +333,23 @@ if (hasConflict) {
           style={{ marginBottom:15 }}
         />
 
-        <Text style={{ fontSize: 20, fontWeight: "900", flex: 1, textAlign: "center", marginRight: 32 }}>
+        <Text style={{ fontSize: 20, fontWeight: "900", flex: 1, textAlign: "center", marginRight: 32 ,color:colors.text}}>
           🗓️ Modificar partits
         </Text>
       </View>
 
       {!championship ? (
-        <View style={{ padding: 12, borderWidth: 1, borderColor: "#eee", borderRadius: 12, backgroundColor: "white" }}>
-          <Text style={{ fontWeight: "800", marginBottom: 6 }}>No hi ha cap campionat actiu</Text>
-          <Text style={{ color: "#666" }}>Activa un campionat per gestionar el calendari.</Text>
+        <View style={{ padding: 12, borderWidth: 1, borderColor: colors.border, borderRadius: 12, backgroundColor: colors.bg }}>
+          <Text style={{ fontWeight: "800", marginBottom: 6, color: colors.text }}>No hi ha cap campionat actiu</Text>
+          <Text style={{ color: colors.muted }}>Activa un campionat per gestionar el calendari.</Text>
         </View>
       ) : (
         <>
           <View style={{ marginBottom: 10 }}>
-            <Text style={{ fontWeight: "800" }}>
+            <Text style={{ fontWeight: "800", color: colors.text }}>
               {championship.name} ({championship.year})
             </Text>
-            <Text style={{ color: "#666" }}>Pots moure només partits no finalitzats a slots buits.</Text>
+            <Text style={{ color: colors.muted }}>Pots moure només partits no finalitzats a slots buits.</Text>
           </View>
 
           <FlatList
@@ -393,7 +357,7 @@ if (hasConflict) {
             keyExtractor={(item) => String(item.id)}
             contentContainerStyle={{ paddingBottom: 24 }}
             ListEmptyComponent={
-              <Text style={{ color: "#666", paddingTop: 20 }}>No hi ha partits pendents.</Text>
+              <Text style={{ color: colors.muted, paddingTop: 20 }}>No hi ha partits pendents.</Text>
             }
             renderItem={({ item }) => {
               const slot = item.slot_id ? slotsById[item.slot_id] : undefined;
@@ -405,14 +369,14 @@ if (hasConflict) {
                   style={{
                     padding: 12,
                     borderWidth: 1,
-                    borderColor: "#eee",
+                    borderColor: colors.border,
                     borderRadius: 12,
-                    backgroundColor: "white",
+                    backgroundColor: colors.bg,
                     marginBottom: 10,
                   }}
                 >
-                  <Text style={{ fontWeight: "900", marginBottom: 4 }}>{title}</Text>
-                  <Text style={{ color: "#666", marginBottom: 10 }}>{subtitle}</Text>
+                  <Text style={{ fontWeight: "900", marginBottom: 4, color: colors.text }}>{title}</Text>
+                  <Text style={{ color: colors.muted, marginBottom: 10 }}>{subtitle}</Text>
 
                   <Pressable
                     disabled={busyMatchId === item.id}
@@ -422,8 +386,8 @@ if (hasConflict) {
                       paddingHorizontal: 12,
                       borderRadius: 12,
                       borderWidth: 1,
-                      borderColor: "#ddd",
-                      backgroundColor: "white",
+                      borderColor: colors.border,
+                      backgroundColor: colors.bg,
                       opacity: busyMatchId === item.id ? 0.6 : 1,
                       alignSelf: "flex-start",
                       flexDirection: "row",
@@ -434,7 +398,7 @@ if (hasConflict) {
                     {busyMatchId === item.id ? (
                       <ActivityIndicator />
                     ) : (
-                      <Text style={{ fontWeight: "900" }}>Canviar horari</Text>
+                      <Text style={{ fontWeight: "900", color: colors.text }}>Canviar horari</Text>
                     )}
                   </Pressable>
                 </View>
@@ -446,19 +410,19 @@ if (hasConflict) {
 
       <Modal visible={slotModalOpen} animationType="slide" transparent onRequestClose={() => setSlotModalOpen(false)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", padding: 16, justifyContent: "center" }}>
-          <View style={{ backgroundColor: "white", borderRadius: 16, padding: 12, maxHeight: "80%" }}>
-            <Text style={{ fontSize: 16, fontWeight: "900", marginBottom: 10 }}>Selecciona un slot buit</Text>
+          <View style={{ backgroundColor: colors.bg, borderRadius: 16, padding: 12, maxHeight: "80%" }}>
+            <Text style={{ fontSize: 16, fontWeight: "900", marginBottom: 10, color: colors.text }}>Selecciona un slot buit</Text>
 
             {loadingSlots ? (
               <View style={{ paddingVertical: 20 }}>
-                <Text style={{ textAlign: "center" }}>Carregant slots…</Text>
+                <Text style={{ textAlign: "center", color: colors.muted }}>Carregant slots…</Text>
               </View>
             ) : (
               <FlatList
                 data={filteredSlots}
                 keyExtractor={(s) => String(s.id)}
                 style={{ marginBottom: 10 }}
-                ListEmptyComponent={<Text style={{ color: "#666" }}>No hi ha slots buits.</Text>}
+                ListEmptyComponent={<Text style={{ color: colors.muted }}>No hi ha slots buits.</Text>}
                 renderItem={({ item }) => (
                   <Pressable
                     onPress={() => saveNewSlot(item)}
@@ -467,11 +431,11 @@ if (hasConflict) {
                       paddingHorizontal: 10,
                       borderRadius: 12,
                       borderWidth: 1,
-                      borderColor: "#eee",
+                      borderColor: colors.border,
                       marginBottom: 8,
                     }}
                   >
-                    <Text style={{ fontWeight: "500" }}>{toCaDay(item.day_code)} · {new Date(item.starts_at).toLocaleString()} - Camp {item.field_code}</Text>
+                    <Text style={{ fontWeight: "500", color: colors.text }}>{toCaDay(item.day_code)} · {new Date(item.starts_at).toLocaleString()} - Camp {item.field_code}</Text>
                   </Pressable>
                 )}
               />
@@ -481,7 +445,7 @@ if (hasConflict) {
               onPress={() => setSlotModalOpen(false)}
               style={{ paddingVertical: 10, alignSelf: "flex-end" }}
             >
-              <Text style={{ fontWeight: "900" }}>Tancar</Text>
+              <Text style={{ fontWeight: "900", color: colors.text }}>Tancar</Text>
             </Pressable>
           </View>
         </View>

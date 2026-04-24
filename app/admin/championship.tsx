@@ -15,6 +15,9 @@ import { useRouter, Stack } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "../../src/supabase";
 import { BackButton, RefreshButton } from "../../components/HeaderButtons";
+import { formatDate, formatDateTime } from "../../src/utils/format";
+import { useAdminGuard } from "../../hooks/use-admin-guard";
+import { useAppTheme } from "@/src/theme";
 
 type ChampionshipRow = {
   id: number;
@@ -25,33 +28,10 @@ type ChampionshipRow = {
   is_active: boolean | null;
 };
 
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function formatDate(iso?: string | null) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()}`;
-}
-
-function formatDateTime(iso?: string | null) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return `${pad2(d.getDate())}/${pad2(d.getMonth() + 1)}/${d.getFullYear()} ${pad2(
-    d.getHours()
-  )}:${pad2(d.getMinutes())}`;
-}
-
 export default function AdminChampionship() {
   const router = useRouter();
-
-  // Access control
-  const [checking, setChecking] = useState(true);
-  const [allowed, setAllowed] = useState(false);
-
+  const { checking, isAdmin: allowed, recheck: checkAccess } = useAdminGuard();
+  const { colors } = useAppTheme();
   // Data
   const [loading, setLoading] = useState(true);
   const [items, setItems] = useState<ChampionshipRow[]>([]);
@@ -90,33 +70,6 @@ export default function AdminChampionship() {
     setModalOpen(true);
   }, []);
 
-  const checkAccess = useCallback(async () => {
-    setChecking(true);
-
-    const { data: sessionRes } = await supabase.auth.getSession();
-    const user = sessionRes.session?.user;
-
-    if (!user) {
-      router.replace("/login");
-      return;
-    }
-
-    const { data: adminRow, error } = await supabase
-      .from("championship_admin_user")
-      .select("user_id")
-      .eq("user_id", user.id)
-      .maybeSingle();
-
-    if (error) {
-      Alert.alert("Error", error.message);
-      setAllowed(false);
-    } else {
-      setAllowed(!!adminRow);
-    }
-
-    setChecking(false);
-  }, [router]);
-
   const load = useCallback(async () => {
     setLoading(true);
 
@@ -138,23 +91,12 @@ export default function AdminChampionship() {
     setLoading(false);
   }, []);
 
-  useEffect(() => {
-    checkAccess();
-  }, [checkAccess]);
-
   useFocusEffect(
     useCallback(() => {
       checkAccess();
       load();
     }, [checkAccess, load])
   );
-
-  useEffect(() => {
-    if (!checking && !allowed) {
-      Alert.alert("Accés denegat", "Aquesta secció és només per gestors del campionat.");
-      router.back();
-    }
-  }, [checking, allowed, router]);
 
   const stats = useMemo(() => {
     const total = items.length;
@@ -266,8 +208,8 @@ export default function AdminChampionship() {
           padding: 16,
           borderRadius: 18,
           borderWidth: 1,
-          borderColor: "#eee",
-          backgroundColor: "#fafafa",
+          borderColor: colors.border,
+          backgroundColor: colors.bg,
           marginBottom: 14,
         }}
       >
@@ -276,8 +218,8 @@ export default function AdminChampionship() {
           style={{ marginBottom:15 }}
         />
 
-        <Text style={{ fontWeight: "900", fontSize: 18 }}>Gestió de campionats</Text>
-        <Text style={{ marginTop: 6, color: "#666", fontWeight: "600" }}>
+        <Text style={{ fontWeight: "900", fontSize: 18, color: colors.text }}>Gestió de campionats</Text>
+        <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "600" }}>
           Crea i edita campionats. No es poden eliminar perquè queden d&apos;històric.
         </Text>
 
@@ -288,12 +230,12 @@ export default function AdminChampionship() {
               padding: 12,
               borderRadius: 14,
               borderWidth: 1,
-              borderColor: "#eee",
-              backgroundColor: "white",
+              borderColor: colors.border,
+              backgroundColor: colors.bg,
             }}
           >
-            <Text style={{ fontWeight: "900" }}>Actiu</Text>
-            <Text style={{ marginTop: 6, color: "#555", fontWeight: "700" }}>{stats.activeLabel}</Text>
+            <Text style={{ fontWeight: "900", color: colors.text }}>Actiu</Text>
+            <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "700" }}>{stats.activeLabel}</Text>
           </View>
 
           <View
@@ -302,14 +244,14 @@ export default function AdminChampionship() {
               padding: 12,
               borderRadius: 14,
               borderWidth: 1,
-              borderColor: "#eee",
-              backgroundColor: "white",
+              borderColor: colors.border,
+              backgroundColor: colors.bg,
               alignItems: "center",
               justifyContent: "center",
             }}
           >
-            <Text style={{ fontWeight: "900" }}>Totals</Text>
-            <Text style={{ marginTop: 6, fontSize: 20, fontWeight: "900" }}>{stats.total}</Text>
+            <Text style={{ fontWeight: "900", color: colors.text }}>Totals</Text>
+            <Text style={{ marginTop: 6, fontSize: 20, fontWeight: "900", color: colors.text }}>{stats.total}</Text>
           </View>
         </View>
 
@@ -321,12 +263,12 @@ export default function AdminChampionship() {
               paddingVertical: 12,
               borderRadius: 14,
               borderWidth: 1,
-              borderColor: "#d7f2df",
-              backgroundColor: "#e6f7ed",
+              borderColor: colors.success,
+              backgroundColor: colors.successBg,
               alignItems: "center",
             }}
           >
-            <Text style={{ fontWeight: "900" }}>＋ Nou campionat</Text>
+            <Text style={{ fontWeight: "900" ,color:colors.text}}>＋ Nou campionat</Text>
           </Pressable>
 
           <Pressable
@@ -336,12 +278,12 @@ export default function AdminChampionship() {
               paddingVertical: 12,
               borderRadius: 14,
               borderWidth: 1,
-              borderColor: "#ddd",
-              backgroundColor: "white",
+              borderColor: colors.border,
+              backgroundColor: colors.bg,
               alignItems: "center",
             }}
           >
-            <Text style={{ fontWeight: "900" }}>↻ Refrescar</Text>
+            <Text style={{ fontWeight: "900", color: colors.text }}>↻ Refrescar</Text>
           </Pressable>
         </View>
       </View>
@@ -358,8 +300,8 @@ export default function AdminChampionship() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={() => (
             <View style={{ alignItems: "center", marginTop: 50 }}>
-              <Text style={{ color: "#666", fontWeight: "800" }}>Encara no hi ha cap campionat.</Text>
-              <Text style={{ color: "#888", marginTop: 6 }}>Crea&apos;n un amb “Nou campionat”.</Text>
+              <Text style={{ color: colors.muted, fontWeight: "800" }}>Encara no hi ha cap campionat.</Text>
+              <Text style={{ color: colors.muted, marginTop: 6 }}>Crea&apos;n un amb “Nou campionat”.</Text>
             </View>
           )}
           renderItem={({ item }) => {
@@ -376,24 +318,24 @@ export default function AdminChampionship() {
                   padding: 14,
                   borderRadius: 16,
                   borderWidth: 1,
-                  borderColor: "#e6e6e6",
-                  backgroundColor: "white",
+                  borderColor: colors.border,
+                  backgroundColor: colors.bg,
                   marginBottom: 12,
                 }}
               >
                 <View style={{ flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between" }}>
                   <View style={{ flex: 1, paddingRight: 10 }}>
-                    <Text style={{ fontWeight: "900", fontSize: 16 }} numberOfLines={2}>
+                    <Text style={{ fontWeight: "900", fontSize: 16 ,color: colors.text}} numberOfLines={2}>
                       {item.name || `Campionat #${item.id}`}
                     </Text>
 
                     {subtitle ? (
-                      <Text style={{ marginTop: 6, color: "#666", fontWeight: "700" }} numberOfLines={2}>
+                      <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "700" }} numberOfLines={2}>
                         {subtitle}
                       </Text>
                     ) : null}
 
-                    <Text style={{ marginTop: 6, color: "#888", fontWeight: "600" }}>
+                    <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "600" }}>
                       Creat: {formatDateTime(item.created_at) || "—"}
                     </Text>
                   </View>
@@ -405,11 +347,11 @@ export default function AdminChampionship() {
                         paddingHorizontal: 10,
                         borderRadius: 999,
                         borderWidth: 1,
-                        borderColor: "#d7f2df",
-                        backgroundColor: "#e6f7ed",
+                        borderColor: colors.success,
+                        backgroundColor: colors.successBg,
                       }}
                     >
-                      <Text style={{ fontWeight: "900" }}>ACTIU</Text>
+                      <Text style={{ fontWeight: "900", color: colors.text }}>ACTIU</Text>
                     </View>
                   ) : (
                     <View
@@ -418,16 +360,16 @@ export default function AdminChampionship() {
                         paddingHorizontal: 10,
                         borderRadius: 999,
                         borderWidth: 1,
-                        borderColor: "#eee",
-                        backgroundColor: "#fafafa",
+                        borderColor: colors.border,
+                        backgroundColor: colors.bg,
                       }}
                     >
-                      <Text style={{ fontWeight: "800", color: "#666" }}>històric</Text>
+                      <Text style={{ fontWeight: "800", color: colors.text }}>HISTÒRIC</Text>
                     </View>
                   )}
                 </View>
 
-                <Text style={{ marginTop: 10, color: "#777", fontWeight: "700" }}>Toca per editar</Text>
+                <Text style={{ marginTop: 10, color: colors.muted, fontWeight: "700" }}>Toca per editar</Text>
               </Pressable>
             );
           }}
@@ -451,19 +393,19 @@ export default function AdminChampionship() {
         >
           <View
             style={{
-              backgroundColor: "white",
+              backgroundColor: colors.bg,
               borderRadius: 18,
               padding: 16,
               borderWidth: 1,
-              borderColor: "#eee",
+              borderColor: colors.border,
             }}
           >
-            <Text style={{ fontWeight: "900", fontSize: 18 }}>
+            <Text style={{ fontWeight: "900", fontSize: 18, color: colors.text }}>
               {editing ? "Editar campionat" : "Nou campionat"}
             </Text>
 
             {/* Year */}
-            <Text style={{ marginTop: 12, color: "#666", fontWeight: "800" }}>Any</Text>
+            <Text style={{ marginTop: 12, color: colors.muted, fontWeight: "800" }}>Any</Text>
             <TextInput
               value={year}
               onChangeText={(v) => setYear(v.replace(/[^0-9]/g, "").slice(0, 4))}
@@ -475,12 +417,14 @@ export default function AdminChampionship() {
                 paddingHorizontal: 12,
                 borderRadius: 12,
                 borderWidth: 1,
-                borderColor: "#ddd",
+                borderColor: colors.border,
+                backgroundColor: colors.bg,
+                color: colors.text,
               }}
             />
 
             {/* Name */}
-            <Text style={{ marginTop: 12, color: "#666", fontWeight: "800" }}>Nom</Text>
+            <Text style={{ marginTop: 12, color: colors.muted, fontWeight: "800" }}>Nom</Text>
             <TextInput
               value={name}
               onChangeText={setName}
@@ -492,12 +436,14 @@ export default function AdminChampionship() {
                 paddingHorizontal: 12,
                 borderRadius: 12,
                 borderWidth: 1,
-                borderColor: "#ddd",
+                borderColor: colors.border,
+                backgroundColor: colors.bg,
+                color: colors.text,
               }}
             />
 
             {/* Location */}
-            <Text style={{ marginTop: 12, color: "#666", fontWeight: "800" }}>Localització</Text>
+            <Text style={{ marginTop: 12, color: colors.muted, fontWeight: "800" }}>Localització</Text>
             <TextInput
               value={location}
               onChangeText={setLocation}
@@ -509,15 +455,17 @@ export default function AdminChampionship() {
                 paddingHorizontal: 12,
                 borderRadius: 12,
                 borderWidth: 1,
-                borderColor: "#ddd",
+                borderColor: colors.border,
+                backgroundColor: colors.bg,
+                color: colors.text,
               }}
             />
 
             {/* Active */}
             <View style={{ marginTop: 14, flexDirection: "row", alignItems: "center", justifyContent: "space-between" }}>
               <View style={{ flex: 1, paddingRight: 12 }}>
-                <Text style={{ fontWeight: "900" }}>Campionat actiu</Text>
-                <Text style={{ marginTop: 4, color: "#666", fontWeight: "600" }}>
+                <Text style={{ fontWeight: "900", color: colors.text }}>Campionat actiu</Text>
+                <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "600" }}>
                   Si l&apos;actives, desactivarem automàticament l&apos;anterior.
                 </Text>
               </View>
@@ -536,13 +484,13 @@ export default function AdminChampionship() {
                   paddingVertical: 12,
                   borderRadius: 14,
                   borderWidth: 1,
-                  borderColor: "#ddd",
-                  backgroundColor: "white",
+                  borderColor: colors.border, 
+                  backgroundColor: colors.bg,
                   opacity: saving ? 0.6 : 1,
                   alignItems: "center",
                 }}
               >
-                <Text style={{ fontWeight: "900" }}>Cancel·lar</Text>
+                <Text style={{ fontWeight: "900", color: colors.text }}>Cancel·lar</Text>
               </Pressable>
 
               <Pressable
@@ -553,17 +501,17 @@ export default function AdminChampionship() {
                   paddingVertical: 12,
                   borderRadius: 14,
                   borderWidth: 1,
-                  borderColor: "#d7f2df",
-                  backgroundColor: "#e6f7ed",
+                  borderColor: colors.success,
+                  backgroundColor: colors.successBg,
                   opacity: saving ? 0.6 : 1,
                   alignItems: "center",
                 }}
               >
-                <Text style={{ fontWeight: "900" }}>{saving ? "Desant…" : "Desar"}</Text>
+                <Text style={{ fontWeight: "900", color: colors.text }}>{saving ? "Desant…" : "Desar"}</Text>
               </Pressable>
             </View>
 
-            <Text style={{ marginTop: 10, color: "#888", fontWeight: "600" }}>
+            <Text style={{ marginTop: 10, color: colors.muted, fontWeight: "600" }}>
               No hi ha opció d&apos;eliminar.
             </Text>
           </View>

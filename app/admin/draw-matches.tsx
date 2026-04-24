@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { BackButton, RefreshButton } from "../../components/HeaderButtons";
+import { useAppTheme } from "../../src/theme";
 
 // ✅ Ajusta aquest import si al teu projecte el supabase client està en una altra ruta
 import { supabase } from "../../src/supabase";
@@ -392,25 +393,25 @@ function assignPairsToSlotsFair(
    */
 
   const remaining = shuffle([...pairs]);
-  
 
-// ------------------------
-// Group mixing (for "group" format)
-// ------------------------
-const teamToGroup = opts?.teamToGroup;
-const allGroupIds = teamToGroup
-  ? Array.from(new Set(Array.from(teamToGroup.values()))).sort((a, b) => a - b)
-  : [];
-const groupsCount = allGroupIds.length;
 
-const pairGroup = (a: number, b: number) => {
-  if (!teamToGroup) return -1;
-  const ga = teamToGroup.get(a);
-  const gb = teamToGroup.get(b);
-  if (ga === undefined || gb === undefined || ga !== gb) return -1;
-  return ga;
-};
-const remainingSlots = [...freeSlotsSorted];
+  // ------------------------
+  // Group mixing (for "group" format)
+  // ------------------------
+  const teamToGroup = opts?.teamToGroup;
+  const allGroupIds = teamToGroup
+    ? Array.from(new Set(Array.from(teamToGroup.values()))).sort((a, b) => a - b)
+    : [];
+  const groupsCount = allGroupIds.length;
+
+  const pairGroup = (a: number, b: number) => {
+    if (!teamToGroup) return -1;
+    const ga = teamToGroup.get(a);
+    const gb = teamToGroup.get(b);
+    if (ga === undefined || gb === undefined || ga !== gb) return -1;
+    return ga;
+  };
+  const remainingSlots = [...freeSlotsSorted];
 
   const slotsByWeekend = groupSlotsByWeekend(remainingSlots);
   const weekendKeys = Array.from(slotsByWeekend.keys()).sort();
@@ -427,8 +428,8 @@ const remainingSlots = [...freeSlotsSorted];
     commonPrefSlotsCount.set(pairKey(a, b), count);
   }
   const impossible = remaining.filter(([a, b]) => (commonPrefSlotsCount.get(pairKey(a, b)) ?? 0) === 0);
-// If there are pairs with 0 common preferred slots, we still generate a draft.
-// Those matches may land in non-preferred slots and should be marked as warnings (preference_conflict=true).
+  // If there are pairs with 0 common preferred slots, we still generate a draft.
+  // Those matches may land in non-preferred slots and should be marked as warnings (preference_conflict=true).
 
   // Estat per equitat
   const lastPlayedWeekend = new Map<number, number>(); // team -> weekendIndex
@@ -447,23 +448,23 @@ const remainingSlots = [...freeSlotsSorted];
   };
   const getStreak = (t: number) => consecStreak.get(t) ?? 0;
 
-// Repartiment "base + extra" però ESCAMPANT els extres al llarg de la temporada
-// (no tots al principi), per evitar 10 partits al primer cap de setmana i 4 als últims.
-const totalWeekends = weekendKeys.length;
-const totalMatches = remaining.length;
-const base = Math.floor(totalMatches / Math.max(1, totalWeekends));
-const extra = totalMatches % Math.max(1, totalWeekends);
+  // Repartiment "base + extra" però ESCAMPANT els extres al llarg de la temporada
+  // (no tots al principi), per evitar 10 partits al primer cap de setmana i 4 als últims.
+  const totalWeekends = weekendKeys.length;
+  const totalMatches = remaining.length;
+  const base = Math.floor(totalMatches / Math.max(1, totalWeekends));
+  const extra = totalMatches % Math.max(1, totalWeekends);
 
-const extraWeekends = new Set<number>();
-if (extra > 0 && totalWeekends > 0) {
-  // Distribute indices as evenly as possible across [0..totalWeekends-1]
-  for (let i = 0; i < extra; i++) {
-    let idx = Math.floor(((i + 0.5) * totalWeekends) / extra);
-    // ensure uniqueness
-    while (extraWeekends.has(idx) && idx < totalWeekends - 1) idx++;
-    extraWeekends.add(Math.min(idx, totalWeekends - 1));
+  const extraWeekends = new Set<number>();
+  if (extra > 0 && totalWeekends > 0) {
+    // Distribute indices as evenly as possible across [0..totalWeekends-1]
+    for (let i = 0; i < extra; i++) {
+      let idx = Math.floor(((i + 0.5) * totalWeekends) / extra);
+      // ensure uniqueness
+      while (extraWeekends.has(idx) && idx < totalWeekends - 1) idx++;
+      extraWeekends.add(Math.min(idx, totalWeekends - 1));
+    }
   }
-}
 
   const BIG = 1_000_000;
 
@@ -481,9 +482,9 @@ if (extra > 0 && totalWeekends > 0) {
 
     const playedThisWeekend = new Set<number>();
 
-// Shuffled group order per weekend to avoid consuming a whole group first
-const weekendGroupOrder = groupsCount > 0 ? shuffle([...allGroupIds]) : [];
-let slotIdxInWeekend = 0;
+    // Shuffled group order per weekend to avoid consuming a whole group first
+    const weekendGroupOrder = groupsCount > 0 ? shuffle([...allGroupIds]) : [];
+    let slotIdxInWeekend = 0;
 
 
     // IMPORTANT: preservem ordre d'hores/slots (ja ve prioritzat)
@@ -492,65 +493,65 @@ let slotIdxInWeekend = 0;
     for (const slot of wSlots) {
       if (remaining.length === 0) break;
 
-// Preferred group for this slot (A/B/C alternating, but shuffled each weekend)
-const preferredGroup =
-  groupsCount > 0 ? weekendGroupOrder[slotIdxInWeekend % weekendGroupOrder.length] : -1;
+      // Preferred group for this slot (A/B/C alternating, but shuffled each weekend)
+      const preferredGroup =
+        groupsCount > 0 ? weekendGroupOrder[slotIdxInWeekend % weekendGroupOrder.length] : -1;
 
-// If there is at least one compatible match from preferredGroup for this slot,
-// we restrict to that group to keep groups mixed across weekends.
-let hasPreferredGroupCandidate = false;
-if (preferredGroup !== -1) {
-  for (let i = 0; i < remaining.length; i++) {
-    const [a, b] = remaining[i];
-    if (pairGroup(a, b) !== preferredGroup) continue;
+      // If there is at least one compatible match from preferredGroup for this slot,
+      // we restrict to that group to keep groups mixed across weekends.
+      let hasPreferredGroupCandidate = false;
+      if (preferredGroup !== -1) {
+        for (let i = 0; i < remaining.length; i++) {
+          const [a, b] = remaining[i];
+          if (pairGroup(a, b) !== preferredGroup) continue;
 
-    const allowConflictForPair = (commonPrefSlotsCount.get(pairKey(a, b)) ?? 0) === 0;
-    if (!(teamAllows(prefs, a, slot.game_slot_id) && teamAllows(prefs, b, slot.game_slot_id)) && !allowConflictForPair) continue;
+          const allowConflictForPair = (commonPrefSlotsCount.get(pairKey(a, b)) ?? 0) === 0;
+          if (!(teamAllows(prefs, a, slot.game_slot_id) && teamAllows(prefs, b, slot.game_slot_id)) && !allowConflictForPair) continue;
 
-    const usedA = teamTimeUsed.get(a) ?? new Set<string>();
-    const usedB = teamTimeUsed.get(b) ?? new Set<string>();
-    if (usedA.has(slot.starts_at) || usedB.has(slot.starts_at)) continue;
+          const usedA = teamTimeUsed.get(a) ?? new Set<string>();
+          const usedB = teamTimeUsed.get(b) ?? new Set<string>();
+          if (usedA.has(slot.starts_at) || usedB.has(slot.starts_at)) continue;
 
-    hasPreferredGroupCandidate = true;
-    break;
-  }
-}
-
-
-      
-
-// Red-zone rule: if there exists any compatible match (respecting preferences + group restriction)
-// where a team has been >=3 weekends without playing, only consider those matches.
-let hasRedZoneCandidate = false;
-for (let i = 0; i < remaining.length; i++) {
-  const [a, b] = remaining[i];
-
-  if (hasPreferredGroupCandidate) {
-    const g = pairGroup(a, b);
-    if (g !== preferredGroup) continue;
-  }
-
-  if (!(teamAllows(prefs, a, slot.game_slot_id) && teamAllows(prefs, b, slot.game_slot_id))) continue;
-
-// ✅ Mix groups: if we have preferred-group candidates for this slot, ignore other groups
-if (hasPreferredGroupCandidate) {
-  const g = pairGroup(a, b);
-  if (g !== preferredGroup) continue;
-}
+          hasPreferredGroupCandidate = true;
+          break;
+        }
+      }
 
 
-  const usedA = teamTimeUsed.get(a) ?? new Set<string>();
-  const usedB = teamTimeUsed.get(b) ?? new Set<string>();
-  if (usedA.has(slot.starts_at) || usedB.has(slot.starts_at)) continue;
 
-  const gapA = getGap(a, wIdx);
-  const gapB = getGap(b, wIdx);
-  if (gapA >= 3 || gapB >= 3) {
-    hasRedZoneCandidate = true;
-    break;
-  }
-}
-let bestIdx = -1;
+
+      // Red-zone rule: if there exists any compatible match (respecting preferences + group restriction)
+      // where a team has been >=3 weekends without playing, only consider those matches.
+      let hasRedZoneCandidate = false;
+      for (let i = 0; i < remaining.length; i++) {
+        const [a, b] = remaining[i];
+
+        if (hasPreferredGroupCandidate) {
+          const g = pairGroup(a, b);
+          if (g !== preferredGroup) continue;
+        }
+
+        if (!(teamAllows(prefs, a, slot.game_slot_id) && teamAllows(prefs, b, slot.game_slot_id))) continue;
+
+        // ✅ Mix groups: if we have preferred-group candidates for this slot, ignore other groups
+        if (hasPreferredGroupCandidate) {
+          const g = pairGroup(a, b);
+          if (g !== preferredGroup) continue;
+        }
+
+
+        const usedA = teamTimeUsed.get(a) ?? new Set<string>();
+        const usedB = teamTimeUsed.get(b) ?? new Set<string>();
+        if (usedA.has(slot.starts_at) || usedB.has(slot.starts_at)) continue;
+
+        const gapA = getGap(a, wIdx);
+        const gapB = getGap(b, wIdx);
+        if (gapA >= 3 || gapB >= 3) {
+          hasRedZoneCandidate = true;
+          break;
+        }
+      }
+      let bestIdx = -1;
       let bestScore = -Infinity;
 
       for (let i = 0; i < remaining.length; i++) {
@@ -569,7 +570,7 @@ let bestIdx = -1;
         const gapA = getGap(a, wIdx);
         const gapB = getGap(b, wIdx);
 
-if (hasRedZoneCandidate && !(gapA >= 3 || gapB >= 3)) continue;
+        if (hasRedZoneCandidate && !(gapA >= 3 || gapB >= 3)) continue;
 
 
         // Urgència per evitar >2 caps sense jugar.
@@ -658,117 +659,117 @@ if (hasRedZoneCandidate && !(gapA >= 3 || gapB >= 3)) continue;
     }
   }
 
-  
-// --- Rebalance pass: move matches from overloaded weekends to underloaded weekends (if empty slots exist)
-// This helps avoid front-loading lots of matches early and leaving the end too empty.
-{
-  const wkFromISO = (iso: string) => weekendKeyFromISO(iso);
 
-  const loadByWeekend = new Map<string, number>();
-  for (const a of assignments) {
-    const k = wkFromISO(a.slot.starts_at);
-    loadByWeekend.set(k, (loadByWeekend.get(k) ?? 0) + 1);
-  }
+  // --- Rebalance pass: move matches from overloaded weekends to underloaded weekends (if empty slots exist)
+  // This helps avoid front-loading lots of matches early and leaving the end too empty.
+  {
+    const wkFromISO = (iso: string) => weekendKeyFromISO(iso);
 
-  const usedSlotIds = new Set(assignments.map((x) => x.slot.id));
-  const emptySlotsByWeekend = new Map<string, MatchSlot[]>();
-  for (const s of remainingSlots) {
-    if (usedSlotIds.has(s.id)) continue;
-    const k = wkFromISO(s.starts_at);
-    if (!emptySlotsByWeekend.has(k)) emptySlotsByWeekend.set(k, []);
-    emptySlotsByWeekend.get(k)!.push(s);
-  }
-  for (const [k, arr] of emptySlotsByWeekend.entries()) {
-    arr.sort((a, b) => a.starts_at.localeCompare(b.starts_at));
-  }
-
-  const targetBase = Math.floor(totalMatches / Math.max(1, totalWeekends));
-  const targetHi = targetBase + (totalMatches % Math.max(1, totalWeekends) > 0 ? 1 : 0);
-
-  // Team time usage for overlap checks
-  const timeUsed = new Map<number, Set<string>>();
-  for (const it of assignments) {
-    if (!timeUsed.has(it.a)) timeUsed.set(it.a, new Set());
-    if (!timeUsed.has(it.b)) timeUsed.set(it.b, new Set());
-    timeUsed.get(it.a)!.add(it.slot.starts_at);
-    timeUsed.get(it.b)!.add(it.slot.starts_at);
-  }
-
-  const canMoveToSlot = (matchIdx: number, toSlot: MatchSlot) => {
-    const it = assignments[matchIdx];
-    const a = it.a, b = it.b;
-
-    const allowConflictForPair = (commonPrefSlotsCount.get(pairKey(a, b)) ?? 0) === 0;
-    const prefOk = teamAllows(prefs, a, toSlot.game_slot_id) && teamAllows(prefs, b, toSlot.game_slot_id);
-    if (!prefOk && !allowConflictForPair) return false;
-
-    const usedA = timeUsed.get(a) ?? new Set<string>();
-    const usedB = timeUsed.get(b) ?? new Set<string>();
-    // remove current slot time from temporary check
-    const curTime = it.slot.starts_at;
-    if ((toSlot.starts_at !== curTime && usedA.has(toSlot.starts_at)) || (toSlot.starts_at !== curTime && usedB.has(toSlot.starts_at))) {
-      return false;
+    const loadByWeekend = new Map<string, number>();
+    for (const a of assignments) {
+      const k = wkFromISO(a.slot.starts_at);
+      loadByWeekend.set(k, (loadByWeekend.get(k) ?? 0) + 1);
     }
-    return true;
-  };
 
-  // Try to fill underloaded weekends up to ~targetBase/targetHi, by pulling from overloaded ones
-  const weekendKeysSorted = [...weekendKeys];
-  for (const underKey of weekendKeysSorted) {
-    const emptySlots = emptySlotsByWeekend.get(underKey) ?? [];
-    if (emptySlots.length === 0) continue;
+    const usedSlotIds = new Set(assignments.map((x) => x.slot.id));
+    const emptySlotsByWeekend = new Map<string, MatchSlot[]>();
+    for (const s of remainingSlots) {
+      if (usedSlotIds.has(s.id)) continue;
+      const k = wkFromISO(s.starts_at);
+      if (!emptySlotsByWeekend.has(k)) emptySlotsByWeekend.set(k, []);
+      emptySlotsByWeekend.get(k)!.push(s);
+    }
+    for (const [k, arr] of emptySlotsByWeekend.entries()) {
+      arr.sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+    }
 
-    while (emptySlots.length > 0) {
-      const currentUnder = loadByWeekend.get(underKey) ?? 0;
-      if (currentUnder >= targetBase) break; // good enough (keeps end from being too empty)
+    const targetBase = Math.floor(totalMatches / Math.max(1, totalWeekends));
+    const targetHi = targetBase + (totalMatches % Math.max(1, totalWeekends) > 0 ? 1 : 0);
 
-      // Find an overfull weekend
-      let overKey: string | null = null;
-      let overLoad = -1;
-      for (const k of weekendKeysSorted) {
-        const l = loadByWeekend.get(k) ?? 0;
-        if (l > overLoad && l > targetHi) {
-          overLoad = l;
-          overKey = k;
+    // Team time usage for overlap checks
+    const timeUsed = new Map<number, Set<string>>();
+    for (const it of assignments) {
+      if (!timeUsed.has(it.a)) timeUsed.set(it.a, new Set());
+      if (!timeUsed.has(it.b)) timeUsed.set(it.b, new Set());
+      timeUsed.get(it.a)!.add(it.slot.starts_at);
+      timeUsed.get(it.b)!.add(it.slot.starts_at);
+    }
+
+    const canMoveToSlot = (matchIdx: number, toSlot: MatchSlot) => {
+      const it = assignments[matchIdx];
+      const a = it.a, b = it.b;
+
+      const allowConflictForPair = (commonPrefSlotsCount.get(pairKey(a, b)) ?? 0) === 0;
+      const prefOk = teamAllows(prefs, a, toSlot.game_slot_id) && teamAllows(prefs, b, toSlot.game_slot_id);
+      if (!prefOk && !allowConflictForPair) return false;
+
+      const usedA = timeUsed.get(a) ?? new Set<string>();
+      const usedB = timeUsed.get(b) ?? new Set<string>();
+      // remove current slot time from temporary check
+      const curTime = it.slot.starts_at;
+      if ((toSlot.starts_at !== curTime && usedA.has(toSlot.starts_at)) || (toSlot.starts_at !== curTime && usedB.has(toSlot.starts_at))) {
+        return false;
+      }
+      return true;
+    };
+
+    // Try to fill underloaded weekends up to ~targetBase/targetHi, by pulling from overloaded ones
+    const weekendKeysSorted = [...weekendKeys];
+    for (const underKey of weekendKeysSorted) {
+      const emptySlots = emptySlotsByWeekend.get(underKey) ?? [];
+      if (emptySlots.length === 0) continue;
+
+      while (emptySlots.length > 0) {
+        const currentUnder = loadByWeekend.get(underKey) ?? 0;
+        if (currentUnder >= targetBase) break; // good enough (keeps end from being too empty)
+
+        // Find an overfull weekend
+        let overKey: string | null = null;
+        let overLoad = -1;
+        for (const k of weekendKeysSorted) {
+          const l = loadByWeekend.get(k) ?? 0;
+          if (l > overLoad && l > targetHi) {
+            overLoad = l;
+            overKey = k;
+          }
         }
+        if (!overKey) break;
+
+        // Pick an empty slot in underKey
+        const toSlot = emptySlots.shift()!;
+        // Find a movable match from overKey
+        const candidatesIdx: number[] = [];
+        for (let mi = 0; mi < assignments.length; mi++) {
+          if (wkFromISO(assignments[mi].slot.starts_at) !== overKey) continue;
+          if (canMoveToSlot(mi, toSlot)) candidatesIdx.push(mi);
+        }
+        if (candidatesIdx.length === 0) continue;
+
+        // Heuristic: move the match whose current weekend is most overloaded first
+        const pickIdx = candidatesIdx[Math.floor(Math.random() * candidatesIdx.length)];
+        const moving = assignments[pickIdx];
+
+        // Update timeUsed sets
+        timeUsed.get(moving.a)!.delete(moving.slot.starts_at);
+        timeUsed.get(moving.b)!.delete(moving.slot.starts_at);
+        timeUsed.get(moving.a)!.add(toSlot.starts_at);
+        timeUsed.get(moving.b)!.add(toSlot.starts_at);
+
+        // Apply move
+        assignments[pickIdx] = { ...moving, slot: toSlot };
+
+        // Update loads
+        loadByWeekend.set(overKey, (loadByWeekend.get(overKey) ?? 0) - 1);
+        loadByWeekend.set(underKey, (loadByWeekend.get(underKey) ?? 0) + 1);
+
+        // Update usedSlotIds / empties bookkeeping
+        usedSlotIds.delete(moving.slot.id);
+        usedSlotIds.add(toSlot.id);
       }
-      if (!overKey) break;
-
-      // Pick an empty slot in underKey
-      const toSlot = emptySlots.shift()!;
-      // Find a movable match from overKey
-      const candidatesIdx: number[] = [];
-      for (let mi = 0; mi < assignments.length; mi++) {
-        if (wkFromISO(assignments[mi].slot.starts_at) !== overKey) continue;
-        if (canMoveToSlot(mi, toSlot)) candidatesIdx.push(mi);
-      }
-      if (candidatesIdx.length === 0) continue;
-
-      // Heuristic: move the match whose current weekend is most overloaded first
-      const pickIdx = candidatesIdx[Math.floor(Math.random() * candidatesIdx.length)];
-      const moving = assignments[pickIdx];
-
-      // Update timeUsed sets
-      timeUsed.get(moving.a)!.delete(moving.slot.starts_at);
-      timeUsed.get(moving.b)!.delete(moving.slot.starts_at);
-      timeUsed.get(moving.a)!.add(toSlot.starts_at);
-      timeUsed.get(moving.b)!.add(toSlot.starts_at);
-
-      // Apply move
-      assignments[pickIdx] = { ...moving, slot: toSlot };
-
-      // Update loads
-      loadByWeekend.set(overKey, (loadByWeekend.get(overKey) ?? 0) - 1);
-      loadByWeekend.set(underKey, (loadByWeekend.get(underKey) ?? 0) + 1);
-
-      // Update usedSlotIds / empties bookkeeping
-      usedSlotIds.delete(moving.slot.id);
-      usedSlotIds.add(toSlot.id);
     }
   }
-}
 
-// Si han quedat partits sense assignar, intentem omplir amb slots sobrants
+  // Si han quedat partits sense assignar, intentem omplir amb slots sobrants
   // sempre respectant preferència comuna. Si no es pot, ERROR (per evitar preference_conflict=true).
   if (remaining.length > 0) {
     const usedSlotIds = new Set(assignments.map((x) => x.slot.id));
@@ -846,7 +847,7 @@ if (hasRedZoneCandidate && !(gapA >= 3 || gapB >= 3)) continue;
       assignments.push({ a, b, slot: chosen });
     }
   }
-return assignments;
+  return assignments;
 }
 
 function pickBestSlotStrictPrefs(
@@ -915,6 +916,7 @@ function parseGamesPerTeam(configValue: any): number | null {
 
 export default function DrawMatchesScreen() {
   const router = useRouter();
+  const { colors } = useAppTheme();
 
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -943,26 +945,26 @@ export default function DrawMatchesScreen() {
   }>(null);
 
 
-// ------------------------
-// Preview + editable draft (no DB write until user accepts)
-// ------------------------
-type DraftAssignment = { a: number; b: number; slot: MatchSlot; prefConflict: boolean };
-const [previewOpen, setPreviewOpen] = useState(false);
-const [draftAssignments, setDraftAssignments] = useState<DraftAssignment[]>([]);
-const [previewMeta, setPreviewMeta] = useState<null | {
-  championshipId: number;
-  phaseId: number;
-  refereeId: number;
-  format: "league" | "groups2" | "groups3";
-  drawParams: any;
-  prefs: Map<number, Set<number>>;
-  hourPriority: Map<string, number>;
+  // ------------------------
+  // Preview + editable draft (no DB write until user accepts)
+  // ------------------------
+  type DraftAssignment = { a: number; b: number; slot: MatchSlot; prefConflict: boolean };
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [draftAssignments, setDraftAssignments] = useState<DraftAssignment[]>([]);
+  const [previewMeta, setPreviewMeta] = useState<null | {
+    championshipId: number;
+    phaseId: number;
+    refereeId: number;
+    format: "league" | "groups2" | "groups3";
+    drawParams: any;
+    prefs: Map<number, Set<number>>;
+    hourPriority: Map<string, number>;
     allSlots: MatchSlot[];
-}>(null);
+  }>(null);
 
-const [moveModalOpen, setMoveModalOpen] = useState(false);
-const [moveFromSlotId, setMoveFromSlotId] = useState<number | null>(null);
-const [moveAllowAnyWeekend, setMoveAllowAnyWeekend] = useState(false);
+  const [moveModalOpen, setMoveModalOpen] = useState(false);
+  const [moveFromSlotId, setMoveFromSlotId] = useState<number | null>(null);
+  const [moveAllowAnyWeekend, setMoveAllowAnyWeekend] = useState(false);
   const [autoFixing, setAutoFixing] = useState(false);
 
 
@@ -1385,50 +1387,50 @@ const [moveAllowAnyWeekend, setMoveAllowAnyWeekend] = useState(false);
       if (freeSlots.length < pairs.length) {
         throw new Error(`No hi ha slots suficients. Necessaris: ${pairs.length}, disponibles: ${freeSlots.length}.`);
       }
-      
 
-// ✅ Assignació a slots (no DB write yet)
-const assignments = assignPairsToSlotsFair(
-  pairs,
-  freeSlots,
-  prefs,
-  hourPriority,
-  gamesPerTeamForFairness > 0 ? gamesPerTeamForFairness : 6
-);
 
-// Preferences: we try to reach 0 conflicts, but if impossible we continue with warnings.
-const draft: DraftAssignment[] = assignments.map(({ a, b, slot }: any) => {
-  const okA = teamAllows(prefs, a, slot.game_slot_id);
-  const okB = teamAllows(prefs, b, slot.game_slot_id);
-  return { a, b, slot, prefConflict: !(okA && okB) };
-});
+      // ✅ Assignació a slots (no DB write yet)
+      const assignments = assignPairsToSlotsFair(
+        pairs,
+        freeSlots,
+        prefs,
+        hourPriority,
+        gamesPerTeamForFairness > 0 ? gamesPerTeamForFairness : 6
+      );
 
-setDraftAssignments(draft);
+      // Preferences: we try to reach 0 conflicts, but if impossible we continue with warnings.
+      const draft: DraftAssignment[] = assignments.map(({ a, b, slot }: any) => {
+        const okA = teamAllows(prefs, a, slot.game_slot_id);
+        const okB = teamAllows(prefs, b, slot.game_slot_id);
+        return { a, b, slot, prefConflict: !(okA && okB) };
+      });
 
-const prefConflicts = draft.filter((x) => x.prefConflict).length;
-if (prefConflicts > 0) {
-  setStatusText(`Avís: ${prefConflicts} partit(s) no poden complir totes les preferències. Es mostraran marcats ⚠️.`);
-} else {
-  setStatusText("");
-}
+      setDraftAssignments(draft);
 
-setPreviewMeta({
-  championshipId,
-  phaseId,
-  refereeId,
-  format,
-  drawParams: {
-    format,
-    phase_id: phaseId,
-    ...(format === "league" ? { games_per_team: await loadLeagueGamesPerTeam(championshipId) } : {}),
-    priority_match_order_hours: priorityHours,
-    excluded_dates: Array.from(excludedDates),
-  },
-  prefs,
-  hourPriority,
+      const prefConflicts = draft.filter((x) => x.prefConflict).length;
+      if (prefConflicts > 0) {
+        setStatusText(`Avís: ${prefConflicts} partit(s) no poden complir totes les preferències. Es mostraran marcats ⚠️.`);
+      } else {
+        setStatusText("");
+      }
+
+      setPreviewMeta({
+        championshipId,
+        phaseId,
+        refereeId,
+        format,
+        drawParams: {
+          format,
+          phase_id: phaseId,
+          ...(format === "league" ? { games_per_team: await loadLeagueGamesPerTeam(championshipId) } : {}),
+          priority_match_order_hours: priorityHours,
+          excluded_dates: Array.from(excludedDates),
+        },
+        prefs,
+        hourPriority,
         allSlots: freeSlots,
-});
-setPreviewOpen(true);
+      });
+      setPreviewOpen(true);
     } catch (e: any) {
       Alert.alert("Error", e?.message ?? "Error desconegut");
     } finally {
@@ -1436,7 +1438,7 @@ setPreviewOpen(true);
     }
   }
 
-  
+
   function cycleTeamGroup(teamId: number, groupsCount: number) {
     // Manual mode: tap cycles A -> B -> C (etc). This makes the change visible and predictable.
     setGroupTeams((prev) => {
@@ -1460,308 +1462,308 @@ setPreviewOpen(true);
     });
   }
 
-  
-
-function recomputePreviewMetrics(assignments: DraftAssignment[]) {
-  const w = computeWeeksWithoutPlaying(assignments);
-  const sb = computeSlotBalance(assignments);
-  const gapsSorted = Array.from(w.maxGapByTeam.entries())
-  .map(([teamId, gap]) => ({ teamId, gap }))
-  .sort((a, b) => b.gap - a.gap);
-
-return { weeks: w, slotBalance: sb, gapsSorted };
-}
-
-const previewMetrics = useMemo(() => {
-  return recomputePreviewMetrics(draftAssignments);
-}, [draftAssignments]);
 
 
-const prefConflictCount = useMemo(() => {
-  return draftAssignments.filter((x) => x.prefConflict).length;
-}, [draftAssignments]);
+  function recomputePreviewMetrics(assignments: DraftAssignment[]) {
+    const w = computeWeeksWithoutPlaying(assignments);
+    const sb = computeSlotBalance(assignments);
+    const gapsSorted = Array.from(w.maxGapByTeam.entries())
+      .map(([teamId, gap]) => ({ teamId, gap }))
+      .sort((a, b) => b.gap - a.gap);
 
-// Keep the "conflict preferences" warning in sync when user edits / auto-fix updates the draft
-useEffect(() => {
-  if (!previewOpen) return;
-
-  const prefMsg =
-    prefConflictCount > 0
-      ? `Avís: ${prefConflictCount} partit(s) no poden complir totes les preferències. Es mostraran marcats ⚠️.`
-      : "";
-
-  setStatusText((prev) => {
-    // Remove any previous preference warning line (we re-add the updated one)
-    const cleaned = (prev ?? "")
-      .replace(
-        /\n?Avís: \d+ partit\(s\) no poden complir totes les preferències\.[^\n]*\n?/g,
-        ""
-      )
-      .trim();
-
-    if (prefMsg) return cleaned ? `${cleaned}\n${prefMsg}` : prefMsg;
-    return cleaned;
-  });
-}, [prefConflictCount, previewOpen]);
-
-
-function slotLabel(slot: MatchSlot) {
-  const date = isoDateOnly(slot.starts_at);
-  return `${date} · ${slot.time_code} · ${slot.field_code} · gs:${slot.game_slot_id}`;
-}
-
-function openMoveModal(fromSlotId: number) {
-  setMoveFromSlotId(fromSlotId);
-  setMoveModalOpen(true);
-}
-
-function canPlaceTeamsAtTime(assignments: DraftAssignment[], slot: MatchSlot, a: number, b: number, ignoreSlotId?: number) {
-  const t = slot.starts_at;
-  for (const it of assignments) {
-    if (ignoreSlotId && it.slot.id === ignoreSlotId) continue;
-    if (it.slot.starts_at !== t) continue;
-    if (it.a === a || it.b === a || it.a === b || it.b === b) return false;
+    return { weeks: w, slotBalance: sb, gapsSorted };
   }
-  return true;
-}
 
-function tryMoveOrSwap(toSlotId: number) {
-  if (moveFromSlotId == null) return;
-  const fromIdx = draftAssignments.findIndex((x) => x.slot.id === moveFromSlotId);
-  if (fromIdx === -1) return;
+  const previewMetrics = useMemo(() => {
+    return recomputePreviewMetrics(draftAssignments);
+  }, [draftAssignments]);
 
-  const toIdx = draftAssignments.findIndex((x) => x.slot.id === toSlotId);
-  const from = draftAssignments[fromIdx];
 
-  const toSlot = (() => {
-  if (toIdx !== -1) return draftAssignments[toIdx].slot;
+  const prefConflictCount = useMemo(() => {
+    return draftAssignments.filter((x) => x.prefConflict).length;
+  }, [draftAssignments]);
 
-  // destination is empty: take it from the full slots list used in the simulation
-  const allSlots = previewMeta?.allSlots ?? [];
-  const found = allSlots.find((s) => s.id === toSlotId);
-  return found ?? null;
-})();
+  // Keep the "conflict preferences" warning in sync when user edits / auto-fix updates the draft
+  useEffect(() => {
+    if (!previewOpen) return;
 
-  if (!toSlot) return;
+    const prefMsg =
+      prefConflictCount > 0
+        ? `Avís: ${prefConflictCount} partit(s) no poden complir totes les preferències. Es mostraran marcats ⚠️.`
+        : "";
 
-  const prefs = previewMeta?.prefs;
-  if (!prefs) return;
+    setStatusText((prev) => {
+      // Remove any previous preference warning line (we re-add the updated one)
+      const cleaned = (prev ?? "")
+        .replace(
+          /\n?Avís: \d+ partit\(s\) no poden complir totes les preferències\.[^\n]*\n?/g,
+          ""
+        )
+        .trim();
 
-  // destination empty (no match currently)
-  if (toIdx === -1) {
-    // preferences for moved match
-    const okA = teamAllows(prefs, from.a, toSlot.game_slot_id);
-    const okB = teamAllows(prefs, from.b, toSlot.game_slot_id);
-    if (!(okA && okB)) {
-      Alert.alert("No permès", "Aquest slot no compleix preferències.");
+      if (prefMsg) return cleaned ? `${cleaned}\n${prefMsg}` : prefMsg;
+      return cleaned;
+    });
+  }, [prefConflictCount, previewOpen]);
+
+
+  function slotLabel(slot: MatchSlot) {
+    const date = isoDateOnly(slot.starts_at);
+    return `${date} · ${slot.time_code} · ${slot.field_code} · gs:${slot.game_slot_id}`;
+  }
+
+  function openMoveModal(fromSlotId: number) {
+    setMoveFromSlotId(fromSlotId);
+    setMoveModalOpen(true);
+  }
+
+  function canPlaceTeamsAtTime(assignments: DraftAssignment[], slot: MatchSlot, a: number, b: number, ignoreSlotId?: number) {
+    const t = slot.starts_at;
+    for (const it of assignments) {
+      if (ignoreSlotId && it.slot.id === ignoreSlotId) continue;
+      if (it.slot.starts_at !== t) continue;
+      if (it.a === a || it.b === a || it.a === b || it.b === b) return false;
+    }
+    return true;
+  }
+
+  function tryMoveOrSwap(toSlotId: number) {
+    if (moveFromSlotId == null) return;
+    const fromIdx = draftAssignments.findIndex((x) => x.slot.id === moveFromSlotId);
+    if (fromIdx === -1) return;
+
+    const toIdx = draftAssignments.findIndex((x) => x.slot.id === toSlotId);
+    const from = draftAssignments[fromIdx];
+
+    const toSlot = (() => {
+      if (toIdx !== -1) return draftAssignments[toIdx].slot;
+
+      // destination is empty: take it from the full slots list used in the simulation
+      const allSlots = previewMeta?.allSlots ?? [];
+      const found = allSlots.find((s) => s.id === toSlotId);
+      return found ?? null;
+    })();
+
+    if (!toSlot) return;
+
+    const prefs = previewMeta?.prefs;
+    if (!prefs) return;
+
+    // destination empty (no match currently)
+    if (toIdx === -1) {
+      // preferences for moved match
+      const okA = teamAllows(prefs, from.a, toSlot.game_slot_id);
+      const okB = teamAllows(prefs, from.b, toSlot.game_slot_id);
+      if (!(okA && okB)) {
+        Alert.alert("No permès", "Aquest slot no compleix preferències.");
+        return;
+      }
+      if (!canPlaceTeamsAtTime(draftAssignments, toSlot, from.a, from.b, moveFromSlotId)) {
+        Alert.alert("No permès", "Un equip ja juga a la mateixa hora.");
+        return;
+      }
+
+      const next = [...draftAssignments];
+      next[fromIdx] = { ...from, slot: toSlot };
+      setDraftAssignments(next);
+      setMoveModalOpen(false);
       return;
     }
-    if (!canPlaceTeamsAtTime(draftAssignments, toSlot, from.a, from.b, moveFromSlotId)) {
-      Alert.alert("No permès", "Un equip ja juga a la mateixa hora.");
+
+    // swap
+    const other = draftAssignments[toIdx];
+    const okA1 = teamAllows(prefs, from.a, other.slot.game_slot_id);
+    const okB1 = teamAllows(prefs, from.b, other.slot.game_slot_id);
+    const okA2 = teamAllows(prefs, other.a, from.slot.game_slot_id);
+    const okB2 = teamAllows(prefs, other.b, from.slot.game_slot_id);
+    if (!(okA1 && okB1 && okA2 && okB2)) {
+      Alert.alert("No permès", "El swap trenca preferències.");
+      return;
+    }
+    if (!canPlaceTeamsAtTime(draftAssignments, other.slot, from.a, from.b, moveFromSlotId) ||
+      !canPlaceTeamsAtTime(draftAssignments, from.slot, other.a, other.b, other.slot.id)) {
+      Alert.alert("No permès", "El swap crea solapament horari.");
       return;
     }
 
     const next = [...draftAssignments];
-    next[fromIdx] = { ...from, slot: toSlot };
+    next[fromIdx] = { ...from, slot: other.slot };
+    next[toIdx] = { ...other, slot: from.slot };
     setDraftAssignments(next);
     setMoveModalOpen(false);
-    return;
   }
 
-  // swap
-  const other = draftAssignments[toIdx];
-  const okA1 = teamAllows(prefs, from.a, other.slot.game_slot_id);
-  const okB1 = teamAllows(prefs, from.b, other.slot.game_slot_id);
-  const okA2 = teamAllows(prefs, other.a, from.slot.game_slot_id);
-  const okB2 = teamAllows(prefs, other.b, from.slot.game_slot_id);
-  if (!(okA1 && okB1 && okA2 && okB2)) {
-    Alert.alert("No permès", "El swap trenca preferències.");
-    return;
-  }
-  if (!canPlaceTeamsAtTime(draftAssignments, other.slot, from.a, from.b, moveFromSlotId) ||
-      !canPlaceTeamsAtTime(draftAssignments, from.slot, other.a, other.b, other.slot.id)) {
-    Alert.alert("No permès", "El swap crea solapament horari.");
-    return;
-  }
-
-  const next = [...draftAssignments];
-  next[fromIdx] = { ...from, slot: other.slot };
-  next[toIdx] = { ...other, slot: from.slot };
-  setDraftAssignments(next);
-  setMoveModalOpen(false);
-}
 
 
+  function scoreEquity(assignments: DraftAssignment[]) {
+    const w = computeWeeksWithoutPlaying(assignments);
 
-function scoreEquity(assignments: DraftAssignment[]) {
-  const w = computeWeeksWithoutPlaying(assignments);
+    // 1) Hard/primary: minimize maximum gap (weeks without playing)
+    const globalMax = w.globalMax;
 
-  // 1) Hard/primary: minimize maximum gap (weeks without playing)
-  const globalMax = w.globalMax;
+    // 2) Secondary: minimize number of teams with gap >= 3 (your hard rule)
+    const redCount = w.worstTeams.length;
 
-  // 2) Secondary: minimize number of teams with gap >= 3 (your hard rule)
-  const redCount = w.worstTeams.length;
-
-  // 3) Tertiary: make gaps as close as possible to TARGET=2
-  //    and heavily penalize teams with gap=0 (playing every weekend).
-  const TARGET = 2;
-  let devSum = 0;
-  let zeroCount = 0;
-  for (const g of w.maxGapByTeam.values()) {
-    devSum += Math.abs(g - TARGET);
-    if (g === 0) zeroCount += 1;
-  }
-
-  // 4) Tie breaker: sum gaps (overall "idle weeks" amount)
-  const sumGaps = Array.from(w.maxGapByTeam.values()).reduce((acc, g) => acc + g, 0);
-
-  return { globalMax, redCount, devSum, zeroCount, sumGaps };
-}
-
-function canSwapAssignments(assignments: DraftAssignment[], i: number, j: number) {
-  const prefs = previewMeta?.prefs;
-  if (!prefs) return false;
-
-  const A = assignments[i];
-  const B = assignments[j];
-  if (!A || !B) return false;
-
-  // preference check
-  const okA1 = teamAllows(prefs, A.a, B.slot.game_slot_id) && teamAllows(prefs, A.b, B.slot.game_slot_id);
-  const okA2 = teamAllows(prefs, B.a, A.slot.game_slot_id) && teamAllows(prefs, B.b, A.slot.game_slot_id);
-  if (!(okA1 && okA2)) return false;
-
-  // time overlap check: place A teams into B slot time; B teams into A slot time
-  if (
-    !canPlaceTeamsAtTime(assignments, B.slot, A.a, A.b, A.slot.id) ||
-    !canPlaceTeamsAtTime(assignments, A.slot, B.a, B.b, B.slot.id)
-  ) {
-    return false;
-  }
-
-  return true;
-}
-
-async function autoFixEquity() {
-  if (autoFixing) return;
-  if (!previewMeta) return;
-  if (draftAssignments.length < 2) return;
-
-  setAutoFixing(true);
-  try {
-    let best = [...draftAssignments];
-    let bestScore = scoreEquity(best);
-
-    // Heuristic: randomized hill-climb swaps
-    const ITER = 800;
-    for (let k = 0; k < ITER; k++) {
-      const i = Math.floor(Math.random() * best.length);
-      let j = Math.floor(Math.random() * best.length);
-      if (j === i) j = (j + 1) % best.length;
-
-      if (!canSwapAssignments(best, i, j)) continue;
-
-      const candidate = [...best];
-      const Ai = candidate[i];
-      const Bj = candidate[j];
-      candidate[i] = { ...Ai, slot: Bj.slot };
-      candidate[j] = { ...Bj, slot: Ai.slot };
-
-      const s = scoreEquity(candidate);
-
-      const better =
-  s.globalMax < bestScore.globalMax ||
-  (s.globalMax === bestScore.globalMax && s.redCount < bestScore.redCount) ||
-  (s.globalMax === bestScore.globalMax &&
-    s.redCount === bestScore.redCount &&
-    s.zeroCount < bestScore.zeroCount) ||
-  (s.globalMax === bestScore.globalMax &&
-    s.redCount === bestScore.redCount &&
-    s.zeroCount === bestScore.zeroCount &&
-    s.devSum < bestScore.devSum) ||
-  (s.globalMax === bestScore.globalMax &&
-    s.redCount === bestScore.redCount &&
-    s.zeroCount === bestScore.zeroCount &&
-    s.devSum === bestScore.devSum &&
-    s.sumGaps < bestScore.sumGaps);
-
-      if (better) {
-        best = candidate;
-        bestScore = s;
-      }
+    // 3) Tertiary: make gaps as close as possible to TARGET=2
+    //    and heavily penalize teams with gap=0 (playing every weekend).
+    const TARGET = 2;
+    let devSum = 0;
+    let zeroCount = 0;
+    for (const g of w.maxGapByTeam.values()) {
+      devSum += Math.abs(g - TARGET);
+      if (g === 0) zeroCount += 1;
     }
 
-    setDraftAssignments(best);
-  } finally {
-    setAutoFixing(false);
-  }
-}
+    // 4) Tie breaker: sum gaps (overall "idle weeks" amount)
+    const sumGaps = Array.from(w.maxGapByTeam.values()).reduce((acc, g) => acc + g, 0);
 
-async function confirmCreateFromPreview() {
-  if (!previewMeta) {
-    Alert.alert("Error", "No hi ha simulació.");
-    return;
-  }
-  if (!selectedChampionshipId) {
-    Alert.alert("Error", "Selecciona un campionat.");
-    return;
-  }
-  if (draftAssignments.length === 0) {
-    Alert.alert("Error", "No hi ha simulació per confirmar.");
-    return;
+    return { globalMax, redCount, devSum, zeroCount, sumGaps };
   }
 
-  setBusy(true);
-  try {
-    const { championshipId, phaseId, refereeId, format, drawParams } = previewMeta;
+  function canSwapAssignments(assignments: DraftAssignment[], i: number, j: number) {
+    const prefs = previewMeta?.prefs;
+    if (!prefs) return false;
 
-    // create draw_run with params (groups/league)
-    const drawRun = await createDrawRun(championshipId, format, drawParams);
+    const A = assignments[i];
+    const B = assignments[j];
+    if (!A || !B) return false;
 
-    const usedSlotIds: number[] = [];
-    const matchesToInsert = draftAssignments.map(({ a, b, slot, prefConflict }) => {
-      usedSlotIds.push(slot.id);
-      return {
-        championship_id: championshipId,
-        team_a_id: a,
-        team_b_id: b,
-        match_date: slot.starts_at,
-        referee_id: refereeId,
-        phase_id: phaseId,
-        is_finished: false,
-        slot_id: slot.id,
-        preference_conflict: prefConflict,
-        preference_notes: prefConflict ? { kind: "preference_conflict" } : {},
-        score_team_a: 0,
-        score_team_b: 0,
-        finished_at: null,
-        draw_run_id: drawRun.id,
-      };
-    });
+    // preference check
+    const okA1 = teamAllows(prefs, A.a, B.slot.game_slot_id) && teamAllows(prefs, A.b, B.slot.game_slot_id);
+    const okA2 = teamAllows(prefs, B.a, A.slot.game_slot_id) && teamAllows(prefs, B.b, A.slot.game_slot_id);
+    if (!(okA1 && okA2)) return false;
 
-    const { error: insErr } = await supabase.from("match").insert(matchesToInsert);
-    if (insErr) throw new Error(insErr.message);
+    // time overlap check: place A teams into B slot time; B teams into A slot time
+    if (
+      !canPlaceTeamsAtTime(assignments, B.slot, A.a, A.b, A.slot.id) ||
+      !canPlaceTeamsAtTime(assignments, A.slot, B.a, B.b, B.slot.id)
+    ) {
+      return false;
+    }
 
-    const { error: slotErr } = await supabase.from("match_slot").update({ is_used: true }).in("id", usedSlotIds);
-    if (slotErr) throw new Error(slotErr.message);
-
-    setPreviewOpen(false);
-
-
-    setDraftAssignments([]);
-    setPreviewMeta(null);
-    setGroupSetupOpen(false);
-    setPendingContext(null);
-
-    Alert.alert("OK", `Creats ${matchesToInsert.length} partits.`);
-  } catch (e: any) {
-    Alert.alert("Error", e?.message ?? "Error desconegut");
-  } finally {
-    setBusy(false);
+    return true;
   }
-}
 
-function getTeamGroupIndex(teamId: number, groupsCount: number) {
+  async function autoFixEquity() {
+    if (autoFixing) return;
+    if (!previewMeta) return;
+    if (draftAssignments.length < 2) return;
+
+    setAutoFixing(true);
+    try {
+      let best = [...draftAssignments];
+      let bestScore = scoreEquity(best);
+
+      // Heuristic: randomized hill-climb swaps
+      const ITER = 800;
+      for (let k = 0; k < ITER; k++) {
+        const i = Math.floor(Math.random() * best.length);
+        let j = Math.floor(Math.random() * best.length);
+        if (j === i) j = (j + 1) % best.length;
+
+        if (!canSwapAssignments(best, i, j)) continue;
+
+        const candidate = [...best];
+        const Ai = candidate[i];
+        const Bj = candidate[j];
+        candidate[i] = { ...Ai, slot: Bj.slot };
+        candidate[j] = { ...Bj, slot: Ai.slot };
+
+        const s = scoreEquity(candidate);
+
+        const better =
+          s.globalMax < bestScore.globalMax ||
+          (s.globalMax === bestScore.globalMax && s.redCount < bestScore.redCount) ||
+          (s.globalMax === bestScore.globalMax &&
+            s.redCount === bestScore.redCount &&
+            s.zeroCount < bestScore.zeroCount) ||
+          (s.globalMax === bestScore.globalMax &&
+            s.redCount === bestScore.redCount &&
+            s.zeroCount === bestScore.zeroCount &&
+            s.devSum < bestScore.devSum) ||
+          (s.globalMax === bestScore.globalMax &&
+            s.redCount === bestScore.redCount &&
+            s.zeroCount === bestScore.zeroCount &&
+            s.devSum === bestScore.devSum &&
+            s.sumGaps < bestScore.sumGaps);
+
+        if (better) {
+          best = candidate;
+          bestScore = s;
+        }
+      }
+
+      setDraftAssignments(best);
+    } finally {
+      setAutoFixing(false);
+    }
+  }
+
+  async function confirmCreateFromPreview() {
+    if (!previewMeta) {
+      Alert.alert("Error", "No hi ha simulació.");
+      return;
+    }
+    if (!selectedChampionshipId) {
+      Alert.alert("Error", "Selecciona un campionat.");
+      return;
+    }
+    if (draftAssignments.length === 0) {
+      Alert.alert("Error", "No hi ha simulació per confirmar.");
+      return;
+    }
+
+    setBusy(true);
+    try {
+      const { championshipId, phaseId, refereeId, format, drawParams } = previewMeta;
+
+      // create draw_run with params (groups/league)
+      const drawRun = await createDrawRun(championshipId, format, drawParams);
+
+      const usedSlotIds: number[] = [];
+      const matchesToInsert = draftAssignments.map(({ a, b, slot, prefConflict }) => {
+        usedSlotIds.push(slot.id);
+        return {
+          championship_id: championshipId,
+          team_a_id: a,
+          team_b_id: b,
+          match_date: slot.starts_at,
+          referee_id: refereeId,
+          phase_id: phaseId,
+          is_finished: false,
+          slot_id: slot.id,
+          preference_conflict: prefConflict,
+          preference_notes: prefConflict ? { kind: "preference_conflict" } : {},
+          score_team_a: 0,
+          score_team_b: 0,
+          finished_at: null,
+          draw_run_id: drawRun.id,
+        };
+      });
+
+      const { error: insErr } = await supabase.from("match").insert(matchesToInsert);
+      if (insErr) throw new Error(insErr.message);
+
+      const { error: slotErr } = await supabase.from("match_slot").update({ is_used: true }).in("id", usedSlotIds);
+      if (slotErr) throw new Error(slotErr.message);
+
+      setPreviewOpen(false);
+
+
+      setDraftAssignments([]);
+      setPreviewMeta(null);
+      setGroupSetupOpen(false);
+      setPendingContext(null);
+
+      Alert.alert("OK", `Creats ${matchesToInsert.length} partits.`);
+    } catch (e: any) {
+      Alert.alert("Error", e?.message ?? "Error desconegut");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function getTeamGroupIndex(teamId: number, groupsCount: number) {
     for (let i = 0; i < groupsCount; i++) {
       if ((groupTeams[i] ?? []).includes(teamId)) return i;
     }
@@ -1801,50 +1803,48 @@ function getTeamGroupIndex(teamId: number, groupsCount: number) {
       }
 
       const groupCodes = ["A", "B", "C"];
+      const safeperTeam = perTeam ?? 0;
+      const assignments = assignPairsToSlotsFair(matches, freeSlots, prefs, hourPriority, safeperTeam, {
+        teamToGroup: new Map(finalGroups.flatMap((g, gi) => g.map((t) => [t, gi] as const))),
+      });
 
-      
+      // Preferences: we try to reach 0 conflicts, but if impossible we continue with warnings.
+      const draft: DraftAssignment[] = assignments.map(({ a, b, slot }: any) => {
+        const okA = teamAllows(prefs, a, slot.game_slot_id);
+        const okB = teamAllows(prefs, b, slot.game_slot_id);
+        return { a, b, slot, prefConflict: !(okA && okB) };
+      });
 
-const assignments = assignPairsToSlotsFair(matches, freeSlots, prefs, hourPriority, perTeam, {
-  teamToGroup: new Map(finalGroups.flatMap((g, gi) => g.map((t) => [t, gi] as const))),
-});
+      setDraftAssignments(draft);
 
-// Preferences: we try to reach 0 conflicts, but if impossible we continue with warnings.
-const draft: DraftAssignment[] = assignments.map(({ a, b, slot }: any) => {
-  const okA = teamAllows(prefs, a, slot.game_slot_id);
-  const okB = teamAllows(prefs, b, slot.game_slot_id);
-  return { a, b, slot, prefConflict: !(okA && okB) };
-});
+      const prefConflicts = draft.filter((x) => x.prefConflict).length;
+      if (prefConflicts > 0) {
+        setStatusText(`Avís: ${prefConflicts} partit(s) no poden complir totes les preferències. Es mostraran marcats ⚠️.`);
+      } else {
+        setStatusText("");
+      }
 
-setDraftAssignments(draft);
-
-const prefConflicts = draft.filter((x) => x.prefConflict).length;
-if (prefConflicts > 0) {
-  setStatusText(`Avís: ${prefConflicts} partit(s) no poden complir totes les preferències. Es mostraran marcats ⚠️.`);
-} else {
-  setStatusText("");
-}
-
-setPreviewMeta({
-  championshipId,
-  phaseId,
-  refereeId,
-  format,
-  prefs,
-  hourPriority,
+      setPreviewMeta({
+        championshipId,
+        phaseId,
+        refereeId,
+        format,
+        prefs,
+        hourPriority,
         allSlots: freeSlots,
-  drawParams: {
-    format,
-    phase_id: phaseId,
-    mode: groupSetupMode,
-    per_team: perTeam,
-    groups: finalGroups.map((ids, i) => ({ code: groupCodes[i] ?? String(i + 1), team_ids: ids })),
-    priority_match_order_hours: priorityHours,
-    excluded_dates: Array.from(excludedDates),
-  },
-});
+        drawParams: {
+          format,
+          phase_id: phaseId,
+          mode: groupSetupMode,
+          per_team: perTeam,
+          groups: finalGroups.map((ids, i) => ({ code: groupCodes[i] ?? String(i + 1), team_ids: ids })),
+          priority_match_order_hours: priorityHours,
+          excluded_dates: Array.from(excludedDates),
+        },
+      });
 
-setGroupSetupOpen(false);
-setPreviewOpen(true);
+      setGroupSetupOpen(false);
+      setPreviewOpen(true);
 
     } catch (e: any) {
       Alert.alert("Error", e?.message ?? "Error desconegut");
@@ -1853,7 +1853,7 @@ setPreviewOpen(true);
     }
   }
 
-async function cleanMatches() {
+  async function cleanMatches() {
     if (!selectedChampionshipId) {
       Alert.alert("Error", "Selecciona un campionat.");
       return;
@@ -1961,45 +1961,45 @@ async function cleanMatches() {
   }
 
   return (
-    <SafeAreaView edges={["left","right","bottom"]} style={{ flex: 1 }}>
+    <SafeAreaView edges={["left", "right", "bottom"]} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
         {/* Header */}
         <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
           <BackButton
-          onPress={() => router.back()}
-          style={{ marginBottom:15 }}
-        />
-          <Text style={{ fontSize: 20, fontWeight: "800" }}>Sorteig / Crear partits</Text>
+            onPress={() => router.back()}
+            style={{ marginBottom: 15 }}
+          />
+          <Text style={{ fontSize: 20, fontWeight: "800", color: colors.text }}>Sorteig / Crear partits</Text>
         </View>
 
         {/* Championship selector */}
         <Pressable
           onPress={() => setChampModalOpen(true)}
           style={{
-            backgroundColor: "white",
+            backgroundColor: colors.card,
             borderWidth: 1,
-            borderColor: "#e5e7eb",
+            borderColor: colors.border,
             borderRadius: 14,
             padding: 14,
             marginBottom: 12,
           }}
         >
-          <Text style={{ fontSize: 12, color: "#6b7280", marginBottom: 6 }}>Campionat</Text>
-          <Text style={{ fontSize: 16, fontWeight: "700" }}>{selectedChampLabel}</Text>
+          <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 6 }}>Campionat</Text>
+          <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>{selectedChampLabel}</Text>
         </Pressable>
 
         {/* Format */}
         <View
           style={{
-            backgroundColor: "white",
+            backgroundColor: colors.card,
             borderWidth: 1,
-            borderColor: "#e5e7eb",
+            borderColor: colors.border,
             borderRadius: 14,
             padding: 14,
             marginBottom: 12,
           }}
         >
-          <Text style={{ fontSize: 12, color: "#6b7280", marginBottom: 10 }}>Format</Text>
+          <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 10 }}>Format</Text>
 
           <View style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}>
             {[
@@ -2016,10 +2016,10 @@ async function cleanMatches() {
                     paddingHorizontal: 12,
                     paddingVertical: 10,
                     borderRadius: 999,
-                    backgroundColor: active ? "#111827" : "#f3f4f6",
+                    backgroundColor: active ? colors.primary : colors.cardAlt,
                   }}
                 >
-                  <Text style={{ color: active ? "white" : "#111827", fontWeight: "700" }}>
+                  <Text style={{ color: active ? colors.primaryText : colors.text, fontWeight: "700" }}>
                     {opt.label}
                   </Text>
                 </Pressable>
@@ -2049,7 +2049,7 @@ async function cleanMatches() {
           disabled={busy}
           onPress={requestCleanMatches}
           style={{
-            backgroundColor: busy ? "#9ca3af" : "#ef4444",
+            backgroundColor: busy ? "#9ca3af" : colors.cardred,
             paddingVertical: 14,
             borderRadius: 14,
             alignItems: "center",
@@ -2096,16 +2096,16 @@ async function cleanMatches() {
             style={{
               width: "100%",
               maxWidth: 520,
-              backgroundColor: "white",
+              backgroundColor: colors.card,
               borderRadius: 18,
               padding: 16,
             }}
           >
-            <Text style={{ fontSize: 18, fontWeight: "900", marginBottom: 8 }}>
+            <Text style={{ fontSize: 18, fontWeight: "900", marginBottom: 8, color: colors.text }}>
               Confirmar neteja
             </Text>
 
-            <Text style={{ color: "#374151", marginBottom: 10 }}>
+            <Text style={{ color: colors.text, marginBottom: 10 }}>
               Aquesta acció és irreversible. Eliminarà els partits del campionat seleccionat i alliberarà els slots.
             </Text>
 
@@ -2129,7 +2129,7 @@ async function cleanMatches() {
               ) : null}
             </View>
 
-            <Text style={{ fontSize: 12, color: "#6b7280", marginBottom: 6 }}>
+            <Text style={{ fontSize: 12, color: colors.muted, marginBottom: 6 }}>
               Escriu "{CLEAN_PHRASE}" per habilitar la neteja
             </Text>
             <TextInput
@@ -2146,6 +2146,7 @@ async function cleanMatches() {
                 paddingVertical: 10,
                 marginBottom: 14,
                 fontWeight: "800",
+                color: colors.text,
               }}
             />
 
@@ -2154,13 +2155,13 @@ async function cleanMatches() {
                 onPress={() => setCleanConfirmOpen(false)}
                 style={{
                   flex: 1,
-                  backgroundColor: "#f3f4f6",
+                  backgroundColor: colors.cardAlt,
                   paddingVertical: 12,
                   borderRadius: 14,
                   alignItems: "center",
                 }}
               >
-                <Text style={{ fontWeight: "900", color: "#111827" }}>Cancel·lar</Text>
+                <Text style={{ fontWeight: "900", color: colors.text }}>Cancel·lar</Text>
               </Pressable>
 
               {(() => {
@@ -2197,7 +2198,7 @@ async function cleanMatches() {
             </View>
 
             {(cleanPendingCount ?? 0) === 0 ? (
-              <Text style={{ marginTop: 10, color: "#6b7280" }}>
+              <Text style={{ marginTop: 10, color: colors.muted }}>
                 No hi ha partits per netejar.
               </Text>
             ) : null}
@@ -2206,11 +2207,11 @@ async function cleanMatches() {
       </Modal>
 
       {/* Championship modal */}
-      
+
       {/* Group setup modal */}
       <Modal visible={groupSetupOpen} animationType="slide" onRequestClose={() => setGroupSetupOpen(false)}>
-        <SafeAreaView edges={["left","right","bottom"]} style={{ flex: 1, backgroundColor: "white" }}>
-          <View style={{ paddingTop: 70,paddingLeft:16,paddingRight:16,paddingBottom:30, flex: 1 }}>
+        <SafeAreaView edges={["left", "right", "bottom"]} style={{ flex: 1, backgroundColor: colors.bg }}>
+          <View style={{ paddingTop: 70, paddingLeft: 16, paddingRight: 16, paddingBottom: 30, flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
               <Pressable onPress={() => setGroupSetupOpen(false)} style={{ padding: 10, marginRight: 10 }}>
                 <Text style={{ fontSize: 18 }}>✕</Text>
@@ -2254,36 +2255,36 @@ async function cleanMatches() {
                     const gi = getTeamGroupIndex(id, groupsCount);
                     const label = gi >= 0 ? `Grup ${String.fromCharCode(65 + gi)}` : "Sense grup";
                     return (
-                    <Pressable
-                      key={id}
-                      onPress={() => cycleTeamGroup(id, format === "groups2" ? 2 : 3)}
-                      style={{
-                        padding: 12,
-                        borderWidth: 1,
-                        borderColor: "#e5e7eb",
-                        borderRadius: 12,
-                        marginBottom: 8,
-                        flexDirection: "row",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                      }}
-                    >
-                      <Text style={{ fontWeight: "800", flexShrink: 1, paddingRight: 10 }}>
-                        {teamNameById[id] ?? `Equip ${id}`}
-                      </Text>
-                      <View
+                      <Pressable
+                        key={id}
+                        onPress={() => cycleTeamGroup(id, format === "groups2" ? 2 : 3)}
                         style={{
-                          paddingHorizontal: 10,
-                          paddingVertical: 6,
-                          borderRadius: 999,
-                          backgroundColor: "#f3f4f6",
+                          padding: 12,
                           borderWidth: 1,
-                          borderColor: "#e5e7eb",
+                          borderColor: colors.border,
+                          borderRadius: 12,
+                          marginBottom: 8,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          justifyContent: "space-between",
                         }}
                       >
-                        <Text style={{ fontWeight: "800", color: "#111827" }}>{label}</Text>
-                      </View>
-                    </Pressable>
+                        <Text style={{ fontWeight: "800", flexShrink: 1, paddingRight: 10 }}>
+                          {teamNameById[id] ?? `Equip ${id}`}
+                        </Text>
+                        <View
+                          style={{
+                            paddingHorizontal: 10,
+                            paddingVertical: 6,
+                            borderRadius: 999,
+                            backgroundColor: colors.cardAlt,
+                            borderWidth: 1,
+                            borderColor: colors.border,
+                          }}
+                        >
+                          <Text style={{ fontWeight: "800", color: colors.text }}>{label}</Text>
+                        </View>
+                      </Pressable>
                     );
                   })}
                 </ScrollView>
@@ -2309,14 +2310,14 @@ async function cleanMatches() {
               disabled={busy}
               onPress={finalizeCreateMatchesWithGroups}
               style={{
-                backgroundColor: busy ? "#9ca3af" : "#16a34a",
+                backgroundColor: busy ? "#9ca3af" : colors.cardgreen,
                 paddingVertical: 14,
                 borderRadius: 14,
                 alignItems: "center",
                 marginTop: 14,
               }}
             >
-              <Text style={{ color: "white", fontSize: 16, fontWeight: "800" }}>
+              <Text style={{ color: colors.text, fontSize: 16, fontWeight: "800" }}>
                 {busy ? "Treballant..." : "Simular calendari"}
               </Text>
             </Pressable>
@@ -2325,326 +2326,328 @@ async function cleanMatches() {
       </Modal>
 
 
-{/* Preview modal */}
-<Modal visible={previewOpen} animationType="slide" onRequestClose={() => setPreviewOpen(false)}>
-  <SafeAreaView edges={["left","right","bottom"]} style={{ flex: 1, backgroundColor: "white" }}>
-    <View style={{ paddingTop: 70, paddingLeft: 16, paddingRight: 16, paddingBottom: 16, flex: 1 }}>
-      <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
-        <Pressable onPress={() => {
-                  setPreviewOpen(false);
-                  if (previewMeta?.format !== "league") {
-                    // Go back to group setup (keeps previous manual/auto selections)
-                    setGroupSetupOpen(true);
-                  }
-                }} style={{ padding: 10, marginRight: 10 }}>
-          <Text style={{ fontSize: 18 }}>✕</Text>
-        </Pressable>
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 18, fontWeight: "800" }}>Simulació del calendari</Text>
-          <Text style={{ color: "#6b7280", marginTop: 2 }}>
-            Toca un partit per moure'l (swap) i millorar l'equitat.
-          </Text>
-        </View>
-      </View>
+      {/* Preview modal */}
+      <Modal visible={previewOpen} animationType="slide" onRequestClose={() => setPreviewOpen(false)}>
+        <SafeAreaView edges={["left", "right", "bottom"]} style={{ flex: 1, backgroundColor: "white" }}>
+          <View style={{ paddingTop: 70, paddingLeft: 16, paddingRight: 16, paddingBottom: 16, flex: 1 }}>
+            <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+              <Pressable onPress={() => {
+                setPreviewOpen(false);
+                if (previewMeta?.format !== "league") {
+                  // Go back to group setup (keeps previous manual/auto selections)
+                  setGroupSetupOpen(true);
+                }
+              }} style={{ padding: 10, marginRight: 10 }}>
+                <Text style={{ fontSize: 18 }}>✕</Text>
+              </Pressable>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 18, fontWeight: "800" }}>Simulació del calendari</Text>
+                <Text style={{ color: colors.muted, marginTop: 2 }}>
+                  Toca un partit per moure'l (swap) i millorar l'equitat.
+                </Text>
+              </View>
+            </View>
             <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 18 }} showsVerticalScrollIndicator={false}>
 
-      {/* Metrics */}
-      <View style={{ backgroundColor: "#f9fafb", borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 14, padding: 12, marginBottom: 12 }}>
-        <Text style={{ fontWeight: "900", marginBottom: 6 }}>Equitat</Text>
-        <Text style={{ color: "#374151", marginBottom: 4 }}>
-          Màxim caps de setmana seguits sense jugar:{" "}
-          <Text style={{ fontWeight: "900" }}>{previewMetrics.weeks.globalMax}</Text>
-        </Text>
-        {previewMetrics.weeks.worstTeams.length > 0 ? (
-          <Text style={{ color: "#b91c1c", fontWeight: "800" }}>
-            ALERTA: equips amb ≥3 caps de setmana sense jugar:{" "}
-            {previewMetrics.weeks.worstTeams
-              .slice(0, 6)
-              .map((x) => `${teamNameById[x.teamId] ?? `Equip ${x.teamId}`} (${x.gap})`)
-              .join(", ")}
-            {previewMetrics.weeks.worstTeams.length > 6 ? "..." : ""}
-          </Text>
-        ) : (
-          <Text style={{ color: "#065f46", fontWeight: "800" }}>OK: cap equip supera 2 caps de setmana sense jugar</Text>
-        )}{/* Preference conflicts */}
-{draftAssignments.some((x) => x.prefConflict) ? (
-  <Text style={{ color: "#b45309", fontWeight: "900", marginTop: 6 }}>
-    ⚠ {draftAssignments.filter((x) => x.prefConflict).length} partit(s) amb conflicte de preferència (minimitzat però inevitable).
-  </Text>
-) : (
-  <Text style={{ color: "#065f46", fontWeight: "900", marginTop: 6 }}>
-    OK: 0 conflictes de preferència
-  </Text>
-)}
-
-
-        <Text style={{ color: "#374151", marginTop: 6 }}>
-          Desbalanceig de slots (rang per equip): <Text style={{ fontWeight: "900" }}>{previewMetrics.slotBalance.globalRange}</Text>
-
-{/* Auto-fix */}
-<View style={{ flexDirection: "row", alignItems: "center", marginTop: 10, gap: 10 }}>
-  <Pressable
-    disabled={autoFixing}
-    onPress={autoFixEquity}
-    style={{
-      paddingHorizontal: 12,
-      paddingVertical: 10,
-      borderRadius: 12,
-      backgroundColor: autoFixing ? "#9ca3af" : "#111827",
-    }}
-  >
-    <Text style={{ color: "white", fontWeight: "900" }}>
-      {autoFixing ? "Ajustant..." : "Auto-fix equitat"}
-    </Text>
-  </Pressable>
-  <Text style={{ color: "#6b7280", flex: 1 }}>
-    Fa swaps automàtics per fer el calendari més equitatiu (objectiu: gaps ~2) i evitar equips amb gap 0, sense trencar preferències.
-  </Text>
-</View>
-
-{/* Per-team gaps table */}
-<View style={{ marginTop: 10 }}>
-  <Text style={{ fontWeight: "900", marginBottom: 6 }}>Setmanes sense jugar (per equip)</Text>
-  <View style={{ borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 12, overflow: "hidden" }}>
-    {previewMetrics.gapsSorted.slice(0, 20).map((row) => {
-      const name = teamNameById[row.teamId] ?? `Equip ${row.teamId}`;
-      const isBad = row.gap >= 3;
-      return (
-        <View
-          key={row.teamId}
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            paddingHorizontal: 12,
-            paddingVertical: 8,
-            backgroundColor: isBad ? "#fef2f2" : "white",
-            borderBottomWidth: 1,
-            borderBottomColor: "#f3f4f6",
-          }}
-        >
-          <Text style={{ fontWeight: "800", color: "#111827" }} numberOfLines={1}>
-            {name}
-          </Text>
-          <Text style={{ fontWeight: "900", color: isBad ? "#b91c1c" : "#111827" }}>
-            {row.gap}
-          </Text>
-        </View>
-      );
-    })}
-  </View>
-  {previewMetrics.gapsSorted.length > 20 ? (
-    <Text style={{ marginTop: 6, color: "#6b7280" }}>
-      Mostrant 20/{previewMetrics.gapsSorted.length}. (Si vols, et faig un “veure tot” amb scroll dins.)
-    </Text>
-  ) : null}
-</View>
-        </Text>
-      </View>
-
-      {/* Toggle move scope */}
-      <Pressable
-        onPress={() => setMoveAllowAnyWeekend((v) => !v)}
-        style={{
-          alignSelf: "flex-start",
-          paddingHorizontal: 12,
-          paddingVertical: 10,
-          borderRadius: 999,
-          backgroundColor: moveAllowAnyWeekend ? "#111827" : "#f3f4f6",
-          marginBottom: 10,
-        }}
-      >
-        <Text style={{ color: moveAllowAnyWeekend ? "white" : "#111827", fontWeight: "900" }}>
-          {moveAllowAnyWeekend ? "Moure: qualsevol cap de setmana" : "Moure: mateix cap de setmana"}
-        </Text>
-      </Pressable>
-            {/* List per weekend */}
-            <View>
-        {(() => {
-          const byWeekend = new Map<string, DraftAssignment[]>();
-          for (const it of draftAssignments) {
-            const wk = weekendKeyFromISO(it.slot.starts_at);
-            const arr = byWeekend.get(wk) ?? [];
-            arr.push(it);
-            byWeekend.set(wk, arr);
-          }
-          const weekends = Array.from(byWeekend.keys()).sort();
-          return weekends.map((wk) => {
-            const list = (byWeekend.get(wk) ?? []).slice().sort((a, b) => a.slot.starts_at.localeCompare(b.slot.starts_at));
-            return (
-              <View key={wk} style={{ marginBottom: 14 }}>
-                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
-                  <Text style={{ fontWeight: "900", fontSize: 16 }}>
-                    Cap de setmana · {wk}
+              {/* Metrics */}
+              <View style={{ backgroundColor: colors.cardAlt, borderWidth: 1, borderColor: colors.border, borderRadius: 14, padding: 12, marginBottom: 12 }}>
+                <Text style={{ fontWeight: "900", marginBottom: 6 }}>Equitat</Text>
+                <Text style={{ color: "#374151", marginBottom: 4 }}>
+                  Màxim caps de setmana seguits sense jugar:{" "}
+                  <Text style={{ fontWeight: "900" }}>{previewMetrics.weeks.globalMax}</Text>
+                </Text>
+                {previewMetrics.weeks.worstTeams.length > 0 ? (
+                  <Text style={{ color: "#b91c1c", fontWeight: "800" }}>
+                    ALERTA: equips amb ≥3 caps de setmana sense jugar:{" "}
+                    {previewMetrics.weeks.worstTeams
+                      .slice(0, 6)
+                      .map((x) => `${teamNameById[x.teamId] ?? `Equip ${x.teamId}`} (${x.gap})`)
+                      .join(", ")}
+                    {previewMetrics.weeks.worstTeams.length > 6 ? "..." : ""}
                   </Text>
-                  <Text style={{ color: "#6b7280", fontWeight: "800" }}>{list.length} partits</Text>
-                </View>
-                {list.map((it) => (
-                  <Pressable
-                    key={it.slot.id}
-                    onPress={() => openMoveModal(it.slot.id)}
-                    style={{
-                      backgroundColor: "white",
-                      borderWidth: 1,
-                      borderColor: "#e5e7eb",
-                      borderRadius: 14,
-                      padding: 12,
-                      marginBottom: 8,
-                    }}
-                  >
-                    <Text style={{ fontWeight: "900" }}>
-                      {teamNameById[it.a] ?? `Equip ${it.a}`}{" "}
-                      <Text style={{ color: "#6b7280" }}>vs</Text>{" "}
-                      {teamNameById[it.b] ?? `Equip ${it.b}`}
+                ) : (
+                  <Text style={{ color: "#065f46", fontWeight: "800" }}>OK: cap equip supera 2 caps de setmana sense jugar</Text>
+                )}{/* Preference conflicts */}
+                {draftAssignments.some((x) => x.prefConflict) ? (
+                  <Text style={{ color: "#b45309", fontWeight: "900", marginTop: 6 }}>
+                    ⚠ {draftAssignments.filter((x) => x.prefConflict).length} partit(s) amb conflicte de preferència (minimitzat però inevitable).
+                  </Text>
+                ) : (
+                  <Text style={{ color: "#065f46", fontWeight: "900", marginTop: 6 }}>
+                    OK: 0 conflictes de preferència
+                  </Text>
+                )}
+
+
+                <Text style={{ color: "#374151", marginTop: 6 }}>
+                  Desbalanceig de slots (rang per equip): <Text style={{ fontWeight: "900" }}>{previewMetrics.slotBalance.globalRange}</Text>
+
+                  {/* Auto-fix */}
+                  <View style={{ flexDirection: "row", alignItems: "center", marginTop: 10, gap: 10 }}>
+                    <Pressable
+                      disabled={autoFixing}
+                      onPress={autoFixEquity}
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 10,
+                        borderRadius: 12,
+                        backgroundColor: autoFixing ? "#9ca3af" : "#111827",
+                      }}
+                    >
+                      <Text style={{ color: "white", fontWeight: "900" }}>
+                        {autoFixing ? "Ajustant..." : "Auto-fix equitat"}
+                      </Text>
+                    </Pressable>
+                    <Text style={{ color: "#6b7280", flex: 1 }}>
+                      Fa swaps automàtics per fer el calendari més equitatiu (objectiu: gaps ~2) i evitar equips amb gap 0, sense trencar preferències.
                     </Text>
-{it.prefConflict ? (
-  <View
-    style={{
-      alignSelf: "flex-start",
-      marginTop: 6,
-      backgroundColor: "#fff7ed",
-      borderColor: "#fdba74",
-      borderWidth: 1,
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 999,
-    }}
-  >
-    <Text style={{ color: "#9a3412", fontWeight: "900", fontSize: 12 }}>⚠ Preferència</Text>
-  </View>
-) : null}
-                    <Text style={{ color: "#6b7280", marginTop: 4 }}>
-                      {slotLabel(it.slot)}
-                    </Text>
-                  </Pressable>
-                ))}
+                  </View>
+
+                  {/* Per-team gaps table */}
+                  <View style={{ marginTop: 10 }}>
+                    <Text style={{ fontWeight: "900", marginBottom: 6 }}>Setmanes sense jugar (per equip)</Text>
+                    <View style={{ borderWidth: 1, borderColor: "#e5e7eb", borderRadius: 12, overflow: "hidden" }}>
+                      {previewMetrics.gapsSorted.slice(0, 20).map((row) => {
+                        const name = teamNameById[row.teamId] ?? `Equip ${row.teamId}`;
+                        const isBad = row.gap >= 3;
+                        return (
+                          <View
+                            key={row.teamId}
+                            style={{
+                              flexDirection: "row",
+                              justifyContent: "space-between",
+                              paddingHorizontal: 12,
+                              paddingVertical: 8,
+                              backgroundColor: isBad ? "#fef2f2" : "white",
+                              borderBottomWidth: 1,
+                              borderBottomColor: "#f3f4f6",
+                            }}
+                          >
+                            <Text style={{ fontWeight: "800", color: "#111827" }} numberOfLines={1}>
+                              {name}
+                            </Text>
+                            <Text style={{ fontWeight: "900", color: isBad ? "#b91c1c" : "#111827" }}>
+                              {row.gap}
+                            </Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                    {previewMetrics.gapsSorted.length > 20 ? (
+                      <Text style={{ marginTop: 6, color: "#6b7280" }}>
+                        Mostrant 20/{previewMetrics.gapsSorted.length}. (Si vols, et faig un “veure tot” amb scroll dins.)
+                      </Text>
+                    ) : null}
+                  </View>
+                </Text>
               </View>
-            );
-          });
-        })()}
-            </View>
+
+              {/* Toggle move scope */}
+              <Pressable
+                onPress={() => setMoveAllowAnyWeekend((v) => !v)}
+                style={{
+                  alignSelf: "flex-start",
+                  paddingHorizontal: 12,
+                  paddingVertical: 10,
+                  borderRadius: 999,
+                  backgroundColor: moveAllowAnyWeekend ? "#111827" : "#f3f4f6",
+                  marginBottom: 10,
+                }}
+              >
+                <Text style={{ color: moveAllowAnyWeekend ? "white" : "#111827", fontWeight: "900" }}>
+                  {moveAllowAnyWeekend ? "Moure: qualsevol cap de setmana" : "Moure: mateix cap de setmana"}
+                </Text>
+              </Pressable>
+              {/* List per weekend */}
+              <View>
+                {(() => {
+                  const byWeekend = new Map<string, DraftAssignment[]>();
+                  for (const it of draftAssignments) {
+                    const wk = weekendKeyFromISO(it.slot.starts_at);
+                    const arr = byWeekend.get(wk) ?? [];
+                    arr.push(it);
+                    byWeekend.set(wk, arr);
+                  }
+                  const weekends = Array.from(byWeekend.keys()).sort();
+                  return weekends.map((wk) => {
+                    const list = (byWeekend.get(wk) ?? []).slice().sort((a, b) => a.slot.starts_at.localeCompare(b.slot.starts_at));
+                    return (
+                      <View key={wk} style={{ marginBottom: 14 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                          <Text style={{ fontWeight: "900", fontSize: 16 }}>
+                            Cap de setmana · {wk}
+                          </Text>
+                          <Text style={{ color: "#6b7280", fontWeight: "800" }}>{list.length} partits</Text>
+                        </View>
+                        {list.map((it) => (
+                          <Pressable
+                            key={it.slot.id}
+                            onPress={() => openMoveModal(it.slot.id)}
+                            style={{
+                              backgroundColor: colors.card,
+                              borderWidth: 1,
+                              borderColor: colors.border,
+                              borderRadius: 14,
+                              padding: 12,
+                              marginBottom: 8,
+                            }}
+                          >
+                            <Text style={{ fontWeight: "900" }}>
+                              {teamNameById[it.a] ?? `Equip ${it.a}`}{" "}
+                              <Text style={{ color: "#6b7280" }}>vs</Text>{" "}
+                              {teamNameById[it.b] ?? `Equip ${it.b}`}
+                            </Text>
+                            {it.prefConflict ? (
+                              <View
+                                style={{
+                                  alignSelf: "flex-start",
+                                  marginTop: 6,
+                                  backgroundColor: "#fff7ed",
+                                  borderColor: "#fdba74",
+                                  borderWidth: 1,
+                                  paddingHorizontal: 10,
+                                  paddingVertical: 4,
+                                  borderRadius: 999,
+                                }}
+                              >
+                                <Text style={{ color: "#9a3412", fontWeight: "900", fontSize: 12 }}>⚠ Preferència</Text>
+                              </View>
+                            ) : null}
+                            <Text style={{ color: "#6b7280", marginTop: 4 }}>
+                              {slotLabel(it.slot)}
+                            </Text>
+                          </Pressable>
+                        ))}
+                      </View>
+                    );
+                  });
+                })()}
+              </View>
 
             </ScrollView>
 
             <View style={{ flexDirection: "row", gap: 10, marginTop: 12 }}>
-        <Pressable
-          onPress={() => setPreviewOpen(false)}
-          style={{
-            flex: 1,
-            backgroundColor: "#f3f4f6",
-            paddingVertical: 14,
-            borderRadius: 14,
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ fontWeight: "900", color: "#111827" }}>Tancar</Text>
-        </Pressable>
+              <Pressable
+                onPress={() => setPreviewOpen(false)}
+                style={{
+                  flex: 1,
+                  backgroundColor: "#f3f4f6",
+                  paddingVertical: 14,
+                  borderRadius: 14,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ fontWeight: "900", color: "#111827" }}>Tancar</Text>
+              </Pressable>
 
-        <Pressable
-          disabled={busy}
-          onPress={confirmCreateFromPreview}
-          style={{
-            flex: 1,
-            backgroundColor: busy ? "#9ca3af" : "#16a34a",
-            paddingVertical: 14,
-            borderRadius: 14,
-            alignItems: "center",
-          }}
-        >
-          <Text style={{ fontWeight: "900", color: "white" }}>{busy ? "Creant..." : "Acceptar i crear"}</Text>
-        </Pressable>
-      </View>
-    </View>
-
-    {/* Move modal */}
-    <Modal visible={moveModalOpen} transparent animationType="fade" onRequestClose={() => setMoveModalOpen(false)}>
-      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", padding: 16 }}>
-        <View style={{ backgroundColor: "white", borderRadius: 18, padding: 14, maxHeight: "80%" }}>
-          <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-            <Text style={{ fontWeight: "900", fontSize: 16 }}>Moure partit</Text>
-            <Pressable onPress={() => setMoveModalOpen(false)} style={{ padding: 8 }}>
-              <Text style={{ fontSize: 18 }}>✕</Text>
-            </Pressable>
+              <Pressable
+                disabled={busy}
+                onPress={confirmCreateFromPreview}
+                style={{
+                  flex: 1,
+                  backgroundColor: busy ? "#9ca3af" : "#16a34a",
+                  paddingVertical: 14,
+                  borderRadius: 14,
+                  alignItems: "center",
+                }}
+              >
+                <Text style={{ fontWeight: "900", color: "white" }}>{busy ? "Creant..." : "Acceptar i crear"}</Text>
+              </Pressable>
+            </View>
           </View>
 
-          {(() => {
-            const from = draftAssignments.find((x) => x.slot.id === moveFromSlotId);
-            if (!from) return <Text style={{ color: "#6b7280" }}>No trobat.</Text>;
+          {/* Move modal */}
+          <Modal visible={moveModalOpen} transparent animationType="fade" onRequestClose={() => setMoveModalOpen(false)}>
+            <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.45)", justifyContent: "center", padding: 16 }}>
+              <View style={{ backgroundColor: colors.card, borderRadius: 18, padding: 14, maxHeight: "80%" }}>
+                <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+                  <Text style={{ fontWeight: "900", fontSize: 16 }}>Moure partit</Text>
+                  <Pressable onPress={() => setMoveModalOpen(false)} style={{ padding: 8 }}>
+                    <Text style={{ fontSize: 18 }}>✕</Text>
+                  </Pressable>
+                </View>
 
-            const fromWk = weekendKeyFromISO(from.slot.starts_at);
-            const candidateSlots = (previewMeta?.allSlots ?? [])
-  .filter((s) => (moveAllowAnyWeekend ? true : weekendKeyFromISO(s.starts_at) === fromWk))
-  .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
+                {(() => {
+                  const from = draftAssignments.find((x) => x.slot.id === moveFromSlotId);
+                  if (!from) return <Text style={{ color: "#6b7280" }}>No trobat.</Text>;
 
-            return (
-              <>
-                <Text style={{ color: "#374151", marginBottom: 10 }}>
-                  {teamNameById[from.a] ?? `Equip ${from.a}`} vs {teamNameById[from.b] ?? `Equip ${from.b}`}
-                </Text>
+                  const fromWk = weekendKeyFromISO(from.slot.starts_at);
+                  const candidateSlots = (previewMeta?.allSlots ?? [])
+                    .filter((s) => (moveAllowAnyWeekend ? true : weekendKeyFromISO(s.starts_at) === fromWk))
+                    .sort((a, b) => a.starts_at.localeCompare(b.starts_at));
 
-                <ScrollView>
-                  {candidateSlots.map((slot) => {
-                    const occupied = draftAssignments.find((x) => x.slot.id === slot.id);
-                    const same = slot.id === from.slot.id;
-                    return (
-                      <Pressable
-                        key={slot.id}
-                        disabled={same}
-                        onPress={() => tryMoveOrSwap(slot.id)}
-                        style={{
-                          padding: 12,
-                          borderRadius: 14,
-                          borderWidth: 1,
-                          borderColor: same ? "#d1d5db" : "#e5e7eb",
-                          backgroundColor: same ? "#f3f4f6" : "white",
-                          marginBottom: 8,
-                        }}
-                      >
-                        <Text style={{ fontWeight: "900" }}>{slotLabel(slot)}</Text>
-                        {occupied && !same ? (
-                          <Text style={{ color: "#6b7280", marginTop: 4 }}>
-                            Swap amb: {teamNameById[occupied.a] ?? `Equip ${occupied.a}`} vs {teamNameById[occupied.b] ?? `Equip ${occupied.b}`}
-                          </Text>
-                        ) : (
-                          <Text style={{ color: "#6b7280", marginTop: 4 }}>{same ? "Slot actual" : occupied ? "Swap" : "Buit · Mou aquí"}</Text>
-                        )}
-                      </Pressable>
-                    );
-                  })}
-                </ScrollView>
+                  return (
+                    <>
+                      <Text style={{ color: "#374151", marginBottom: 10 }}>
+                        {teamNameById[from.a] ?? `Equip ${from.a}`} vs {teamNameById[from.b] ?? `Equip ${from.b}`}
+                      </Text>
 
-                <Text style={{ color: "#6b7280", marginTop: 8 }}>
-                  Nota: només permet moviments que mantenen 0 conflictes de preferència i sense solapar equips a la mateixa hora.
-                </Text>
-              </>
-            );
-          })()}
-        </View>
-      </View>
-    </Modal>
-  </SafeAreaView>
-</Modal>
+                      <ScrollView>
+                        {candidateSlots.map((slot) => {
+                          const occupied = draftAssignments.find((x) => x.slot.id === slot.id);
+                          const same = slot.id === from.slot.id;
+                          return (
+                            <Pressable
+                              key={slot.id}
+                              disabled={same}
+                              onPress={() => tryMoveOrSwap(slot.id)}
+                              style={{
+                                padding: 12,
+                                borderRadius: 14,
+                                borderWidth: 1,
+                                borderColor: same ? "#d1d5db" : "#e5e7eb",
+                                backgroundColor: same ? "#f3f4f6" : "white",
+                                marginBottom: 8,
+                              }}
+                            >
+                              <Text style={{ fontWeight: "900" }}>{slotLabel(slot)}</Text>
+                              {occupied && !same ? (
+                                <Text style={{ color: "#6b7280", marginTop: 4 }}>
+                                  Swap amb: {teamNameById[occupied.a] ?? `Equip ${occupied.a}`} vs {teamNameById[occupied.b] ?? `Equip ${occupied.b}`}
+                                </Text>
+                              ) : (
+                                <Text style={{ color: "#6b7280", marginTop: 4 }}>{same ? "Slot actual" : occupied ? "Swap" : "Buit · Mou aquí"}</Text>
+                              )}
+                            </Pressable>
+                          );
+                        })}
+                      </ScrollView>
 
-<Modal visible={champModalOpen} animationType="slide" onRequestClose={() => setChampModalOpen(false)}>
-        <SafeAreaView edges={["left","right","bottom"]} style={{ flex: 1, backgroundColor: "white",marginTop:70 }}>
-          <View style={{ padding: 16 ,flex: 1}}>
+                      <Text style={{ color: "#6b7280", marginTop: 8 }}>
+                        Nota: només permet moviments que mantenen 0 conflictes de preferència i sense solapar equips a la mateixa hora.
+                      </Text>
+                    </>
+                  );
+                })()}
+              </View>
+            </View>
+          </Modal>
+        </SafeAreaView>
+      </Modal>
+
+      <Modal visible={champModalOpen} animationType="slide" onRequestClose={() => setChampModalOpen(false)}>
+        <SafeAreaView edges={["left", "right", "bottom"]} style={{ flex: 1, backgroundColor: colors.bg, marginTop: 70 }}>
+          <View style={{ padding: 16, flex: 1 }}>
             <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
               <Pressable onPress={() => setChampModalOpen(false)} style={{ padding: 10, marginRight: 10 }}>
-                <Text style={{ fontSize: 18 }}>✕</Text>
+                <Text style={{ fontSize: 18, color: colors.text }}>✕</Text>
               </Pressable>
-              <Text style={{ fontSize: 18, fontWeight: "800" }}>Selecciona campionat</Text>
+              <Text style={{ fontSize: 18, fontWeight: "800", color: colors.text }}>Selecciona campionat</Text>
             </View>
 
             <TextInput
               value={champSearch}
               onChangeText={setChampSearch}
               placeholder="Cerca..."
+              placeholderTextColor={colors.muted}
               style={{
                 borderWidth: 1,
-                borderColor: "#e5e7eb",
+                borderColor: colors.border,
                 borderRadius: 12,
                 paddingHorizontal: 12,
                 paddingVertical: 10,
                 marginBottom: 12,
+                color: colors.text,
               }}
             />
 

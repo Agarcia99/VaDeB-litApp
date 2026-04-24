@@ -13,6 +13,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { BackButton, RefreshButton } from "../components/HeaderButtons";
+import { useAppTheme, AppColors } from "../src/theme";
 import { supabase } from "../src/supabase";
 
 type Championship = {
@@ -107,6 +108,8 @@ function formatHour(d: Date) {
 
 export default function PublicCalendar() {
   const router = useRouter();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   // Mesures de pantalla per adaptar el modal segons dispositiu
   const { width: windowWidth } = useWindowDimensions();
@@ -445,10 +448,11 @@ function formatTimeLocal(ts: string) {
 }
 
 
-const styles = StyleSheet.create({
+function getStyles(colors: AppColors) {
+  return StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#F6F7FB",
+    backgroundColor: colors.bg,
   },
   content: {
     padding: 16,
@@ -457,7 +461,7 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#F6F7FB",
+    backgroundColor: colors.bg,
   },
   headerRow: {
     flexDirection: "row",
@@ -466,11 +470,11 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   heroCard: {
-    backgroundColor: "white",
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#E9EAF0",
+    borderColor: colors.border,
     marginBottom: 12,
     ...(Platform.select({
       ios: {
@@ -486,11 +490,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: "900",
-    color: "#111827",
+    color: colors.text,
     textAlign: "center",
   },
   subtitle: {
-    color: "#6b7280",
+    color: colors.muted,
     textAlign: "center",
     marginTop: 4,
     marginBottom: 10,
@@ -505,26 +509,26 @@ const styles = StyleSheet.create({
     flex: 1,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#EEE",
+    borderColor: colors.border,
     paddingVertical: 10,
     paddingHorizontal: 10,
-    backgroundColor: "#FAFAFA",
+    backgroundColor: colors.cardAlt,
   },
   pillLabel: {
-    color: "#6b7280",
+    color: colors.muted,
     fontSize: 12,
     fontWeight: "700",
   },
   pillValue: {
     marginTop: 2,
-    color: "#111827",
+    color: colors.text,
     fontSize: 18,
     fontWeight: "900",
   },
   sectionLabel: {
     fontSize: 14,
     fontWeight: "800",
-    color: "#111827",
+    color: colors.text,
     marginBottom: 8,
   },
   select: {
@@ -532,19 +536,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 14,
     borderWidth: 1,
-    borderColor: "#E9EAF0",
-    backgroundColor: "white",
+    borderColor: colors.border,
+    backgroundColor: colors.card,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   selectText: {
     fontWeight: "800",
-    color: "#111827",
+    color: colors.text,
   },
   selectChevron: {
     fontWeight: "900",
-    color: "#111827",
+    color: colors.text,
     opacity: 0.7,
     fontSize: 16,
   },
@@ -556,11 +560,11 @@ const styles = StyleSheet.create({
   },
   modalCard: {
     alignSelf: "center",
-    backgroundColor: "white",
+    backgroundColor: colors.card,
     borderRadius: 18,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#E9EAF0",
+    borderColor: colors.border,
     ...(Platform.select({
       ios: {
         shadowColor: "#000",
@@ -575,10 +579,10 @@ const styles = StyleSheet.create({
   modalTitle: {
     fontSize: 18,
     fontWeight: "900",
-    color: "#111827",
+    color: colors.text,
   },
   modalHint: {
-    color: "#6b7280",
+    color: colors.muted,
     marginTop: 4,
     marginBottom: 10,
     fontWeight: "600",
@@ -591,17 +595,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#EEE",
-    backgroundColor: "#FAFAFA",
+    borderColor: colors.border,
+    backgroundColor: colors.cardAlt,
     marginBottom: 8,
   },
   modalOptionSelected: {
-    borderColor: "#111827",
-    backgroundColor: "white",
+    borderColor: colors.primary,
+    backgroundColor: colors.card,
   },
   modalOptionText: {
     fontWeight: "800",
-    color: "#111827",
+    color: colors.text,
   },
   check: {
     fontWeight: "900",
@@ -616,15 +620,15 @@ const styles = StyleSheet.create({
   },
   modalCloseText: {
     fontWeight: "900",
-    color: "#111827",
+    color: colors.text,
   },
 
   emptyCard: {
-    backgroundColor: "white",
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#E9EAF0",
+    borderColor: colors.border,
     ...(Platform.select({
       ios: {
         shadowColor: "#000",
@@ -639,20 +643,20 @@ const styles = StyleSheet.create({
   emptyTitle: {
     fontSize: 16,
     fontWeight: "900",
-    color: "#111827",
+    color: colors.text,
     marginBottom: 4,
   },
   emptyText: {
-    color: "#6b7280",
+    color: colors.muted,
     fontWeight: "600",
   },
 
   dayCard: {
-    backgroundColor: "white",
+    backgroundColor: colors.card,
     borderRadius: 16,
     padding: 14,
     borderWidth: 1,
-    borderColor: "#E9EAF0",
+    borderColor: colors.border,
     marginBottom: 12,
     ...(Platform.select({
       ios: {
@@ -674,39 +678,39 @@ const styles = StyleSheet.create({
   dayTitle: {
     fontSize: 16,
     fontWeight: "900",
-    color: "#111827",
+    color: colors.text,
   },
   dayMeta: {
-    color: "#6b7280",
+    color: colors.muted,
     fontWeight: "700",
   },
   hourBlock: {
     marginTop: 6,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: "#F0F1F5",
+    borderTopColor: colors.border,
   },
   hourPill: {
     alignSelf: "flex-start",
     paddingVertical: 6,
     paddingHorizontal: 10,
     borderRadius: 999,
-    backgroundColor: "#111827",
+    backgroundColor: colors.primary,
   },
   hourText: {
-    color: "white",
+    color: colors.primaryText,
     fontWeight: "900",
   },
   matchCard: {
-    backgroundColor: "white",
+    backgroundColor: colors.card,
     borderRadius: 14,
     padding: 12,
     borderWidth: 1,
-    borderColor: "#EEE",
+    borderColor: colors.border,
     marginBottom: 8,
   },
   matchCardEmpty: {
-    backgroundColor: "#F3F4F6",
+    backgroundColor: colors.cardAlt,
   },
   matchTopRow: {
     flexDirection: "row",
@@ -718,39 +722,40 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#E9EAF0",
-    backgroundColor: "#FAFAFA",
+    borderColor: colors.border,
+    backgroundColor: colors.cardAlt,
   },
   fieldPillText: {
     fontWeight: "900",
-    color: "#111827",
+    color: colors.text,
     fontSize: 12,
   },
   phaseInline: {
     flex: 1,
     textAlign: "center",
-    color: "#6B7280",
+    color: colors.muted,
     fontWeight: "900",
     fontSize: 12,
     paddingHorizontal: 8,
   },
   matchTime: {
-    color: "#6b7280",
+    color: colors.muted,
     fontWeight: "800",
     marginLeft: "auto",
   },
   matchTeams: {
     fontSize: 15,
     fontWeight: "900",
-    color: "#111827",
+    color: colors.text,
   },
   vs: {
-    color: "#6b7280",
+    color: colors.muted,
     fontWeight: "900",
   },
   matchEmptyText: {
     fontStyle: "italic",
-    color: "#6b7280",
+    color: colors.muted,
     fontWeight: "700",
   },
-});
+  });
+}

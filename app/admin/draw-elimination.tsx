@@ -12,6 +12,8 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { BackButton, RefreshButton } from "../../components/HeaderButtons";
 import { supabase } from "../../src/supabase";
+import { pad2 } from "../../src/utils/format";
+import { useAppTheme, AppColors } from "../../src/theme";
 
 type Championship = {
   id: number;
@@ -90,10 +92,6 @@ type WeekendOpt = {
   label: string; // "dd-mm-yyyy - dd-mm-yyyy"
 };
 
-function pad2(n: number) {
-  return n < 10 ? `0${n}` : `${n}`;
-}
-
 function toLocalDateKey(d: Date) {
   return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 }
@@ -107,7 +105,7 @@ function saturdayOfWeekend(d: Date) {
   sat.setHours(12, 0, 0, 0);
   return sat;
 }
-function parseMatchDateToLocal(dstr: string) {
+function parseMatchDateToLocal(dstr: string) : Date{
   // Si és només YYYY-MM-DD, crea-la en "local" al migdia per evitar shift de timezone
   if (/^\d{4}-\d{2}-\d{2}$/.test(dstr)) {
     const [y, m, d] = dstr.split("-").map(Number);
@@ -168,6 +166,7 @@ const ELIM_PHASES: { id: number; code: string; label: string; need: number }[] =
 export default function DrawElimination() {
   const router = useRouter();
 
+  const { colors, isDark } = useAppTheme();
   const [loading, setLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
 
@@ -332,7 +331,7 @@ export default function DrawElimination() {
           .eq("championship_id", champ.id)
           .eq("draw_run_id", last.id);
 
-        prevMs = (((pm as any) ?? []) as MatchRow[]) ?? [];
+        prevMs = (((pm as any) ?? []) as MatchRow[]);
       } else if (prevPhase) {
         const { data: pm } = await supabase
           .from("match")
@@ -342,7 +341,7 @@ export default function DrawElimination() {
           .eq("championship_id", champ.id)
           .eq("phase_id", prevPhase);
 
-        prevMs = (((pm as any) ?? []) as MatchRow[]) ?? [];
+        prevMs = (((pm as any) ?? []) as MatchRow[]);
       }
 
       setPrevMatches(prevMs);
@@ -516,12 +515,14 @@ export default function DrawElimination() {
     })();
 
     let lastPrelim: Date | null = null;
-    prevMatches.forEach((m) => {
-      if (m.match_date) {
-        const d = parseMatchDateToLocal(m.match_date);
-        if (!lastPrelim || d > lastPrelim) lastPrelim = d;
-      }
-    });
+    for (const m of prevMatches) {
+  if (m.match_date) {
+    const d = parseMatchDateToLocal(m.match_date);
+    if (lastPrelim === null || d > lastPrelim) {
+      lastPrelim = d;
+    }
+  }
+}
 
     const map = new Map<string, true>();
     for (const s of allSlots) {
@@ -535,7 +536,7 @@ export default function DrawElimination() {
       }
 
       if (occupiedSlotIds.has(s.id)) continue;
-      if (lastPrelim && d <= lastPrelim) continue;
+      if (lastPrelim !== null && d <= lastPrelim) continue;
       map.set(key, true);
     }
 
@@ -1178,6 +1179,7 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
     }
     if (prevIncompleteCount > 0) {
       return {
+        style: { color: colors.text },
         tone: "danger" as const,
         title: "Fase prèvia no finalitzada",
         desc: `Queden ${prevIncompleteCount} partits pendents (${prevPhaseName || "fase"}).`,
@@ -1235,10 +1237,10 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
           style={{ marginBottom:15 }}
         />
 
-        <Text style={{ fontSize: 26, fontWeight: "900", marginBottom: 4,textAlign:"center" }}>
+        <Text style={{ fontSize: 26, fontWeight: "900", marginBottom: 4,textAlign:"center",color:colors.text }}>
           Crear eliminatòries
         </Text>
-        <Text style={{ color: "#6b7280", marginBottom: 14,textAlign:"center" }}>
+        <Text style={{ color: colors.muted, marginBottom: 14,textAlign:"center" }}>
           {championship.name}
         </Text>
 
@@ -1246,16 +1248,16 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
           style={{
             backgroundColor:
               statusCard.tone === "ok"
-                ? "#ecfdf5"
+                ? colors.successBg
                 : statusCard.tone === "danger"
-                ? "#fef2f2"
-                : "#fffbeb",
+                ? colors.dangerBg
+                : colors.warnBg,
             borderColor:
               statusCard.tone === "ok"
-                ? "#10b981"
+                ? colors.success
                 : statusCard.tone === "danger"
-                ? "#ef4444"
-                : "#f59e0b",
+                ? colors.danger
+                : colors.warn,
             borderWidth: 1,
             borderRadius: 14,
             padding: 12,
@@ -1265,22 +1267,22 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
           <Text style={{ fontWeight: "900", marginBottom: 4 }}>
             {statusCard.title}
           </Text>
-          <Text style={{ color: "#374151", fontWeight: "600" }}>
+          <Text style={{ color: colors.text, fontWeight: "600" }}>
             {statusCard.desc}
           </Text>
         </View>
 
         <View
           style={{
-            backgroundColor: "#fff",
+            backgroundColor: colors.bg,
             borderRadius: 14,
             borderWidth: 1,
-            borderColor: "#e5e7eb",
+            borderColor: colors.border,
             padding: 12,
             marginBottom: 12,
           }}
         >
-          <Text style={{ fontWeight: "900", marginBottom: 10 }}>
+          <Text style={{ fontWeight: "900", marginBottom: 10, color: colors.text }}>
             Fase a crear
           </Text>
 
@@ -1318,15 +1320,15 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
 
         <View
           style={{
-            backgroundColor: "#fff",
+            backgroundColor: colors.bg,
             borderRadius: 14,
             borderWidth: 1,
-            borderColor: "#e5e7eb",
+            borderColor: colors.border,
             padding: 12,
             marginBottom: 12,
           }}
         >
-          <Text style={{ fontWeight: "900", marginBottom: 10 }}>Mode</Text>
+          <Text style={{ fontWeight: "900", marginBottom: 10 ,color:colors.text}}>Mode</Text>
 
           <View style={{ flexDirection: "row" }}>
             {[
@@ -1368,15 +1370,15 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
 
         <View
           style={{
-            backgroundColor: "#fff",
+            backgroundColor: colors.bg,
             borderRadius: 14,
             borderWidth: 1,
-            borderColor: "#e5e7eb",
+            borderColor: colors.border,
             padding: 12,
             marginBottom: 12,
           }}
         >
-          <Text style={{ fontWeight: "900", marginBottom: 10 }}>
+          <Text style={{ fontWeight: "900", marginBottom: 10,color: colors.text }}>
             Caps de setmana
           </Text>
 
@@ -1387,22 +1389,22 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
               paddingHorizontal: 12,
               borderRadius: 12,
               borderWidth: 1,
-              borderColor: "#d1d5db",
-              backgroundColor: "#fff",
+              borderColor: colors.border,
+              backgroundColor: colors.bg,
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
             }}
           >
-            <Text style={{ fontWeight: "800" }}>
+            <Text style={{ fontWeight: "800",color:colors.text }}>
               {selectedWeekends.size === 0
                 ? "Selecciona caps de setmana"
                 : `${selectedWeekends.size} seleccionat(s)`}
             </Text>
-            <Text style={{ fontWeight: "900" }}>▾</Text>
+            <Text style={{ fontWeight: "900",color:colors.text }}>▾</Text>
           </Pressable>
 
-          <Text style={{ color: "#6b7280", marginTop: 8 }}>
+          <Text style={{ color: colors.muted, marginTop: 8 }}>
             Slots disponibles amb el filtre:{" "}
             <Text style={{ fontWeight: "900" }}>{slotCountEligible}</Text>
           </Text>
@@ -1425,11 +1427,11 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
           >
             <View
               style={{
-                backgroundColor: "#fff",
+                backgroundColor: colors.bg,
                 borderRadius: 16,
                 padding: 16,
                 borderWidth: 1,
-                borderColor: "#e5e7eb",
+                borderColor: colors.border,
               }}
             >
               <Text style={{ fontSize: 16, fontWeight: "900", marginBottom: 12 }}>
@@ -1437,7 +1439,7 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
               </Text>
 
               {availableWeekendOptions.length === 0 ? (
-                <Text style={{ color: "#6b7280" }}>
+                <Text style={{ color: colors.muted }}>
                   No hi ha caps de setmana amb slots buits.
                 </Text>
               ) : (
@@ -1459,10 +1461,10 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
                         alignItems: "center",
                       }}
                     >
-                      <Text style={{ fontWeight: checked ? "900" : "600" }}>
+                      <Text style={{ fontWeight: checked ? "900" : "600", color: checked ? colors.text : colors.muted }}>
                         {w.label}
                       </Text>
-                      <Text style={{ fontWeight: "900" }}>{checked ? "✓" : ""}</Text>
+                      <Text style={{ fontWeight: "900", color: checked ? colors.text : colors.muted }}>{checked ? "✓" : ""}</Text>
                     </Pressable>
                   );
                 })
@@ -1474,11 +1476,11 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
                   marginTop: 12,
                   paddingVertical: 10,
                   borderRadius: 12,
-                  backgroundColor: "#111827",
+                  backgroundColor: colors.primary,
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: "#fff", fontWeight: "900" }}>Fet</Text>
+                <Text style={{ color: colors.text, fontWeight: "900" }}>Fet</Text>
               </Pressable>
             </View>
           </Pressable>
@@ -1486,18 +1488,18 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
 
         <View
           style={{
-            backgroundColor: "#fff",
+            backgroundColor: colors.bg,
             borderRadius: 14,
             borderWidth: 1,
-            borderColor: "#e5e7eb",
+            borderColor: colors.border,
             padding: 12,
             marginBottom: 12,
           }}
         >
-          <Text style={{ fontWeight: "900", marginBottom: 6 }}>
+          <Text style={{ fontWeight: "900", marginBottom: 6,color:colors.text }}>
             Equips classificats
           </Text>
-          <Text style={{ color: "#6b7280", marginBottom: 10 }}>
+          <Text style={{ color: colors.muted, marginBottom: 10 }}>
             Detectat:{" "}
             <Text style={{ fontWeight: "900" }}>
               {rankingByGroup.length > 0 ? "Grups" : "Lliga"}
@@ -1515,20 +1517,20 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
                   paddingHorizontal: 10,
                   borderRadius: 999,
                   borderWidth: 1,
-                  borderColor: "#e5e7eb",
-                  backgroundColor: "#f9fafb",
+                  borderColor: colors.border,
+                  backgroundColor: colors.bg,
                   marginRight: 8,
                   marginBottom: 8,
                 }}
               >
-                <Text style={{ fontWeight: "800" }}>{t.team_name}</Text>
+                <Text style={{ fontWeight: "800", color: colors.text }}>{t.team_name}</Text>
                 
               </View>
             ))}
           </View>
 
           {qualifiedCount < need && (
-            <Text style={{ marginTop: 6, color: "#ef4444", fontWeight: "800" }}>
+            <Text style={{ marginTop: 6, color: colors.danger, fontWeight: "800" }}>
               No hi ha prou equips (calen {need}).
             </Text>
           )}
@@ -1537,15 +1539,15 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
         {mode === "manual" && (
           <View
             style={{
-              backgroundColor: "#fff",
+              backgroundColor: colors.bg,
               borderRadius: 14,
               borderWidth: 1,
-              borderColor: "#e5e7eb",
+              borderColor: colors.border,
               padding: 12,
               marginBottom: 12,
             }}
           >
-            <Text style={{ fontWeight: "900", marginBottom: 6 }}>
+            <Text style={{ fontWeight: "900", marginBottom: 6,color: colors.text }}>
               Encreuaments manuals
             </Text>
 
@@ -1599,7 +1601,7 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
               })}
             </View>
 
-            <Text style={{ marginTop: 6, color: "#6b7280" }}>
+            <Text style={{ marginTop: 6, color: colors.muted }}>
               Encreuaments:{" "}
               <Text style={{ fontWeight: "900" }}>{manualPairings.length}</Text> /{" "}
               <Text style={{ fontWeight: "900" }}>{targetPairsCount}</Text>
@@ -1616,38 +1618,38 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
                 paddingVertical: 10,
                 borderRadius: 12,
                 borderWidth: 1,
-                borderColor: "#d1d5db",
-                backgroundColor: "#fff",
+                borderColor: colors.border,
+                backgroundColor: colors.bg,
                 alignItems: "center",
               }}
             >
-              <Text style={{ fontWeight: "900" }}>Reiniciar</Text>
+              <Text style={{ fontWeight: "900", color: colors.text }}>Reiniciar</Text>
             </Pressable>
           </View>
         )}
 
         <View
           style={{
-            backgroundColor: "#fff",
+            backgroundColor: colors.bg,
             borderRadius: 14,
             borderWidth: 1,
-            borderColor: "#e5e7eb",
+            borderColor: colors.border,
             padding: 12,
             marginBottom: 12,
           }}
         >
-          <Text style={{ fontWeight: "900", marginBottom: 10 }}>
+          <Text style={{ fontWeight: "900", marginBottom: 10 ,color: colors.text}}>
             Encreuaments i slots (decideix l'admin)
           </Text>
 
           {existingElimCount > 0 && (
-            <Text style={{ color: "#ef4444", fontWeight: "900", marginBottom: 10 }}>
+            <Text style={{ color: colors.danger, fontWeight: "900", marginBottom: 10 }}>
               Ja existeixen partits per aquesta fase.
             </Text>
           )}
 
           {previewPairings.length === 0 ? (
-            <Text style={{ color: "#6b7280" }}>
+            <Text style={{ color: colors.muted }}>
               No hi ha encreuaments disponibles.
             </Text>
           ) : (
@@ -1664,11 +1666,11 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
                     borderBottomColor: "#e5e7eb",
                   }}
                 >
-                  <Text style={{ fontWeight: "900", marginBottom: 8 }}>
-                    {p.teamAName} <Text style={{ color: "#6b7280" }}>vs</Text>{" "}
+                  <Text style={{ fontWeight: "900", marginBottom: 8 ,color: colors.text}}>
+                    {p.teamAName} <Text style={{ color: colors.muted }}>vs</Text>{" "}
                     {p.teamBName}
                 {mode === "manual" && (
-                  <Text style={{ color: "#6b7280", marginTop: 4 }}>
+                  <Text style={{ color: colors.muted, marginTop: 4 }}>
                     Slot: {manualSlotByPairIdx[idx] ? `#${manualSlotByPairIdx[idx]}` : "No assignat"}
                   </Text>
                 )}
@@ -1684,17 +1686,17 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
                       paddingHorizontal: 12,
                       borderRadius: 12,
                       borderWidth: 1,
-                      borderColor: isAssigned ? "#111827" : "#d1d5db",
-                      backgroundColor: isAssigned ? "#111827" : "#fff",
+                      borderColor: isAssigned ? colors.text : colors.border,
+                      backgroundColor: isAssigned ? colors.text : colors.bg,
                       flexDirection: "row",
                       justifyContent: "space-between",
                       alignItems: "center",
                     }}
                   >
-                    <Text style={{ fontWeight: "900", color: isAssigned ? "#fff" : "#111827" }}>
+                    <Text style={{ fontWeight: "900", color: isAssigned ? "#fff" : colors.text }}>
                       {isAssigned ? slotLabel(assignedSlot!) : "Assignar slot"}
                     </Text>
-                    <Text style={{ fontWeight: "900", color: isAssigned ? "#fff" : "#111827" }}>
+                    <Text style={{ fontWeight: "900", color: isAssigned ? "#fff" : colors.text }}>
                       ▾
                     </Text>
                   </Pressable>
@@ -1704,7 +1706,7 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
           )}
 
           {previewPairings.length > 0 && Object.keys(slotAssignment).length !== previewPairings.length && (
-            <Text style={{ marginTop: 10, color: "#ef4444", fontWeight: "800" }}>
+            <Text style={{ marginTop: 10, color: colors.danger, fontWeight: "800" }}>
               Falta assignar slot a {previewPairings.length - Object.keys(slotAssignment).length} partit(s).
             </Text>
           )}
@@ -1799,18 +1801,18 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
           style={{
             paddingVertical: 14,
             borderRadius: 14,
-            backgroundColor: !canCreate || busyCreating ? "#9ca3af" : "#111827",
+            backgroundColor: !canCreate || busyCreating ? colors.muted : colors.primary,
             alignItems: "center",
             marginBottom: 20,
           }}
         >
-          <Text style={{ color: "#fff", fontWeight: "900", fontSize: 16 }}>
+          <Text style={{ color: colors.text, fontWeight: "900", fontSize: 16 }}>
             {busyCreating ? "Creant..." : `Crear ${phaseMeta?.label ?? "eliminatòria"}`}
           </Text>
         </Pressable>
 
         {!canCreate && (
-          <Text style={{ color: "#6b7280", marginBottom: 30 }}>
+          <Text style={{ color:colors.muted, marginBottom: 30 }}>
             Per crear: fase prèvia finalitzada, fase no creada, caps de setmana seleccionats, slots suficients i un slot assignat per cada partit.
           </Text>
         )}

@@ -15,7 +15,9 @@ import * as Print from "expo-print";
 import * as Sharing from "expo-sharing";
 import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "../src/supabase";
+import { useAppTheme, AppColors } from "../src/theme";
 import { BackButton, RefreshButton } from "../components/HeaderButtons";
+import { formatDateDDMMYYYY_HHMM } from "../src/utils/format";
 
 type PlayerMap = Record<number, string>;
 type TeamMap = Record<number, { name: string; short_name: string }>;
@@ -131,21 +133,6 @@ type StatListItem =
 type ListItem = TimelineItem | LineupListItem | StatListItem;
 
 type TabKey = "summary" | "lineups" | "stats";
-
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function formatDateDDMMYYYY_HHMM(iso?: string | null) {
-  if (!iso) return "";
-  const d = new Date(iso);
-  const day = pad2(d.getDate());
-  const month = pad2(d.getMonth() + 1);
-  const year = d.getFullYear();
-  const hour = pad2(d.getHours());
-  const min = pad2(d.getMinutes());
-  return `${day}/${month}/${year} - ${hour}:${min}`;
-}
 
 function trimCharField(s?: string | null) {
   return (s ?? "").trim();
@@ -401,6 +388,9 @@ export default function MatchSummary() {
     return sa > sb ? aName : bName;
   }, [hasBelitDor, match]);
 
+  const { colors, isDark } = useAppTheme();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
+
   useFocusEffect(
     useCallback(() => {
       load();
@@ -560,8 +550,8 @@ function captainForTeam(teamId: number) {
     // NOT PRESENTED (incompareixença)
     const npEvent = eventRows.find((ev) => ev.event_type === "NOT_PRESENTED");
     if (npEvent) {
-      const aName = matchData.team_a?.name ?? "Team A";
-      const bName = matchData.team_b?.name ?? "Team B";
+      const aName = matchData.team_a?.[0]?.name ?? "Team A";
+      const bName = matchData.team_b?.[0]?.name ?? "Team B";
       const sa = matchData.score_team_a ?? 0;
       const sb = matchData.score_team_b ?? 0;
 
@@ -1119,8 +1109,8 @@ for (const r of roundsSorted) {
       }
     }
 
-    const aShort = matchData.team_a?.short_name || trimCharField(matchData.team_a?.name) || "Equip A";
-    const bShort = matchData.team_b?.short_name || trimCharField(matchData.team_b?.name) || "Equip B";
+    const aShort = matchData.team_a?.[0]?.short_name || trimCharField(matchData.team_a?.[0]?.name) || "Equip A";
+    const bShort = matchData.team_b?.[0]?.short_name || trimCharField(matchData.team_b?.[0]?.name) || "Equip B";
 
     statsOut.push({ key: "sr1", kind: "stat_row", label: "Canes", a: totals.canesA, b: totals.canesB });
     statsOut.push({ key: "sr2", kind: "stat_row", label: "Matacanes", a: totals.matA, b: totals.matB });
@@ -1265,8 +1255,8 @@ for (const r of roundsSorted) {
           <View>
             <View style={styles.topBar}>
               <BackButton onPress={() => router.back()} style={{ marginTop:5 }} />
-<RefreshButton
-          onPress={() => load(true)}
+        <RefreshButton
+          onPress={() => load()}
           style={{ alignSelf: "flex-end",marginTop:5 }}
         />
             </View>
@@ -1629,355 +1619,358 @@ if (item.kind === "lineup_team") {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: "#F6F7FB",
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  loadingWrap: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    marginTop: 10,
-    color: "#666",
-    fontWeight: "700",
-  },
-  listContent: {
-    paddingBottom: 24,
-  },
+function getStyles(colors: AppColors, isDark = false) {
+  return StyleSheet.create({
+    screen: {
+      flex: 1,
+      backgroundColor: colors.bg,
+      paddingHorizontal: 16,
+      paddingTop: 8,
+    },
+    loadingWrap: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    loadingText: {
+      marginTop: 10,
+      color: colors.muted,
+      fontWeight: "700",
+    },
+    listContent: {
+      paddingBottom: 24,
+    },
 
-  topBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 2,
-  },
-  refereeText: {
-    marginTop: 4,
-    fontSize: 13,
-    color: "#666",
-    fontStyle: "italic",
-  },
-  phaseText: {
-marginTop: 4,
-    fontSize: 13,
-    color: "#6B7280",
-    fontWeight: "900",
-  },
-  backButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: "#E9EAF0",
-    backgroundColor: "white",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 6 },
-      },
-      android: { elevation: 2 },
-    }),
-  },
-  backArrow: { fontSize: 18, fontWeight: "900" },
-  backText: { fontSize: 15, fontWeight: "800" },
+    topBar: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 2,
+    },
+    refereeText: {
+      marginTop: 4,
+      fontSize: 13,
+      color: colors.muted,
+      fontStyle: "italic",
+    },
+    phaseText: {
+      marginTop: 4,
+      fontSize: 13,
+      color: colors.muted,
+      fontWeight: "900",
+    },
+    backButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 999,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOpacity: 0.05,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 6 },
+        },
+        android: { elevation: 2 },
+      }),
+    },
+    backArrow: { fontSize: 18, fontWeight: "900" },
+    backText: { fontSize: 15, fontWeight: "800" },
 
-  card: {
-    backgroundColor: "white",
-    borderRadius: 16,
-    paddingTop: 14,
-    paddingLeft:14,
-    paddingRight:14,
-    paddingBottom:8,
-    borderWidth: 1,
-    borderColor: "#E9EAF0",
-    marginTop: 10,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOpacity: 0.06,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 6 },
-      },
-      android: { elevation: 2 },
-    }),
-  },
-  teamsTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: "#111",
-  },
-  dateText: {
-    marginTop: 6,
-    color: "#666",
-    fontWeight: "700",
-  },
-  scoreRow: {
-    marginTop: 12,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-  },
-  scoreBox: {
-    alignItems: "center",
-    minWidth: 110,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#EEE",
-    backgroundColor: "#FAFAFF",
-  },
-  scoreValue: { fontSize: 30, fontWeight: "900", color: "#111" },
-  scoreLabel: { marginTop: 4, color: "#666", fontWeight: "800" },
-  scoreDash: { fontSize: 22, fontWeight: "900", color: "#111" },
+    card: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      paddingTop: 14,
+      paddingLeft: 14,
+      paddingRight: 14,
+      paddingBottom: 8,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginTop: 10,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOpacity: 0.06,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 6 },
+        },
+        android: { elevation: 2 },
+      }),
+    },
+    teamsTitle: {
+      fontSize: 18,
+      fontWeight: "900",
+      color: colors.text,
+    },
+    dateText: {
+      marginTop: 6,
+      color: colors.muted,
+      fontWeight: "700",
+    },
+    scoreRow: {
+      marginTop: 12,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 12,
+    },
+    scoreBox: {
+      alignItems: "center",
+      minWidth: 110,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.cardAlt,
+    },
+    scoreValue: { fontSize: 30, fontWeight: "900", color: colors.text },
+    scoreLabel: { marginTop: 4, color: colors.muted, fontWeight: "800" },
+    scoreDash: { fontSize: 22, fontWeight: "900", color: colors.text },
 
-  metaRow: {
-    marginTop: 4,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    flexWrap: "wrap",
-  },
-  metaPill: {
-    flexGrow: 1,
-    borderRadius: 14,
-    borderWidth: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    backgroundColor: "#FAFAFF",
-    borderColor: "#EEE",
-  },
-  metaPillFinished: { backgroundColor: "#F2FFF7", borderColor: "#D7F5E3" },
-  metaPillPending: { backgroundColor: "#FFF9F2", borderColor: "#F4E3C9" },
-  metaPillLabel: { color: "#666", fontSize: 12, fontWeight: "800" },
-  metaPillValue: { marginTop: 2, fontSize: 14, fontWeight: "900", color: "#111" },
+    metaRow: {
+      marginTop: 4,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 10,
+      flexWrap: "wrap",
+    },
+    metaPill: {
+      flexGrow: 1,
+      borderRadius: 14,
+      borderWidth: 1,
+      paddingVertical: 10,
+      paddingHorizontal: 10,
+      backgroundColor: colors.cardAlt,
+      borderColor: colors.border,
+    },
+    metaPillFinished: { backgroundColor: isDark ? "rgba(34,197,94,0.15)" : "#F2FFF7", borderColor: isDark ? "rgba(34,197,94,0.35)" : "#D7F5E3" },
+    metaPillPending: { backgroundColor: isDark ? "rgba(245,158,11,0.15)" : "#FFF9F2", borderColor: isDark ? "rgba(245,158,11,0.35)" : "#F4E3C9" },
+    metaPillLabel: { color: colors.muted, fontSize: 12, fontWeight: "800" },
+    metaPillValue: { marginTop: 2, fontSize: 14, fontWeight: "900", color: colors.text },
 
-  badgeWarn: {
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    backgroundColor: "#FEF3C7",
-    borderWidth: 1,
-    borderColor: "#F59E0B",
-  },
-  badgeWarnText: { fontWeight: "900", color: "#92400E" },
+    badgeWarn: {
+      paddingVertical: 9,
+      paddingHorizontal: 12,
+      borderRadius: 999,
+      backgroundColor: isDark ? "rgba(245,158,11,0.15)" : "#FEF3C7",
+      borderWidth: 1,
+      borderColor: "#F59E0B",
+    },
+    badgeWarnText: { fontWeight: "900", color: isDark ? "#fbbf24" : "#92400E" },
 
-  notPresentedCard: {
-    marginTop: 12,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    backgroundColor: "#FFF7ED",
-    borderWidth: 1,
-    borderColor: "#FDBA74",
-  },
-  notPresentedText: { fontWeight: "900", color: "#7C2D12" },
+    notPresentedCard: {
+      marginTop: 12,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 12,
+      backgroundColor: isDark ? "rgba(245,158,11,0.12)" : "#FFF7ED",
+      borderWidth: 1,
+      borderColor: "#FDBA74",
+    },
+    notPresentedText: { fontWeight: "900", color: "#7C2D12" },
 
-  tabsRow: {
-    flexDirection: "row",
-    gap: 10,
-    marginTop: 2,
-    marginBottom: 4,
-  },
-  tabPill: {
-    flex: 1,
-    paddingVertical: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    alignItems: "center",
-    backgroundColor: "white",
-  },
-  tabPillActive: {
-    borderColor: "#111827",
-    backgroundColor: "#111827",
-  },
-  tabPillIdle: {
-    borderColor: "#E9EAF0",
-    backgroundColor: "white",
-  },
-  tabText: { fontWeight: "900", fontSize: 13 },
-  tabTextActive: { color: "white" },
-  tabTextIdle: { color: "#111" },
+    tabsRow: {
+      flexDirection: "row",
+      gap: 10,
+      marginTop: 2,
+      marginBottom: 4,
+    },
+    tabPill: {
+      flex: 1,
+      paddingVertical: 10,
+      borderRadius: 14,
+      borderWidth: 1,
+      alignItems: "center",
+      backgroundColor: colors.card,
+    },
+    tabPillActive: {
+      borderColor: colors.primary,
+      backgroundColor: colors.primary,
+    },
+    tabPillIdle: {
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+    },
+    tabText: { fontWeight: "900", fontSize: 13 },
+    tabTextActive: { color: colors.primaryText },
+    tabTextIdle: { color: colors.text },
 
-  sectionHeader: {
-    marginTop: 8,
-    marginBottom: 8,
-    paddingHorizontal: 2,
-  },
-  sectionTitle: { fontSize: 16, fontWeight: "900", color: "#111" },
-  sectionSub: { marginTop: 2, color: "#666", fontWeight: "700" },
+    sectionHeader: {
+      marginTop: 8,
+      marginBottom: 8,
+      paddingHorizontal: 2,
+    },
+    sectionTitle: { fontSize: 16, fontWeight: "900", color: colors.text },
+    sectionSub: { marginTop: 2, color: colors.muted, fontWeight: "700" },
 
-  emptyWrap: { marginTop: 26, alignItems: "center" },
-  emptyText: { color: "#666", textAlign: "center", fontWeight: "700" },
+    emptyWrap: { marginTop: 26, alignItems: "center" },
+    emptyText: { color: colors.muted, textAlign: "center", fontWeight: "700" },
 
-  turnHeader: { marginTop: 10, marginBottom: 4, paddingHorizontal: 2 },
-  turnHeaderText: { fontWeight: "900", color: "#111" },
+    turnHeader: { marginTop: 10, marginBottom: 4, paddingHorizontal: 2 },
+    turnHeaderText: { fontWeight: "900", color: colors.text },
 
-  turnEnd: {
-    marginTop: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: "#E9EAF0",
-    backgroundColor: "#F8FAFF",
-  },
-  turnEndText: { fontWeight: "900", color: "#111" },
+    turnEnd: {
+      marginTop: 8,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.cardAlt,
+    },
+    turnEndText: { fontWeight: "900", color: colors.text },
 
-  playRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    marginTop: 10,
-    backgroundColor: "white",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E9EAF0",
-    padding: 14,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOpacity: 0.04,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 4 },
-      },
-      android: { elevation: 1 },
-    }),
-  },
-  playTextWrap: { flex: 1, minWidth: 0 },
-  playText: { color: "#333", fontWeight: "700", flexShrink: 1, flexWrap: "wrap", lineHeight: 20 },
+    playRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      marginTop: 10,
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 14,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOpacity: 0.04,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 4 },
+        },
+        android: { elevation: 1 },
+      }),
+    },
+    playTextWrap: { flex: 1, minWidth: 0 },
+    playText: { color: colors.text, fontWeight: "700", flexShrink: 1, flexWrap: "wrap", lineHeight: 20 },
 
-  badge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    marginRight: 10,
-    borderWidth: 1,
-  },
-  badgeText: {
-    fontSize: 12,
-    fontWeight: "900",
-  },
-  badgeGreen: {
-    backgroundColor: "#E9F9EF",
-    borderColor: "#A7F3C0",
-  },
-  badgeRed: {
-    backgroundColor: "#FEECEC",
-    borderColor: "#FCA5A5",
-  },
-  badgeBlue: {
-    backgroundColor: "#EAF2FF",
-    borderColor: "#93C5FD",
-  },
-  badgePurple: {
-    backgroundColor: "#F3ECFF",
-    borderColor: "#C4B5FD",
-  },
-  badgeGray: {
-    backgroundColor: "#F3F4F6",
-    borderColor: "#E5E7EB",
-  },
+    badge: {
+      alignSelf: "flex-start",
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 999,
+      marginRight: 10,
+      borderWidth: 1,
+    },
+    badgeText: {
+      fontSize: 12,
+      fontWeight: "900",
+    },
+    badgeGreen: {
+      backgroundColor: "#E9F9EF",
+      borderColor: "#A7F3C0",
+    },
+    badgeRed: {
+      backgroundColor: isDark ? "rgba(239,68,68,0.12)" : "#FEECEC",
+      borderColor: "#FCA5A5",
+    },
+    badgeBlue: {
+      backgroundColor: "#EAF2FF",
+      borderColor: "#93C5FD",
+    },
+    badgePurple: {
+      backgroundColor: isDark ? "rgba(139,92,246,0.12)" : "#F3ECFF",
+      borderColor: "#C4B5FD",
+    },
+    badgeGray: {
+      backgroundColor: isDark ? colors.cardAlt : "#F3F4F6",
+      borderColor: colors.border,
+    },
 
-  belitDorFooter: {
-    marginTop: 10,
-    marginBottom: 8,
-    marginHorizontal: 16,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    borderRadius: 14,
-    backgroundColor: "white",
-    borderWidth: 1,
-    borderColor: "#E9EAF0",
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOpacity: 0.06,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 6 },
-      },
-      android: { elevation: 2 },
-    }),
-  },
-  belitDorFooterText: {
-    fontWeight: "900",
-    color: "#111827",
-  },
+    belitDorFooter: {
+      marginTop: 10,
+      marginBottom: 8,
+      marginHorizontal: 16,
+      paddingVertical: 12,
+      paddingHorizontal: 14,
+      borderRadius: 14,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOpacity: 0.06,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 6 },
+        },
+        android: { elevation: 2 },
+      }),
+    },
+    belitDorFooterText: {
+      fontWeight: "900",
+      color: colors.text,
+    },
 
-  lineupTeamTitle: { fontSize: 16, fontWeight: "900", color: "#111" },
-  lineupRoleTitle: { marginTop: 0, fontWeight: "900", color: "#111" },
-  lineupRow: {
-    marginTop: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  lineupName: { flex: 1, color: "#333", fontWeight: "800" },
-  lineupEmpty: { marginTop: 8, color: "#666", fontWeight: "700" },
+    lineupTeamTitle: { fontSize: 16, fontWeight: "900", color: colors.text },
+    lineupRoleTitle: { marginTop: 0, fontWeight: "900", color: colors.text },
+    lineupRow: {
+      marginTop: 8,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 10,
+    },
+    lineupPlayer: { flex: 1, color: colors.text, fontWeight: "800" },
+    lineupName: { flex: 1, color: colors.text, fontWeight: "800" },
+    lineupEmpty: { marginTop: 8, color: colors.muted, fontWeight: "700" },
 
-  statRowCard: {
-    marginTop: 10,
-    backgroundColor: "white",
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: "#E9EAF0",
-    padding: 14,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOpacity: 0.04,
-        shadowRadius: 8,
-        shadowOffset: { width: 0, height: 4 },
-      },
-      android: { elevation: 1 },
-    }),
-  },
-  statLabel: { fontWeight: "900", color: "#111", marginBottom: 10 },
-  statValues: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12 },
-  statValueBox: {
-    alignItems: "center",
-    minWidth: 110,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: "#EEE",
-    backgroundColor: "#FAFAFF",
-  },
-  statValue: { fontSize: 26, fontWeight: "900", color: "#111" },
-  statMiniLabel: { marginTop: 4, color: "#666", fontWeight: "800" },
-  statDash: { fontSize: 18, fontWeight: "900", color: "#111" },
+    statRowCard: {
+      marginTop: 10,
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: colors.border,
+      padding: 14,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOpacity: 0.04,
+          shadowRadius: 8,
+          shadowOffset: { width: 0, height: 4 },
+        },
+        android: { elevation: 1 },
+      }),
+    },
+    statLabel: { fontWeight: "900", color: colors.text, marginBottom: 10 },
+    statValues: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 12 },
+    statValueBox: {
+      alignItems: "center",
+      minWidth: 110,
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.cardAlt,
+    },
+    statValue: { fontSize: 26, fontWeight: "900", color: colors.text },
+    statMiniLabel: { marginTop: 4, color: colors.muted, fontWeight: "800" },
+    statDash: { fontSize: 18, fontWeight: "900", color: colors.text },
 
-  pdfButton: {
-    marginTop: 4,
-    alignSelf: "center",
-    backgroundColor: "#111827",
-    paddingVertical: 12,
-    paddingHorizontal: 18,
-    minWidth: 240,
-    borderRadius: 14,
-    alignItems: "center",
-  },
-  pdfButtonText: { color: "white", fontWeight: "900" },
+    pdfButton: {
+      marginTop: 4,
+      alignSelf: "center",
+      backgroundColor: colors.primary,
+      paddingVertical: 12,
+      paddingHorizontal: 18,
+      minWidth: 240,
+      borderRadius: 14,
+      alignItems: "center",
+    },
+    pdfButtonText: { color: colors.primaryText, fontWeight: "900" },
 
-  topTitle: { fontSize: 15, fontWeight: "900", color: "#111" },
-  topRow: {
-    marginTop: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 10,
-  },
-  topName: { flex: 1, fontWeight: "800", color: "#333" },
-});
+    topTitle: { fontSize: 15, fontWeight: "900", color: colors.text },
+    topRow: {
+      marginTop: 10,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 10,
+    },
+    topName: { flex: 1, fontWeight: "800", color: colors.text },
+  });
+}

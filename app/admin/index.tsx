@@ -2,6 +2,8 @@ import { View, Text, Pressable, Alert, ScrollView, Modal, TextInput, ActivityInd
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "expo-router";
 import { supabase } from "../../src/supabase";
+import { useAdminGuard } from "../../hooks/use-admin-guard";
+import { useAppTheme } from "../../src/theme";
 
 type BackupRow = {
   id: number;
@@ -13,8 +15,8 @@ type BackupRow = {
 
 export default function AdminHome() {
   const router = useRouter();
-  const [allowed, setAllowed] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const { colors } = useAppTheme();
+  const { checking: loading, isAdmin: allowed } = useAdminGuard();
 
   // ⚠️ Opció sensible: netejar dades d'un partit
   const [cleanModalOpen, setCleanModalOpen] = useState(false);
@@ -34,42 +36,6 @@ export default function AdminHome() {
     const n = Number(cleanMatchId.trim());
     return Number.isFinite(n) && n > 0 && cleanConfirmText.trim().toUpperCase() === "NETEJAR";
   }, [cleanMatchId, cleanConfirmText]);
-
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-
-      const { data: sessionRes } = await supabase.auth.getSession();
-      const user = sessionRes.session?.user;
-
-      if (!user) {
-        router.replace("/login");
-        return;
-      }
-
-      const { data: adminRow, error } = await supabase
-        .from("championship_admin_user")
-        .select("user_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (error) {
-        Alert.alert("Error", error.message);
-        setAllowed(false);
-      } else {
-        setAllowed(!!adminRow);
-      }
-
-      setLoading(false);
-    })();
-  }, []);
-
-  useEffect(() => {
-    if (!loading && !allowed) {
-      Alert.alert("Accés denegat", "Aquesta secció és només per gestors del campionat.");
-      router.back();
-    }
-  }, [loading, allowed]);
 
   if (loading) {
     return (
@@ -210,12 +176,12 @@ export default function AdminHome() {
         paddingHorizontal: 14,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: "#ddd",
-        backgroundColor: "white",
+        borderColor: colors.border,
+        backgroundColor: colors.card,
         marginBottom: 12,
       }}
     >
-      <Text style={{ fontWeight: "700", fontSize: 16 }}>{title}</Text>
+      <Text style={{ fontWeight: "700", fontSize: 16, color: colors.text }}>{title}</Text>
     </Pressable>
   );
 
@@ -237,13 +203,13 @@ export default function AdminHome() {
   );
 
   return (
-    <View style={{ flex: 1, padding: 16 }}>
+    <View style={{ flex: 1, padding: 16, backgroundColor: colors.bg }}>
       <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
         <Pressable onPress={() => router.back()} style={{ paddingVertical: 8, paddingHorizontal: 8 }}>
-          <Text style={{ fontWeight: "800" }}>←</Text>
+          <Text style={{ fontWeight: "800",color: colors.text}}>←</Text>
         </Pressable>
 
-        <Text style={{ fontSize: 22, fontWeight: "800", flex: 1, textAlign: "center", marginRight: 32 }}>
+        <Text style={{ fontSize: 22, fontWeight: "800", flex: 1, textAlign: "center", marginRight: 32, color: colors.text }}>
           ⚙️ Administració
         </Text>
       </View>
@@ -292,20 +258,20 @@ export default function AdminHome() {
             style={{
               width: "100%",
               maxWidth: 520,
-              backgroundColor: "white",
+              backgroundColor: colors.card,
               borderRadius: 16,
               padding: 16,
               borderWidth: 1,
-              borderColor: "#eee",
+              borderColor: colors.border,
             }}
           >
-            <Text style={{ fontSize: 18, fontWeight: "900", marginBottom: 6 }}>🧹 Netejar partit (EXTREM)</Text>
-            <Text style={{ color: "#444", marginBottom: 12 }}>
+            <Text style={{ fontSize: 18, fontWeight: "900", marginBottom: 6, color: colors.text }}>🧹 Netejar partit (EXTREM)</Text>
+            <Text style={{ color: colors.muted, marginBottom: 12 }}>
               Introdueix l'ID del partit i el motiu. Per seguretat, has d'escriure NETEJAR per habilitar el botó.
               {"\n\n"}Abans d'esborrar, es guardarà un backup complet a la BD.
             </Text>
 
-            <Text style={{ fontWeight: "800", marginBottom: 8 }}>ID del partit</Text>
+            <Text style={{ fontWeight: "800", marginBottom: 8, color: colors.text }}>ID del partit</Text>
             <TextInput
               value={cleanMatchId}
               onChangeText={setCleanMatchId}
@@ -314,15 +280,17 @@ export default function AdminHome() {
               placeholder="Ex: 123"
               style={{
                 borderWidth: 1,
-                borderColor: "#ddd",
+                borderColor: colors.border,
                 borderRadius: 12,
                 paddingHorizontal: 12,
                 paddingVertical: 10,
                 fontWeight: "700",
+                color: colors.text,
+                backgroundColor: colors.cardAlt,
               }}
             />
 
-            <Text style={{ fontWeight: "800", marginBottom: 8, marginTop: 12 }}>Motiu (opcional)</Text>
+            <Text style={{ fontWeight: "800", marginBottom: 8, marginTop: 12, color: colors.text }}>Motiu (opcional)</Text>
             <TextInput
               value={cleanReason}
               onChangeText={setCleanReason}
@@ -330,10 +298,12 @@ export default function AdminHome() {
               placeholder="Ex: errors de càrrega, partit mal configurat…"
               style={{
                 borderWidth: 1,
-                borderColor: "#ddd",
+                borderColor: colors.border,
                 borderRadius: 12,
                 paddingHorizontal: 12,
                 paddingVertical: 10,
+                color: colors.text,
+                backgroundColor: colors.cardAlt,
               }}
             />
 
@@ -366,11 +336,12 @@ export default function AdminHome() {
                   paddingVertical: 12,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: "#ddd",
+                  borderColor: colors.border,
+                  backgroundColor: colors.cardAlt,
                   alignItems: "center",
                 }}
               >
-                <Text style={{ fontWeight: "800" }}>Cancel·lar</Text>
+                <Text style={{ fontWeight: "800", color: colors.text }}>Cancel·lar</Text>
               </Pressable>
 
               <Pressable
@@ -421,20 +392,20 @@ export default function AdminHome() {
             style={{
               width: "100%",
               maxWidth: 520,
-              backgroundColor: "white",
+              backgroundColor: colors.card,
               borderRadius: 16,
               padding: 16,
               borderWidth: 1,
-              borderColor: "#eee",
+              borderColor: colors.border,
             }}
           >
-            <Text style={{ fontSize: 18, fontWeight: "900", marginBottom: 6 }}>♻️ Recuperar partit (BACKUP)</Text>
-            <Text style={{ color: "#444", marginBottom: 12 }}>
+            <Text style={{ fontSize: 18, fontWeight: "900", marginBottom: 6, color: colors.text }}>♻️ Recuperar partit (BACKUP)</Text>
+            <Text style={{ color: colors.muted, marginBottom: 12 }}>
               Busca backups pel match id i selecciona'n un per recuperar. Només es pot recuperar si el partit NO ha
               començat (started_at = NULL).
             </Text>
 
-            <Text style={{ fontWeight: "800", marginBottom: 8 }}>ID del partit</Text>
+            <Text style={{ fontWeight: "800", marginBottom: 8, color: colors.text }}>ID del partit</Text>
             <TextInput
               value={restoreMatchId}
               onChangeText={setRestoreMatchId}
@@ -443,11 +414,13 @@ export default function AdminHome() {
               placeholder="Ex: 123"
               style={{
                 borderWidth: 1,
-                borderColor: "#ddd",
+                borderColor: colors.border,
                 borderRadius: 12,
                 paddingHorizontal: 12,
                 paddingVertical: 10,
                 fontWeight: "700",
+                color: colors.text,
+                backgroundColor: colors.cardAlt,
               }}
             />
 
@@ -460,12 +433,12 @@ export default function AdminHome() {
                   paddingVertical: 12,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: "#ddd",
+                  borderColor: colors.border,
                   alignItems: "center",
-                  backgroundColor: "white",
+                  backgroundColor: colors.cardAlt,
                 }}
               >
-                {restoreLoading ? <ActivityIndicator /> : <Text style={{ fontWeight: "800" }}>Cercar backups</Text>}
+                {restoreLoading ? <ActivityIndicator /> : <Text style={{ fontWeight: "800", color: colors.text }}>Cercar backups</Text>}
               </Pressable>
 
               <Pressable
@@ -476,12 +449,12 @@ export default function AdminHome() {
                   paddingHorizontal: 14,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: "#ddd",
+                  borderColor: colors.border,
                   alignItems: "center",
-                  backgroundColor: "white",
+                  backgroundColor: colors.cardAlt,
                 }}
               >
-                <Text style={{ fontWeight: "800" }}>Tancar</Text>
+                <Text style={{ fontWeight: "800", color: colors.text }}>Tancar</Text>
               </Pressable>
             </View>
 
@@ -499,19 +472,19 @@ export default function AdminHome() {
                         paddingHorizontal: 12,
                         borderRadius: 12,
                         borderWidth: 1,
-                        borderColor: selected ? "#111827" : "#E5E7EB",
-                        backgroundColor: selected ? "rgba(17,24,39,0.06)" : "white",
+                        borderColor: selected ? colors.primary : colors.border,
+                        backgroundColor: selected ? (colors.primary + "18") : colors.card,
                         marginBottom: 10,
                       }}
                     >
-                      <Text style={{ fontWeight: "900" }}>Backup #{b.id}</Text>
-                      <Text style={{ color: "#374151", marginTop: 2 }}>{dateLabel}</Text>
-                      {b.reason ? <Text style={{ color: "#111827", marginTop: 6 }}>Motiu: {b.reason}</Text> : null}
+                      <Text style={{ fontWeight: "900", color: colors.text }}>Backup #{b.id}</Text>
+                      <Text style={{ color: colors.muted, marginTop: 2 }}>{dateLabel}</Text>
+                      {b.reason ? <Text style={{ color: colors.text, marginTop: 6 }}>Motiu: {b.reason}</Text> : null}
                     </Pressable>
                   );
                 })}
                 {backups.length === 0 ? (
-                  <Text style={{ color: "#6B7280", marginTop: 6 }}>
+                <Text style={{ color: colors.muted, marginTop: 6 }}>
                     Encara no has carregat backups (o no n'hi ha).
                   </Text>
                 ) : null}

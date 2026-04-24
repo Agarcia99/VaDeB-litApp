@@ -2,36 +2,36 @@ import 'react-native-url-polyfill/auto';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 
-export const supabase = createClient(
-  process.env.EXPO_PUBLIC_SUPABASE_URL!,
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!,
-  {
-    auth: {
-      storage: AsyncStorage,
-      autoRefreshToken: true,
-      persistSession: true,
-      detectSessionInUrl: false,
-    },
-  }
-);
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-// 🔥 Limpieza de sesión corrupta al iniciar la app
-(async () => {
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error(
+    'Missing Supabase environment variables. Ensure EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY are set in your .env file.'
+  );
+}
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    storage: AsyncStorage,
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: false,
+  },
+});
+
+/**
+ * Call once from the root layout useEffect.
+ * Cleans up a corrupt session so the user is not silently stuck in a bad state.
+ */
+export async function initSupabaseSession(): Promise<void> {
   try {
-    const { data, error } = await supabase.auth.getSession();
-
+    const { error } = await supabase.auth.getSession();
     if (error) {
-      console.log('⚠️ Sesión corrupta detectada → limpiando');
+      console.warn('Sessió corrupta detectada → netejant');
       await supabase.auth.signOut();
-      return;
-    }
-
-    // Si no hay sesión pero hay basura en storage (caso típico en Expo)
-    if (!data?.session) {
-      // opcional: descomenta si quieres limpiar siempre
-      // await AsyncStorage.clear();
     }
   } catch (e) {
-    console.log('Error comprobando sesión inicial:', e);
+    console.warn('Error comprovant sessió inicial:', e);
   }
-})();
+}

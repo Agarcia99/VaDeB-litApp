@@ -10,7 +10,9 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../src/supabase";
+import { useAppTheme } from "../src/theme";
 import { FontAwesome5 } from "@expo/vector-icons";
+import { BackButton } from "@/components/HeaderButtons";
 
 function isUnassignedReferee(refereeId: number | null | undefined) {
   return refereeId === 1 || refereeId === null || typeof refereeId === "undefined";
@@ -74,6 +76,7 @@ export default function MatchScreen() {
 
   const coinSize = Platform.OS === "ios" ? 120 : 140;
 
+  const { colors, isDark } = useAppTheme();
 
   const pickName = (v: any, side: "A" | "B") => {
     if (!v) return null;
@@ -164,19 +167,19 @@ export default function MatchScreen() {
           style={{
             width: "100%",
             maxWidth: 420,
-            backgroundColor: "white",
+            backgroundColor: colors.card,
             borderRadius: 18,
             padding: 18,
             borderWidth: 1,
-            borderColor: "#eee",
+            borderColor: colors.border,
           }}
         >
           <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8 }}>
-            <FontAwesome5 name="coins" size={18} />
-            <Text style={{ fontSize: 20, fontWeight: "900" }}>Moneda a l'aire</Text>
+          <FontAwesome5 name="coins" size={18} color={colors.text} />
+            <Text style={{ fontSize: 20, fontWeight: "900", color: colors.text }}>Moneda a l'aire</Text>
           </View>
 
-          <Text style={{ marginTop: 6, color: "#666", fontWeight: "600", textAlign: "center" }}>
+          <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "600", textAlign: "center" }}>
             {coinFlipStep === "pickFace"
               ? "Escull quin equip és Cara i tira la moneda"
               : coinFlipSpinning
@@ -190,7 +193,7 @@ export default function MatchScreen() {
                 width: coinSize,
                 height: coinSize,
                 borderRadius: coinSize / 2,
-                backgroundColor: "#fff",
+                backgroundColor: colors.card,
                 justifyContent: "center",
                 alignItems: "center",
                 // ✅ 2D transforms only: stable in iOS + Android (Expo Go)
@@ -208,8 +211,8 @@ export default function MatchScreen() {
                   inset: 0,
                   borderRadius: coinSize / 2,
                   borderWidth: 2,
-                  borderColor: "#E7E7EE",
-                  backgroundColor: "white",
+                  borderColor: colors.border,
+                  backgroundColor: colors.card,
                 }}
               />
               {/* Inner disc */}
@@ -219,20 +222,20 @@ export default function MatchScreen() {
                   position: "absolute",
                   inset: Math.round(coinSize * 0.08),
                   borderRadius: (coinSize * 0.84) / 2,
-                  backgroundColor: "#FAFAFF",
+                  backgroundColor: colors.cardAlt,
                   borderWidth: 1,
-                  borderColor: "#ECECF6",
+                  borderColor: colors.border,
                 }}
               />
 
               {/* Content: during spin keep it clean; after spin show only the visible face */}
               {coinFlipSpinning || !coinFlipFace ? (
                 <View style={{ alignItems: "center", gap: 8 }}>
-                  <FontAwesome5 name="coins" size={Math.round(coinSize * 0.42)} color="#111" />
+                  <FontAwesome5 name="coins" size={Math.round(coinSize * 0.42)} color={colors.text} />
                 </View>
               ) : (
                 <View style={{ alignItems: "center", paddingHorizontal: 10 }}>
-                  <Text style={{ fontSize: 12, fontWeight: "900", color: "#666", letterSpacing: 0.8 }}>
+                  <Text style={{ fontSize: 12, fontWeight: "900", color: colors.muted, letterSpacing: 0.8 }}>
                     {coinFlipFace === "Cara" ? "CARA" : "CREU"}
                   </Text>
                   <Text
@@ -241,7 +244,7 @@ export default function MatchScreen() {
                       marginTop: 6,
                       fontSize: 16,
                       fontWeight: "1000" as any,
-                      color: "#111",
+                      color: colors.text,
                       textAlign: "center",
                     }}
                   >
@@ -254,7 +257,7 @@ export default function MatchScreen() {
 
           {coinFlipStep === "pickFace" ? (
             <View style={{ marginTop: 4 }}>
-              <Text style={{ textAlign: "center", fontWeight: "900", fontSize: 16 }}>Quin equip és Cara?</Text>
+            <Text style={{ textAlign: "center", fontWeight: "900", fontSize: 16, color: colors.text }}>Quin equip és Cara?</Text>
 
               <View style={{ flexDirection: "row", gap: 10, justifyContent: "center", marginTop: 12, flexWrap: "wrap" }}>
                 {(["A", "B"] as const).map((t) => {
@@ -269,13 +272,13 @@ export default function MatchScreen() {
                         paddingHorizontal: 12,
                         borderRadius: 12,
                         borderWidth: 2,
-                        borderColor: selected ? "#111" : "#ddd",
-                        backgroundColor: selected ? "#f5f5f5" : "white",
+                        borderColor: selected ? colors.text : colors.border,
+                        backgroundColor: selected ? colors.cardAlt : colors.card,
                         minWidth: 160,
                         alignItems: "center",
                       }}
                     >
-                      <Text style={{ fontWeight: "900" }}>Cara: {label}</Text>
+                      <Text style={{ fontWeight: "900", color: colors.text }}>Cara: {label}</Text>
                     </Pressable>
                   );
                 })}
@@ -289,12 +292,12 @@ export default function MatchScreen() {
                 style={{
                   paddingVertical: 12,
                   borderRadius: 12,
-                  backgroundColor: "#111",
+                  backgroundColor: colors.primary,
                   alignItems: "center",
                   opacity: coinFlipSpinning ? 0.6 : 1,
                 }}
               >
-                <Text style={{ color: "white", fontWeight: "900" }}>Tirar moneda</Text>
+                <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Tirar moneda</Text>
               </Pressable>
 
               <Pressable
@@ -302,19 +305,19 @@ export default function MatchScreen() {
                 onPress={() => setCoinFlipVisible(false)}
                 style={{ paddingVertical: 10, alignItems: "center", marginTop: 6, opacity: coinFlipSpinning ? 0.6 : 1 }}
               >
-                <Text style={{ color: "#666", fontWeight: "800" }}>Tancar</Text>
+                <Text style={{ color: colors.muted, fontWeight: "800" }}>Tancar</Text>
               </Pressable>
             </View>
           ) : (
             <View style={{ marginTop: 4 }}>
               {winnerTeamName ? (
-                <Text style={{ textAlign: "center", fontWeight: "900", fontSize: 18 }}>
-                  Guanya: {winnerTeamName}
-                </Text>
+                <Text style={{ fontWeight: "900", fontSize: 18, color: colors.text, textAlign: "center" }}>
+          Guanya: {winnerTeamName}
+        </Text>
               ) : null}
 
               {coinFlipFace ? (
-                <Text style={{ textAlign: "center", marginTop: 8, color: "#666", fontWeight: "700" }}>
+                <Text style={{ textAlign: "center", marginTop: 8, color: colors.muted, fontWeight: "700" }}>
                   Ha sortit: {coinFlipFace}
                 </Text>
               ) : null}
@@ -326,11 +329,11 @@ export default function MatchScreen() {
                 style={{
                   paddingVertical: 12,
                   borderRadius: 12,
-                  backgroundColor: "#111",
+                  backgroundColor: colors.primary,
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: "white", fontWeight: "900" }}>Ok</Text>
+                <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Ok</Text>
               </Pressable>
             </View>
           )}
@@ -362,15 +365,15 @@ export default function MatchScreen() {
           style={{
             width: "100%",
             maxWidth: 420,
-            backgroundColor: "white",
+            backgroundColor: colors.card,
             borderRadius: 18,
             padding: 18,
             borderWidth: 1,
-            borderColor: "#eee",
+            borderColor: colors.border,
           }}
         >
-          <Text style={{ fontSize: 20, fontWeight: "900", textAlign: "center" }}>🧪 Simular partit complet</Text>
-          <Text style={{ marginTop: 8, color: "#666", fontWeight: "600", textAlign: "center" }}>
+          <Text style={{ fontSize: 20, fontWeight: "900", textAlign: "center", color: colors.text }}>🧪 Simular partit complet</Text>
+          <Text style={{ marginTop: 8, color: colors.muted, fontWeight: "600", textAlign: "center" }}>
             Només per admins. Aquesta opció només funciona si el partit està completament buit.
           </Text>
 
@@ -379,20 +382,20 @@ export default function MatchScreen() {
           <View
             style={{
               borderWidth: 1,
-              borderColor: simulateCanRun === false ? "#FCA5A5" : "#E5E7EB",
+              borderColor: simulateCanRun === false ? "#FCA5A5" : colors.border,
               borderRadius: 14,
               padding: 14,
-              backgroundColor: simulateCanRun === false ? "#FEF2F2" : "#F9FAFB",
+              backgroundColor: simulateCanRun === false ? "#FEF2F2" : colors.bg,
             }}
           >
-            <Text style={{ fontWeight: "900", fontSize: 16, marginBottom: 8 }}>Previsualització</Text>
-            <Text style={{ color: "#374151", fontWeight: "700", marginBottom: 4 }}>
+            <Text style={{ fontWeight: "900", fontSize: 16, marginBottom: 8, color: colors.text }}>Previsualització</Text>
+            <Text style={{ color: colors.muted, fontWeight: "700", marginBottom: 4 }}>
               Jugadors {teamA?.name ?? "Equip A"}: {simulateTeamACount ?? "-"}
             </Text>
-            <Text style={{ color: "#374151", fontWeight: "700", marginBottom: 8 }}>
+            <Text style={{ color: colors.muted, fontWeight: "700", marginBottom: 8 }}>
               Jugadors {teamB?.name ?? "Equip B"}: {simulateTeamBCount ?? "-"}
             </Text>
-            <Text style={{ color: simulateCanRun === false ? "#B91C1C" : "#111827", fontWeight: "900" }}>
+            <Text style={{ color: simulateCanRun === false ? "#B91C1C" : colors.text, fontWeight: "900" }}>
               {simulatePreviewText}
             </Text>
           </View>
@@ -404,17 +407,17 @@ export default function MatchScreen() {
               marginTop: 14,
               paddingVertical: 12,
               borderRadius: 12,
-              backgroundColor: "#F5F3FF",
+              backgroundColor: isDark ? "rgba(139,92,246,0.15)" : "#F5F3FF",
               borderWidth: 1,
-              borderColor: "#DDD6FE",
+              borderColor: isDark ? "rgba(167,139,250,0.4)" : "#DDD6FE",
               alignItems: "center",
               opacity: saving || simulateChecking ? 0.6 : 1,
             }}
           >
             {simulateChecking ? (
-              <ActivityIndicator color="#6D28D9" />
+              <ActivityIndicator color={isDark ? "#a78bfa" : "#6D28D9"} />
             ) : (
-              <Text style={{ fontWeight: "900", color: "#6D28D9" }}>Carregar previsualització</Text>
+              <Text style={{ fontWeight: "900", color: isDark ? "#a78bfa" : "#6D28D9" }}>Carregar previsualització</Text>
             )}
           </Pressable>
 
@@ -425,15 +428,15 @@ export default function MatchScreen() {
               marginTop: 10,
               paddingVertical: 14,
               borderRadius: 12,
-              backgroundColor: "#111827",
+              backgroundColor: colors.primary,
               alignItems: "center",
               opacity: saving || simulateChecking || !simulateCanRun ? 0.6 : 1,
             }}
           >
             {saving ? (
-              <ActivityIndicator color="white" />
+              <ActivityIndicator color={colors.primaryText} />
             ) : (
-              <Text style={{ color: "white", fontWeight: "900" }}>Acceptar simulació</Text>
+              <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Acceptar simulació</Text>
             )}
           </Pressable>
 
@@ -442,7 +445,7 @@ export default function MatchScreen() {
             disabled={saving || simulateChecking}
             style={{ paddingVertical: 12, alignItems: "center", marginTop: 10, opacity: saving || simulateChecking ? 0.6 : 1 }}
           >
-            <Text style={{ color: "#666", fontWeight: "800" }}>Tancar</Text>
+            <Text style={{ color: colors.muted, fontWeight: "800" }}>Tancar</Text>
           </Pressable>
         </View>
       </View>
@@ -1222,20 +1225,7 @@ function onNoShowPress() {
     <View style={{ flex: 1, padding: 16 }}>
       {coinFlipModal}
       {simulateModal}
-      <Pressable
-        onPress={() => router.replace('/matches')}
-        style={{
-          alignSelf: "flex-start",
-          paddingVertical: 8,
-          paddingHorizontal: 12,
-          borderRadius: 10,
-          borderWidth: 1,
-          borderColor: "#ccc",
-          marginBottom: 12,
-        }}
-      >
-        <Text style={{ fontWeight: "600" }}>← Tornar</Text>
-      </Pressable>
+      <BackButton onPress={() => router.replace('/matches')} />
 {myRefereeId !== 2 && (
       <Pressable
         onPress={() => {
@@ -1258,20 +1248,20 @@ function onNoShowPress() {
           paddingHorizontal: 12,
           borderRadius: 10,
           borderWidth: 1,
-          borderColor: "#ccc",
-          backgroundColor: "white",
+          borderColor: colors.border,
+          backgroundColor: colors.card,
           opacity: saving || !!matchRow?.is_finished ? 0.6 : 1
         }}
       >
-        <Text style={{ fontWeight: "600" }}>Assignar a àrbitre genèric</Text>
+        <Text style={{ fontWeight: "800", color: colors.text }}>Assignar a àrbitre genèric</Text>
       </Pressable>
 )}
 
-      <Text style={{ fontSize: 20, fontWeight: "bold", textAlign: "center" }}>
+      <Text style={{ fontSize: 20, fontWeight: "bold", textAlign: "center", color: colors.text,marginTop:8 }}>
         {teamA.name} vs {teamB.name}
       </Text>
 
-      <Text style={{ textAlign: "center", color: "#666", marginTop: 6 }}>
+      <Text style={{ textAlign: "center", color: colors.muted, marginTop: 6 }}>
         Match #{matchView.match_id} · Àrbitre: {refereeLabel}
       </Text>
 
@@ -1283,11 +1273,11 @@ function onNoShowPress() {
             padding: 14,
             borderRadius: 12,
             borderWidth: 1,
-            borderColor: "#ddd",
-            backgroundColor: "#fafafa",
+            borderColor: colors.border,
+            backgroundColor: colors.bg,
           }}
         >
-          <Text style={{ fontSize: 16, fontWeight: "800", textAlign: "center" }}>
+          <Text style={{ fontSize: 16, fontWeight: "800", textAlign: "center", color: colors.text }}>
             Qui tira primer?
           </Text>
 
@@ -1327,7 +1317,7 @@ function onNoShowPress() {
           </Pressable>
 
           {saving ? (
-            <Text style={{ marginTop: 10, textAlign: "center", color: "#666" }}>
+            <Text style={{ marginTop: 10, textAlign: "center", color: colors.muted }}>
               Preparant partit...
             </Text>
           ) : null}
@@ -1338,13 +1328,13 @@ function onNoShowPress() {
             padding: 14,
             borderRadius: 12,
             borderWidth: 1,
-            borderColor: "#ddd",
-            backgroundColor: "#fafafa",
+            borderColor: colors.border,
+            backgroundColor: colors.bg,
             alignItems: "center",
           }}
         >
-          <Text style={{ fontSize: 16, fontWeight: "800" }}>Partit preparat ✅</Text>
-          <Text style={{ marginTop: 6, textAlign: "center", color: "#666" }}>
+          <Text style={{ fontSize: 16, fontWeight: "800", color: colors.text }}>Partit preparat ✅</Text>
+          <Text style={{ marginTop: 6, textAlign: "center", color: colors.muted }}>
             {firstTeamName ? (
               <>
                 Comença: <Text style={{ fontWeight: "900" }}>{firstTeamName}</Text>
@@ -1368,10 +1358,10 @@ function onNoShowPress() {
               paddingHorizontal: 14,
               borderRadius: 10,
               borderWidth: 1,
-              borderColor: "#ccc",
+              borderColor: colors.border,
             }}
           >
-            <Text style={{ fontWeight: "600" }}>Continuar</Text>
+            <Text style={{ fontWeight: "600", color: colors.text }}>Continuar</Text>
           </Pressable>
         </View>
       )}
@@ -1387,22 +1377,22 @@ function onNoShowPress() {
         padding: 14,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: "#ddd",
-        backgroundColor: "white",
+        borderColor: colors.border,
+        backgroundColor: colors.card,
         alignItems: "center",
         opacity: saving || !!matchRow?.is_finished ? 0.6 : 1,
       }}
     >
       <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8 }}>
-         <FontAwesome5 name="coins" size={18} />
-         <Text style={{ fontSize: 16, fontWeight: "900" }}>Moneda a l'aire</Text>
+         <FontAwesome5 name="coins" size={18} color={colors.text} />
+         <Text style={{ fontSize: 16, fontWeight: "900", color: colors.text }}>Moneda a l'aire</Text>
       </View>
-      <Text style={{ marginTop: 2, color: "#666" }}>
+      <Text style={{ marginTop: 2, color: colors.muted }}>
         Decideix qui escull primer
       </Text>
 
       {coinFlipResult && teamA && teamB && (
-        <Text style={{ marginTop: 8, fontWeight: "800" }}>
+        <Text style={{ marginTop: 8, fontWeight: "800",color:colors.text }}>
           Resultat: {coinFlipResult === "A" ? teamA.name : teamB.name}
           {coinFlipAt ? `  ·  ${new Date(coinFlipAt).toLocaleTimeString()}` : ""}
         </Text>
@@ -1443,8 +1433,8 @@ function onNoShowPress() {
           paddingHorizontal: 12,
           borderRadius: 12,
           borderWidth: 1,
-          borderColor: "#DDD6FE",
-          backgroundColor: "#F5F3FF",
+          borderColor: isDark ? "rgba(167,139,250,0.4)" : "#DDD6FE",
+          backgroundColor: isDark ? "rgba(139,92,246,0.12)" : "#F5F3FF",
           marginBottom: 30,
           alignItems: "center",
           opacity: saving || !!matchRow?.is_finished ? 0.6 : 1,

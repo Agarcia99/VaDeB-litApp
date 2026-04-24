@@ -11,6 +11,7 @@ Platform,
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { BackButton, RefreshButton } from "../components/HeaderButtons";
+import { useAppTheme } from "../src/theme";
 // ✅ Ajusta aquest import si al teu projecte el client està a una altra ruta
 import { supabase } from "../src/supabase";
 
@@ -216,6 +217,7 @@ function buildStandings(
 
 export default function TeamRankingsScreen() {
   const router = useRouter();
+  const { colors, isDark } = useAppTheme();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -361,7 +363,7 @@ export default function TeamRankingsScreen() {
 
     const sanctionTotals: SanctionTotalsByTeam = {};
 
-    for (const row of (sData ?? []) as TeamSanctionRow[]) {
+    for (const row of ((sData ?? []) as unknown) as TeamSanctionRow[]) {
       const teamId = safeNum(row.championship_team?.team_id, NaN);
       if (!Number.isFinite(teamId)) continue;
 
@@ -448,17 +450,17 @@ export default function TeamRankingsScreen() {
         paddingHorizontal: 12,
         paddingVertical: 10,
         borderBottomWidth: 1,
-        borderColor: "#e5e7eb",
+        borderColor: colors.border,
       }}
     >
-      <Text style={{ width: 26, color: "#6b7280", fontWeight: "800" }}>#</Text>
-      <Text style={{ minWidth: 220, flexShrink: 0, color: "#6b7280", fontWeight: "800" }}>Equip</Text>
-      <Text style={{ width: 40, textAlign: "right", color: "#6b7280", fontWeight: "800" }}>Pts</Text>
-      <Text style={{ width: 34, textAlign: "right", color: "#6b7280", fontWeight: "800" }}>PJ</Text>
-      <Text style={{ width: 34, textAlign: "right", color: "#6b7280", fontWeight: "800" }}>G</Text>
-      <Text style={{ width: 34, textAlign: "right", color: "#6b7280", fontWeight: "800" }}>E</Text>
-      <Text style={{ width: 34, textAlign: "right", color: "#6b7280", fontWeight: "800" }}>P</Text>
-      <Text style={{ width: 44, textAlign: "right", color: "#6b7280", fontWeight: "800" }}>DC</Text>
+      <Text style={{ width: 26, color: colors.muted, fontWeight: "800" }}>#</Text>
+      <Text style={{ minWidth: 220, flexShrink: 0, color: colors.muted, fontWeight: "800" }}>Equip</Text>
+      <Text style={{ width: 40, textAlign: "right", color: colors.muted, fontWeight: "800" }}>Pts</Text>
+      <Text style={{ width: 34, textAlign: "right", color: colors.muted, fontWeight: "800" }}>PJ</Text>
+      <Text style={{ width: 34, textAlign: "right", color: colors.muted, fontWeight: "800" }}>G</Text>
+      <Text style={{ width: 34, textAlign: "right", color: colors.muted, fontWeight: "800" }}>E</Text>
+      <Text style={{ width: 34, textAlign: "right", color: colors.muted, fontWeight: "800" }}>P</Text>
+      <Text style={{ width: 44, textAlign: "right", color: colors.muted, fontWeight: "800" }}>DC</Text>
     </View>
   );
 
@@ -466,17 +468,17 @@ export default function TeamRankingsScreen() {
     return (
       <View
         style={{
-          backgroundColor: "white",
+          backgroundColor: colors.card,
           borderRadius: 18,
           borderWidth: 1,
-          borderColor: "#e5e7eb",
+          borderColor: colors.border,
           marginHorizontal: 16,
           marginBottom: 14,
           overflow: "hidden",
         }}
       >
         <View style={{ padding: 14, paddingBottom: 10 }}>
-          <Text style={{ fontSize: 16, fontWeight: "900", color: "#111827" }}>{title}</Text>
+          <Text style={{ fontSize: 16, fontWeight: "900", color: colors.text }}>{title}</Text>
         </View>
         <ScrollView horizontal showsHorizontalScrollIndicator>
           <View>
@@ -504,7 +506,7 @@ export default function TeamRankingsScreen() {
                     <View
                       style={{
                         height: 5,
-                        backgroundColor: "#FECACA",
+                        backgroundColor: isDark ? "rgba(239, 68, 68, 0.3)" : "#FECACA",
                         marginHorizontal: 0,
                         marginVertical: 6,
                         borderRadius: 8,
@@ -519,11 +521,11 @@ export default function TeamRankingsScreen() {
                   paddingHorizontal: 12,
                   paddingVertical: 11,
                   borderTopWidth: idx === 0 ? 0 : 1,
-                  borderColor: isEliminated ? "#FCA5A5" : "#f3f4f6",
-                  backgroundColor: isEliminated ? "#FEF2F2" : (idx % 2 === 0 ? "white" : "#fafafa"),
+                  borderColor: isEliminated ? (isDark ? "rgba(239, 68, 68, 0.3)" : "#FCA5A5") : colors.border,
+                  backgroundColor: isEliminated ? (isDark ? "rgba(239, 68, 68, 0.12)" : "#FEF2F2") : (idx % 2 === 0 ? colors.card : colors.cardAlt),
                 }}
               >
-                <Text style={{ width: 26, fontWeight: "900", color: isEliminated ? "#991B1B" : "#111827" }}>
+                <Text style={{ width: 26, fontWeight: "900", color: isEliminated ? (isDark ? "#f87171" : "#991B1B") : colors.text }}>
                   {idx === 0 ? "🥇" : idx === 1 ? "🥈" : idx === 2 ? "🥉" : rank}
                 </Text>
 
@@ -532,25 +534,25 @@ export default function TeamRankingsScreen() {
                     minWidth: 220,
                     flexShrink: 0,
                     fontWeight: "800",
-                    color: isEliminated ? "#7F1D1D" : "#111827",
+                    color: isEliminated ? (isDark ? "#fca5a5" : "#7F1D1D") : colors.text,
                     paddingRight: 10,
                   }}
                 >
                   {r.teamName}
                 </Text>
-                <Text style={{ width: 40, textAlign: "right", fontWeight: "900", color: "#111827" }}>
+                <Text style={{ width: 40, textAlign: "right", fontWeight: "900", color: colors.text }}>
                   {r.points}
                 </Text>
-                <Text style={{ width: 34, textAlign: "right", fontWeight: "800", color: "#111827" }}>
+                <Text style={{ width: 34, textAlign: "right", fontWeight: "800", color: colors.text }}>
                   {r.played}
                 </Text>
-                <Text style={{ width: 34, textAlign: "right", fontWeight: "800", color: "#111827" }}>
+                <Text style={{ width: 34, textAlign: "right", fontWeight: "800", color: colors.text }}>
                   {r.wins}
                 </Text>
-                <Text style={{ width: 34, textAlign: "right", fontWeight: "800", color: "#111827" }}>
+                <Text style={{ width: 34, textAlign: "right", fontWeight: "800", color: colors.text }}>
                   {r.draws}
                 </Text>
-                <Text style={{ width: 34, textAlign: "right", fontWeight: "800", color: "#111827" }}>
+                <Text style={{ width: 34, textAlign: "right", fontWeight: "800", color: colors.text }}>
                   {r.losses}
                 </Text>
                 <Text
@@ -575,17 +577,17 @@ export default function TeamRankingsScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: "#f3f4f6" }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }}>
         <View style={{ padding: 16 }}>
-          <ActivityIndicator />
-          <Text style={{ marginTop: 10, color: "#6b7280" }}>Carregant classificació...</Text>
+          <ActivityIndicator color={colors.primary} />
+          <Text style={{ marginTop: 10, color: colors.muted }}>Carregant classificació...</Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView edges={["left","right","bottom"]} style={{ flex: 1, backgroundColor: "#f3f4f6" }}>
+    <SafeAreaView edges={["left","right","bottom"]} style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={reload} />}
         contentContainerStyle={{ paddingBottom: 24 }}
@@ -600,10 +602,10 @@ export default function TeamRankingsScreen() {
 
             <View style={{ flex: 1 }} />
           </View>
-<Text style={{ fontSize: 20, fontWeight: "900", color: "#111827",textAlign: "center",paddingTop:10 }}>Classificació equips</Text>
+<Text style={{ fontSize: 20, fontWeight: "900", color: colors.text, textAlign: "center", paddingTop: 10 }}>Classificació equips</Text>
 <View style={{ alignItems: "center",paddingTop:10 }}>
             <Pressable
-              onPress={() => router.push("public-bracket")}
+              onPress={() => router.push("/public-bracket")}
               style={({ pressed }) => [
 	            {
 	              alignSelf: "center",
@@ -613,7 +615,7 @@ export default function TeamRankingsScreen() {
 	              paddingVertical: 8,
 	              paddingHorizontal: 10,
 	              borderRadius: 12,
-	              backgroundColor: "white",
+                backgroundColor: colors.card,
 	              opacity: pressed ? 0.85 : 1,
 	            },
 	            (Platform.select({
@@ -627,7 +629,7 @@ export default function TeamRankingsScreen() {
 	            }) as any),
 	          ]}
             >
-              <Text style={{ fontSize: 16, fontWeight: "700" }}>Veure eliminatòries</Text>
+              <Text style={{ fontSize: 16, fontWeight: "700", color: colors.text }}>Veure eliminatòries</Text>
             </Pressable>
 
             <View style={{ flex: 1 }} />
@@ -635,18 +637,18 @@ export default function TeamRankingsScreen() {
           <View style={{ marginTop: 12 }}>
             <View
               style={{
-                backgroundColor: "white",
+                backgroundColor: colors.card,
                 borderRadius: 16,
                 padding: 14,
                 borderWidth: 1,
-                borderColor: "#e5e7eb",
+                borderColor: colors.border,
               }}
             >
-              <Text style={{ color: "#6b7280", fontSize: 12, fontWeight: "700" }}>Format</Text>
-              <Text style={{ marginTop: 4, fontSize: 16, fontWeight: "900", color: "#111827" }}>
+              <Text style={{ color: colors.muted, fontSize: 12, fontWeight: "700" }}>Format</Text>
+              <Text style={{ marginTop: 4, fontSize: 16, fontWeight: "900", color: colors.text }}>
                 {mode === "groups" ? "Fase de grups" : "Lliga"}
               </Text>
-              <Text style={{ marginTop: 6, color: "#6b7280" }}>
+              <Text style={{ marginTop: 6, color: colors.muted }}>
                 Es mostren tots els equips encara que no s’hagin jugat partits. Els punts es calculen amb la configuració
                 del campionat.
               </Text>

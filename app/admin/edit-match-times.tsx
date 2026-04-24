@@ -11,6 +11,7 @@ import { useRouter } from "expo-router";
 import { supabase } from "../../src/supabase";
 import { BackButton } from "../../components/HeaderButtons";
 import { Keyboard } from "react-native";
+import { useAppTheme } from "../../src/theme";
 
 type MatchTimeRow = {
   id: number;
@@ -86,6 +87,7 @@ function buildUtcIsoFromLocalParts(date: string, time: string) {
 
 export default function EditMatchTimesScreenV2() {
   const router = useRouter();
+  const { colors } = useAppTheme();
 
   const [matchIdInput, setMatchIdInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -215,29 +217,29 @@ export default function EditMatchTimesScreenV2() {
   }
 
   return (
-    <View style={{ flex: 1, padding: 16, backgroundColor: "#F8FAFC" }}>
+    <View style={{ flex: 1, padding: 16, backgroundColor: colors.bg }}>
       <View style={{ flexDirection: "row", alignItems: "center", marginBottom: 16 }}>
         <BackButton onPress={() => router.back()} />
       </View>
 
-      <Text style={{ fontSize: 22, fontWeight: "800", marginBottom: 6 }}>
+      <Text style={{ fontSize: 22, fontWeight: "800", marginBottom: 6, color: colors.text }}>
         🕒 Canviar hores partit
       </Text>
-      <Text style={{ color: "#4B5563", fontWeight: "700", marginBottom: 16 }}>
+      <Text style={{ color: colors.muted, fontWeight: "700", marginBottom: 16 }}>
         Entra data i hora en local. La pantalla les guardarà en UTC automàticament.
       </Text>
 
       <View
         style={{
-          backgroundColor: "white",
+          backgroundColor: colors.card,
           borderRadius: 14,
           padding: 14,
           borderWidth: 1,
-          borderColor: "#E5E7EB",
+          borderColor: colors.border,
           marginBottom: 14,
         }}
       >
-        <Text style={{ fontWeight: "800", marginBottom: 8 }}>ID del partit</Text>
+        <Text style={{ fontWeight: "800", marginBottom: 8, color: colors.text }}>ID del partit</Text>
         <TextInput
           value={matchIdInput}
           onChangeText={setMatchIdInput}
@@ -245,11 +247,12 @@ export default function EditMatchTimesScreenV2() {
           placeholder="Ex: 123"
           style={{
             borderWidth: 1,
-            borderColor: "#D1D5DB",
+            borderColor: colors.border,
             borderRadius: 12,
             paddingHorizontal: 12,
             paddingVertical: 10,
             marginBottom: 12,
+            color: colors.text,
           }}
         />
 
@@ -259,15 +262,15 @@ export default function EditMatchTimesScreenV2() {
           style={{
             paddingVertical: 12,
             borderRadius: 12,
-            backgroundColor: "#111827",
+            backgroundColor: colors.primary,
             alignItems: "center",
             opacity: loading ? 0.45 : 1,
           }}
         >
           {loading ? (
-            <ActivityIndicator color="white" />
+            <ActivityIndicator color={colors.primaryText} />
           ) : (
-            <Text style={{ color: "white", fontWeight: "900" }}>Carregar partit</Text>
+            <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Carregar partit</Text>
           )}
         </Pressable>
       </View>
@@ -275,24 +278,24 @@ export default function EditMatchTimesScreenV2() {
       {matchRow ? (
         <View
           style={{
-            backgroundColor: "white",
+            backgroundColor: colors.card,
             borderRadius: 14,
             padding: 14,
             borderWidth: 1,
-            borderColor: "#E5E7EB",
+            borderColor: colors.border,
           }}
         >
-          <Text style={{ fontWeight: "900", fontSize: 16 }}>
+          <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>
             {matchRow.team_a?.name ?? `Equip ${matchRow.team_a_id}`} vs {matchRow.team_b?.name ?? `Equip ${matchRow.team_b_id}`}
           </Text>
-          <Text style={{ marginTop: 6, color: "#4B5563", fontWeight: "700" }}>
+          <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "700" }}>
             Estat: {matchRow.is_finished ? "Finalitzat" : "Obert"}
           </Text>
 
-          <Text style={{ fontWeight: "900", marginTop: 16, marginBottom: 10 }}>Hora inici</Text>
+          <Text style={{ fontWeight: "900", marginTop: 16, marginBottom: 10, color: colors.text }}>Hora inici</Text>
           <View style={{ flexDirection: "row", gap: 10 }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontWeight: "800", marginBottom: 6 }}>Data</Text>
+              <Text style={{ fontWeight: "800", marginBottom: 6, color: colors.text }}>Data</Text>
               <TextInput
                 value={startedDate}
                 onChangeText={setStartedDate}
@@ -301,19 +304,20 @@ export default function EditMatchTimesScreenV2() {
                 autoCorrect={false}
                 style={{
                   borderWidth: 1,
-                  borderColor: "#D1D5DB",
+                  borderColor: colors.border,
                   borderRadius: 12,
                   paddingHorizontal: 12,
                   paddingVertical: 10,
                   marginBottom: 12,
+                  color: colors.text,
                 }}
-              />
+                />
             </View>
 
             <View style={{ width: 120 }}>
-              <Text style={{ fontWeight: "800", marginBottom: 6 }}>Hora</Text>
+              <Text style={{ fontWeight: "800", marginBottom: 6, color: colors.text }}>Hora</Text>
               <TextInput
-                value={startedTime}
+                value={finishedTime}
                 onChangeText={setStartedTime}
                 placeholder="09:35"
                 keyboardType="numbers-and-punctuation"
@@ -321,20 +325,21 @@ export default function EditMatchTimesScreenV2() {
                 autoCorrect={false}
                 style={{
                   borderWidth: 1,
-                  borderColor: "#D1D5DB",
+                  borderColor: colors.border,
                   borderRadius: 12,
                   paddingHorizontal: 12,
                   paddingVertical: 10,
                   marginBottom: 12,
+                  color: colors.text,
                 }}
               />
             </View>
           </View>
 
-          <Text style={{ fontWeight: "900", marginBottom: 10 }}>Hora fi</Text>
+          <Text style={{ fontWeight: "900", marginBottom: 10, color: colors.text }}>Hora fi</Text>
           <View style={{ flexDirection: "row", gap: 10 }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontWeight: "800", marginBottom: 6 }}>Data</Text>
+              <Text style={{ fontWeight: "800", marginBottom: 6, color: colors.text }}>Data</Text>
               <TextInput
                 value={finishedDate}
                 onChangeText={setFinishedDate}
@@ -343,17 +348,18 @@ export default function EditMatchTimesScreenV2() {
                 autoCorrect={false}
                 style={{
                   borderWidth: 1,
-                  borderColor: "#D1D5DB",
+                  borderColor: colors.border,
                   borderRadius: 12,
                   paddingHorizontal: 12,
                   paddingVertical: 10,
                   marginBottom: 12,
+                  color: colors.text,
                 }}
               />
             </View>
 
             <View style={{ width: 120 }}>
-              <Text style={{ fontWeight: "800", marginBottom: 6 }}>Hora</Text>
+              <Text style={{ fontWeight: "800", marginBottom: 6, color: colors.text }}>Hora</Text>
               <TextInput
                 value={finishedTime}
                 onChangeText={setFinishedTime}
@@ -363,24 +369,25 @@ export default function EditMatchTimesScreenV2() {
                 autoCorrect={false}
                 style={{
                   borderWidth: 1,
-                  borderColor: "#D1D5DB",
+                  borderColor: colors.border,
                   borderRadius: 12,
                   paddingHorizontal: 12,
                   paddingVertical: 10,
                   marginBottom: 12,
+                  color: colors.text,
                 }}
               />
             </View>
           </View>
 
-          <Text style={{ fontWeight: "800", marginBottom: 8 }}>Motiu (opcional)</Text>
+          <Text style={{ fontWeight: "800", marginBottom: 8, color: colors.text }}>Motiu (opcional)</Text>
           <TextInput
             value={reason}
             onChangeText={setReason}
             placeholder="Ex: correcció hora inici real"
             style={{
               borderWidth: 1,
-              borderColor: "#D1D5DB",
+              borderColor: colors.border,
               borderRadius: 12,
               paddingHorizontal: 12,
               paddingVertical: 10,
@@ -394,15 +401,15 @@ export default function EditMatchTimesScreenV2() {
             style={{
               paddingVertical: 12,
               borderRadius: 12,
-              backgroundColor: "#111827",
+              backgroundColor: colors.primary,
               alignItems: "center",
               opacity: saving ? 0.45 : 1,
             }}
           >
             {saving ? (
-              <ActivityIndicator color="white" />
+              <ActivityIndicator color={colors.primaryText} />
             ) : (
-              <Text style={{ color: "white", fontWeight: "900" }}>Guardar hores</Text>
+              <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Guardar hores</Text>
             )}
           </Pressable>
         </View>

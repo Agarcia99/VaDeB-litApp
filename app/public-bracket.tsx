@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { supabase } from "../src/supabase";
 import { BackButton, RefreshButton } from "../components/HeaderButtons";
+import { useAppTheme, AppColors } from "../src/theme";
 
 type TeamRef = { id: number; name?: string | null };
 
@@ -220,6 +221,7 @@ function buildBracket(matchesByPhase: Record<number, MatchRow[]>): RoundCol[] {
 
 export default function PublicBracket() {
   const router = useRouter();
+  const { colors } = useAppTheme();
   const [loading, setLoading] = useState(true);
   const [matches, setMatches] = useState<MatchRow[]>([]);
 
@@ -269,7 +271,7 @@ export default function PublicBracket() {
       return;
     }
 
-    setMatches((data ?? []) as MatchRow[]);
+    setMatches(((data ?? []) as unknown) as MatchRow[]);
     setLoading(false);
   }
 
@@ -300,6 +302,7 @@ export default function PublicBracket() {
   }, [bracket, matchesByPhase]);
 
   const hasAny = useMemo(() => bracket.length > 0 && bracket.some((c) => c.slots.some((s) => s.match != null)), [bracket]);
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   return (
     <SafeAreaView edges={["left", "right", "bottom"]} style={styles.container}>
@@ -338,6 +341,7 @@ export default function PublicBracket() {
                       derivedB={slot.derivedB}
                       onOpen={(id) => router.push({ pathname: "/match-summary", params: { id: String(id) } })}
                       isLastCol={colIdx === bracket.length - 1}
+                      styles={styles}
                     />
                   ))}
                 </View>
@@ -357,6 +361,7 @@ function BracketMatchCard({
   derivedB,
   onOpen,
   isLastCol,
+  styles,
 }: {
   top: number;
   match: MatchRow | null;
@@ -364,6 +369,7 @@ function BracketMatchCard({
   derivedB?: string;
   onOpen: (id: number) => void;
   isLastCol: boolean;
+  styles: ReturnType<typeof getStyles>;
 }) {
   const w = match ? getWinnerSide(match) : null;
   const aWin = w === "A";
@@ -407,137 +413,139 @@ function BracketMatchCard({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#f6f7fb",
-    padding: 16,
-  },
-  backBtn: {
-    alignSelf: "flex-start",
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-    borderRadius: 10,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-    backgroundColor: "#fff",
-    marginBottom: 12,
-  },
-  backText: {
-    fontWeight: "900",
-    color: "#111827",
-  },
-  title: {
-    fontSize: 20,
-    textAlign: "center",
-    fontWeight: "900",
-    color: "#111827",
-  },
-  loading: {
-    textAlign: "center",
-    marginTop: 28,
-    fontSize: 16,
-    color: "#6b7280",
-    fontWeight: "700",
-  },
-  emptyWrap: {
-    marginTop: 24,
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
-  },
-  emptyTitle: {
-    fontWeight: "900",
-    fontSize: 16,
-    color: "#111827",
-  },
-  emptyText: {
-    marginTop: 6,
-    color: "#6b7280",
-    fontWeight: "700",
-    lineHeight: 18,
-  },
-  column: {
-    marginRight: 14,
-  },
-  phasePill: {
-    alignSelf: "flex-start",
-    backgroundColor: "#111827",
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    marginBottom: 10,
-  },
-  phaseTitle: {
-    color: "#fff",
-    fontWeight: "900",
-  },
-  card: {
-    width: COL_W - 8,
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: "rgba(16, 24, 40, 0.08)",
-    shadowColor: "#000",
-    shadowOpacity: 0.07,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 7 },
-    elevation: 3,
-  },
-  teamRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 2,
-    borderRadius: 10,
-    paddingHorizontal: 8,
-  },
-  team: {
-    flex: 1,
-    marginRight: 10,
-    fontWeight: "900",
-    color: "#111827",
-  },
-  score: {
-    width: 100,
-    textAlign: "right",
-    fontWeight: "900",
-    color: "#111827",
-  },
-  winRow: {
-    backgroundColor: "rgba(34,197,94,0.12)",
-  },
-  winText: {
-    color: "#166534",
-  },
-  cardFooter: {
-    marginTop: 8,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  status: {
-    fontWeight: "800",
-    color: "#6b7280",
-  },
-  openBtn: {
-    backgroundColor: "#111827",
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-  },
-  openBtnText: {
-    color: "#fff",
-    fontWeight: "900",
-  },
-  openBtnDisabled: {
-    backgroundColor: "rgba(17,24,39,0.12)",
-  },
-  openBtnTextDisabled: {
-    color: "rgba(17,24,39,0.55)",
-    fontWeight: "900",
-  },
-});
+function getStyles(colors: AppColors) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.bg,
+      padding: 16,
+    },
+    backBtn: {
+      alignSelf: "flex-start",
+      paddingVertical: 8,
+      paddingHorizontal: 12,
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      backgroundColor: colors.card,
+      marginBottom: 12,
+    },
+    backText: {
+      fontWeight: "900",
+      color: colors.text,
+    },
+    title: {
+      fontSize: 20,
+      textAlign: "center",
+      fontWeight: "900",
+      color: colors.text,
+    },
+    loading: {
+      textAlign: "center",
+      marginTop: 28,
+      fontSize: 16,
+      color: colors.muted,
+      fontWeight: "700",
+    },
+    emptyWrap: {
+      marginTop: 24,
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    emptyTitle: {
+      fontWeight: "900",
+      fontSize: 16,
+      color: colors.text,
+    },
+    emptyText: {
+      marginTop: 6,
+      color: colors.muted,
+      fontWeight: "700",
+      lineHeight: 18,
+    },
+    column: {
+      marginRight: 14,
+    },
+    phasePill: {
+      alignSelf: "flex-start",
+      backgroundColor: colors.primary,
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      borderRadius: 999,
+      marginBottom: 10,
+    },
+    phaseTitle: {
+      color: colors.primaryText,
+      fontWeight: "900",
+    },
+    card: {
+      width: COL_W - 8,
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 12,
+      borderWidth: 1,
+      borderColor: colors.border,
+      shadowColor: "#000",
+      shadowOpacity: 0.07,
+      shadowRadius: 12,
+      shadowOffset: { width: 0, height: 7 },
+      elevation: 3,
+    },
+    teamRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingVertical: 2,
+      borderRadius: 10,
+      paddingHorizontal: 8,
+    },
+    team: {
+      flex: 1,
+      marginRight: 10,
+      fontWeight: "900",
+      color: colors.text,
+    },
+    score: {
+      width: 100,
+      textAlign: "right",
+      fontWeight: "900",
+      color: colors.text,
+    },
+    winRow: {
+      backgroundColor: "rgba(34,197,94,0.12)",
+    },
+    winText: {
+      color: "#166534",
+    },
+    cardFooter: {
+      marginTop: 8,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    status: {
+      fontWeight: "800",
+      color: colors.muted,
+    },
+    openBtn: {
+      backgroundColor: colors.primary,
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      borderRadius: 999,
+    },
+    openBtnText: {
+      color: colors.primaryText,
+      fontWeight: "900",
+    },
+    openBtnDisabled: {
+      backgroundColor: "rgba(17,24,39,0.12)",
+    },
+    openBtnTextDisabled: {
+      color: "rgba(17,24,39,0.55)",
+      fontWeight: "900",
+    },
+  });
+}

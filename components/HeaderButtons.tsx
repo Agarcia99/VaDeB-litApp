@@ -1,5 +1,6 @@
 import React from "react";
 import { Pressable, Text, Platform, ViewStyle, StyleProp } from "react-native";
+import { useAppTheme } from "../src/theme";
 
 export function BackButton({
   onPress,
@@ -8,6 +9,7 @@ export function BackButton({
   onPress: () => void;
   style?: StyleProp<ViewStyle>;
 }) {
+  const { colors } = useAppTheme();
   return (
     <Pressable
       onPress={onPress}
@@ -20,10 +22,10 @@ export function BackButton({
           paddingVertical: 8,
           paddingHorizontal: 10,
           borderRadius: 12,
-          borderWidth:1,
-          borderColor: "#ddd",
-          backgroundColor: "white",
-          opacity: pressed ? 0.85 : 1,
+          borderWidth: 1,
+          borderColor: colors.border,
+          backgroundColor: colors.card,
+          opacity: pressed ? 0.75 : 1,
         },
         Platform.select({
           ios: {
@@ -37,8 +39,8 @@ export function BackButton({
         style,
       ]}
     >
-      <Text style={{ fontSize: 18, fontWeight: "800" }}>←</Text>
-      <Text style={{ fontSize: 15, fontWeight: "700" }}>Tornar</Text>
+      <Text style={{ fontSize: 18, fontWeight: "800", color: colors.text }}>←</Text>
+      <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>Tornar</Text>
     </Pressable>
   );
 }
@@ -52,6 +54,7 @@ export function RefreshButton({
   style?: StyleProp<ViewStyle>;
   label?: string;
 }) {
+  const { colors } = useAppTheme();
   return (
     <Pressable
       onPress={onPress}
@@ -61,14 +64,15 @@ export function RefreshButton({
           paddingHorizontal: 14,
           borderRadius: 12,
           borderWidth: 1,
-          borderColor: "#ddd",
-          backgroundColor: "white",
-          opacity: pressed ? 0.85 : 1,
+          borderColor: colors.border,
+          backgroundColor: colors.card,
+          opacity: pressed ? 0.75 : 1,
         },
         style,
       ]}
     >
-      <Text style={{ fontWeight: "800" }}>{label}</Text>
+      <Text style={{ fontWeight: "800", color: colors.text }}>{label}</Text>
     </Pressable>
   );
 }
+

@@ -15,6 +15,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import { supabase } from "../src/supabase";
+import { useAppTheme } from "../src/theme";
 
 type RoundRow = {
   round_id: number;
@@ -121,6 +122,8 @@ export default function PlayScreen() {
   const params = useLocalSearchParams<{ matchId?: string; roundId?: string }>();
   const matchId = Number(params.matchId);
   const roundIdParam = params.roundId ? Number(params.roundId) : null;
+
+  const { colors } = useAppTheme();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1224,11 +1227,11 @@ if (canasValue <= 0) {
             paddingHorizontal: 12,
             borderRadius: 10,
             borderWidth: 1,
-            borderColor: "#ccc",
+            borderColor: colors.border,
             opacity: saving || playsDone > 0 ? 0.35 : 1,
           }}
         >
-          <Text style={{ fontWeight: "600" }}>⤴︎ Sortir</Text>
+          <Text style={{ fontWeight: "600", color: colors.text }}>⤴︎ Sortir</Text>
         </Pressable>
 
         <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
@@ -1239,11 +1242,11 @@ if (canasValue <= 0) {
               paddingHorizontal: 10,
               borderRadius: 999,
               borderWidth: 1,
-              borderColor: timerRunning ? "#2563EB" : "#ddd",
-              backgroundColor: timerRunning ? "#EFF6FF" : "#F9FAFB",
+              borderColor: timerRunning ? "#2563EB" : colors.border,
+              backgroundColor: timerRunning ? colors.timerRunningBg : colors.bg,
             }}
           >
-            <Text style={{ fontWeight: "900", fontVariant: ["tabular-nums"] as any }}>
+            <Text style={{ fontWeight: "900", fontVariant: ["tabular-nums"] as any,color:colors.text }}>
               {timerDisplay}
             </Text>
           </View>
@@ -1269,13 +1272,13 @@ if (canasValue <= 0) {
         </View>
       </View>
 
-      <Text style={{ fontSize: 20, fontWeight: "bold", textAlign: "center" }}>
+      <Text style={{ fontSize: 20, fontWeight: "bold", textAlign: "center", color: colors.text }}>
         {headerTitleAttack}
       </Text>
-      <Text style={{ fontSize: 20, fontWeight: "bold", textAlign: "center" }}>
+      <Text style={{ fontSize: 20, fontWeight: "bold", textAlign: "center", color: colors.text }}>
         {headerTitleDefense}
       </Text>
-      <Text style={{ textAlign: "center", color: "#666", marginTop: 6 }}>
+      <Text style={{ textAlign: "center", color: colors.muted, marginTop: 6 }}>
         Round {currentRound.match_round_number} · Torn {currentRound.turn}
       </Text>
 
@@ -1286,16 +1289,16 @@ if (canasValue <= 0) {
           padding: 14,
           borderRadius: 12,
           borderWidth: 1,
-          borderColor: "#ddd",
-          backgroundColor: "#fafafa",
+          borderColor: colors.border,
+          backgroundColor: colors.bg,
           alignItems: "center",
         }}
       >
-        <Text style={{ fontSize: 14, color: "#666" }}>Tira ara:</Text>
-        <Text style={{ fontSize: 24, fontWeight: "900", marginTop: 6 }}>
+        <Text style={{ fontSize: 14, color: colors.muted }}>Tira ara:</Text>
+        <Text style={{ fontSize: 24, fontWeight: "900", marginTop: 6,color: colors.text }}>
           {attacker?.player?.name ?? "—"}
         </Text>
-        <Text style={{ marginTop: 6, color: "#666" }}>
+        <Text style={{ marginTop: 6, color: colors.muted }}>
           {Math.min(playsDone + 1, attackers.length || 6)} / {attackers.length || 6}
         </Text>
       </View>
@@ -1312,12 +1315,12 @@ if (canasValue <= 0) {
       marginTop: 4,
       padding: 14,
       borderRadius: 12,
-      backgroundColor: "#111827",
+      backgroundColor: colors.primary,
       alignItems: "center",
       opacity: finishTurnDisabled ? 0.45 : 1,
     }}
   >
-    <Text style={{ fontWeight: "900", fontSize: 15, color: "white" }}>
+    <Text style={{ fontWeight: "900", fontSize: 15, color: colors.primaryText }}>
       ✅ Finalitzar torn
     </Text>
   </Pressable>
@@ -1331,15 +1334,15 @@ if (canasValue <= 0) {
         style={{
           padding: 14,
           borderRadius: 12,
-          backgroundColor: "#e6f7ed",
+          backgroundColor: colors.cardgreen,
           borderWidth: 1,
-          borderColor: "#cfeedd",
+          borderColor: colors.successBg,
           alignItems: "center",
           marginBottom: 10,
           opacity: playActionsDisabled ? 0.45 : 1,
         }}
       >
-        <Text style={{ fontWeight: "900", fontSize: 16 }}>Sumar canes</Text>
+        <Text style={{ fontWeight: "900", fontSize: 16 ,color: colors.text}}>Sumar canes</Text>
       </Pressable>
 
       <Pressable
@@ -1353,16 +1356,16 @@ if (canasValue <= 0) {
         style={{
           padding: 14,
           borderRadius: 12,
-          backgroundColor: "#ffe8e8",
+          backgroundColor: colors.cardred,
           borderWidth: 1,
-          borderColor: "#f3caca",
+          borderColor: colors.dangerBg,
           alignItems: "center",
           marginBottom: 10,
           opacity: playActionsDisabled ? 0.45 : 1,
         }}
       >
-        <Text style={{ fontWeight: "900", fontSize: 16 }}>Matacanes</Text>
-        <Text style={{ color: "#7a2f2f", marginTop: 2 }}>Selecciona defensor</Text>
+        <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>Matacanes</Text>
+        <Text style={{ color: colors.muted, marginTop: 2 }}>Selecciona defensor</Text>
       </Pressable>
 
       <Pressable
@@ -1376,15 +1379,15 @@ if (canasValue <= 0) {
         style={{
           padding: 14,
           borderRadius: 12,
-          backgroundColor: "#e8f0ff",
+          backgroundColor: colors.cardblue,
           borderWidth: 1,
-          borderColor: "#cbdaf7",
+          borderColor: colors.cardblue,
           alignItems: "center",
           opacity: playActionsDisabled ? 0.45 : 1,
         }}
       >
-        <Text style={{ fontWeight: "900", fontSize: 16 }}>Recollida</Text>
-        <Text style={{ color: "#2f457a", marginTop: 2 }}>Selecciona defensor</Text>
+        <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>Recollida</Text>
+        <Text style={{ color: colors.muted, marginTop: 2 }}>Selecciona defensor</Text>
       </Pressable>
 <View style={{ height: 12 }} />
 
@@ -1394,14 +1397,14 @@ if (canasValue <= 0) {
         style={{
           padding: 12,
           borderRadius: 12,
-          backgroundColor: "#FFF7ED",
+          backgroundColor: colors.cardyellow,
           borderWidth: 1,
-          borderColor: "#FDBA74",
+          borderColor: colors.warnBg,
           alignItems: "center",
           opacity: saving || finishedLocal || playsDone <= 0 || !canUndoNow ? 0.45 : 1,
         }}
       >
-        <Text style={{ fontWeight: "900", fontSize: 15, color: "#9A3412" }}>
+        <Text style={{ fontWeight: "900", fontSize: 15, color: colors.text }}>
           ↩️ Desfer última tirada
         </Text>
       </Pressable>
@@ -1418,14 +1421,14 @@ if (canasValue <= 0) {
         >
           <View
             style={{
-              backgroundColor: "white",
+              backgroundColor: colors.card,
               borderRadius: 14,
               padding: 16,
               borderWidth: 1,
-              borderColor: "#ddd",
+              borderColor: colors.border,
             }}
           >
-            <Text style={{ fontSize: 18, fontWeight: "900", textAlign: "center" }}>
+            <Text style={{ fontSize: 18, fontWeight: "900", textAlign: "center",color: colors.text }}>
               Canes a sumar: {canasValue}
             </Text>
 
@@ -1440,11 +1443,11 @@ if (canasValue <= 0) {
                   paddingHorizontal: 14,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: "#ccc",
+                  borderColor: colors.border,
                   opacity: playActionsDisabled ? 0.45 : 1,
                 }}
               >
-                <Text style={{ fontWeight: "900", fontSize: 16 }}>− 20</Text>
+                <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>− 20</Text>
               </Pressable>
 <Pressable
                 onPress={() => setCanasValue((v) => Math.max(0, v - 5))}
@@ -1454,11 +1457,11 @@ if (canasValue <= 0) {
                   paddingHorizontal: 14,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: "#ccc",
+                  borderColor: colors.border,
                   opacity: playActionsDisabled ? 0.45 : 1,
                 }}
               >
-                <Text style={{ fontWeight: "900", fontSize: 16 }}>− 5</Text>
+                <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>− 5</Text>
               </Pressable>
 
               <Pressable
@@ -1469,11 +1472,11 @@ if (canasValue <= 0) {
                   paddingHorizontal: 14,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: "#ccc",
+                  borderColor: colors.border,
                   opacity: playActionsDisabled ? 0.45 : 1,
                 }}
               >
-                <Text style={{ fontWeight: "900", fontSize: 16 }}>+ 5</Text>
+                <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>+ 5</Text>
               </Pressable>
 <Pressable
                 onPress={() => addCanes(20)}
@@ -1483,11 +1486,11 @@ if (canasValue <= 0) {
                   paddingHorizontal: 14,
                   borderRadius: 12,
                   borderWidth: 1,
-                  borderColor: "#ccc",
+                  borderColor: colors.border,
                   opacity: playActionsDisabled ? 0.45 : 1,
                 }}
               >
-                <Text style={{ fontWeight: "900", fontSize: 16 }}>+ 20</Text>
+                <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>+ 20</Text>
               </Pressable>
             </View>
 
@@ -1499,18 +1502,18 @@ if (canasValue <= 0) {
               style={{
                 padding: 14,
                 borderRadius: 12,
-                backgroundColor: "#f2f2f2",
+                backgroundColor: colors.cardAlt,
                 borderWidth: 1,
-                borderColor: "#ddd",
+                borderColor: colors.border,
                 alignItems: "center",
                 marginBottom: 10,
                 opacity: playActionsDisabled ? 0.45 : 1,
               }}
             >
-              <Text style={{ fontWeight: "900" }}>
+              <Text style={{ fontWeight: "900", color: colors.text }}>
                 Sumar canes al jugador 
               </Text>
-              <Text style={{ color: "#666", marginTop: 2 }}>Només el jugador suma</Text>
+              <Text style={{ color: colors.muted, marginTop: 2 }}>Només el jugador suma</Text>
             </Pressable>
 
             <Pressable
@@ -1519,16 +1522,16 @@ if (canasValue <= 0) {
               style={{
                 padding: 14,
                 borderRadius: 12,
-                backgroundColor: "#e6f7ed",
+                backgroundColor: colors.cardgreen,
                 borderWidth: 1,
-                borderColor: "#cfeedd",
+                borderColor: colors.successBg,
                 alignItems: "center",
                 marginBottom: 10,
                 opacity: (saving || canasValue <= 0) ? 0.45 : 1,
               }}
             >
-              <Text style={{ fontWeight: "900" }}>Metre guanyat per atacant</Text>
-              <Text style={{ color: "#3a6b4f", marginTop: 2 }}>Jugador + Equip sumen</Text>
+              <Text style={{ fontWeight: "900", color: colors.text }}>Metre guanyat per atacant</Text>
+              <Text style={{ color: colors.muted, marginTop: 2 }}>Jugador + Equip sumen</Text>
             </Pressable>
 
             <Pressable
@@ -1537,16 +1540,16 @@ if (canasValue <= 0) {
               style={{
                 padding: 14,
                 borderRadius: 12,
-                backgroundColor: "#fff2e6",
+                backgroundColor: colors.cardyellow,
                 borderWidth: 1,
-                borderColor: "#f5d7b8",
+                borderColor: colors.warnBg,
                 alignItems: "center",
                 marginBottom: 10,
                 opacity: (saving || canasValue <= 0) ? 0.45 : 1,
               }}
             >
-              <Text style={{ fontWeight: "900" }}>Metre guanyat per defensor</Text>
-              <Text style={{ color: "#7a4a2f", marginTop: 2 }}>
+              <Text style={{ fontWeight: "900", color: colors.text }}>Metre guanyat per defensor</Text>
+              <Text style={{ color: colors.muted, marginTop: 2 }}>
                 Defensa suma · atacant 0
               </Text>
             </Pressable>
@@ -1556,7 +1559,7 @@ if (canasValue <= 0) {
               disabled={playActionsDisabled}
               style={{ alignItems: "center", padding: 10, opacity: saving ? 0.45 : 1 }}
             >
-              <Text style={{ color: "#666", fontWeight: "700" }}>Cancel·lar</Text>
+              <Text style={{ color: colors.muted, fontWeight: "700" }}>Cancel·lar</Text>
             </Pressable>
 {canasValue <= 0 && (
   <View style={{
@@ -1580,18 +1583,18 @@ if (canasValue <= 0) {
   <View
     style={{
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.35)",
+      backgroundColor: colors.bg,
       justifyContent: "center",
       padding: 18,
     }}
   >
     <View
       style={{
-        backgroundColor: "white",
+        backgroundColor: colors.card,
         borderRadius: 14,
         padding: 16,
         borderWidth: 1,
-        borderColor: "#ddd",
+        borderColor: colors.border,
         maxHeight: "80%",
       }}
     >
@@ -1606,14 +1609,14 @@ if (canasValue <= 0) {
               paddingHorizontal: 14,
               borderRadius: 12,
               borderWidth: 1,
-              borderColor: "#eee",
-              backgroundColor: "#fafafa",
+              borderColor: colors.border,
+              backgroundColor: colors.bg,
               flexDirection: "row",
               justifyContent: "space-between",
             }}
           >
-            <Text style={{ fontWeight: "900" }}>{item.meters} m</Text>
-            <Text style={{ fontWeight: "900" }}>{item.canes} canes</Text>
+            <Text style={{ fontWeight: "900",color:colors.text }}>{item.meters} m</Text>
+            <Text style={{ fontWeight: "900",color:colors.text }}>{item.canes} canes</Text>
           </View>
         )}
       />
@@ -1625,11 +1628,11 @@ if (canasValue <= 0) {
         style={{
           paddingVertical: 12,
           borderRadius: 12,
-          backgroundColor: "black",
+          backgroundColor: colors.primary,
           alignItems: "center",
         }}
       >
-        <Text style={{ color: "white", fontWeight: "900" }}>Tancar</Text>
+        <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Tancar</Text>
       </Pressable>
     </View>
   </View>
@@ -1647,18 +1650,18 @@ if (canasValue <= 0) {
         >
           <View
             style={{
-              backgroundColor: "white",
+              backgroundColor: colors.card,
               borderRadius: 14,
               padding: 16,
               borderWidth: 1,
-              borderColor: "#ddd",
+              borderColor: colors.border,
               maxHeight: "75%",
             }}
           >
-            <Text style={{ fontSize: 18, fontWeight: "900", textAlign: "center" }}>
+            <Text style={{ fontSize: 18, fontWeight: "900", textAlign: "center", color: colors.text }}>
               Qui ho ha fet?
             </Text>
-            <Text style={{ textAlign: "center", color: "#666", marginTop: 4 }}>
+            <Text style={{ textAlign: "center", color: colors.muted, marginTop: 4 }}>
               {pendingDefenseEvent === "MATACANAS" ? "Matacanes" : "Recollida"}
             </Text>
 
@@ -1676,14 +1679,14 @@ if (canasValue <= 0) {
                     paddingHorizontal: 12,
                     borderRadius: 12,
                     borderWidth: 1,
-                    borderColor: "#eee",
-                    backgroundColor: "#fafafa",
+                    borderColor: colors.border,
+                    backgroundColor: colors.bg,
                     marginBottom: 8,
                     alignItems: "center",
                     opacity: playActionsDisabled ? 0.6 : 1,
                   }}
                 >
-                  <Text style={{ fontWeight: "900" }}>
+                  <Text style={{ fontWeight: "900", color: colors.text }}>
                     {item.player?.name ?? `Jugador ${item.player_id}`}
                   </Text>
                 </Pressable>
@@ -1698,7 +1701,7 @@ if (canasValue <= 0) {
               disabled={playActionsDisabled}
               style={{ alignItems: "center", padding: 10, opacity: saving ? 0.6 : 1 }}
             >
-              <Text style={{ color: "#666", fontWeight: "700" }}>Cancel·lar</Text>
+              <Text style={{ color: colors.muted, fontWeight: "700" }}>Cancel·lar</Text>
             </Pressable>
           </View>
         </View>
@@ -1714,12 +1717,12 @@ if (canasValue <= 0) {
     paddingHorizontal: 14,
     borderRadius: 999,
     borderWidth: 1,
-    borderColor: "#ddd",
-    backgroundColor: "white",
+    borderColor: colors.border,
+    backgroundColor: colors.card,
     marginBottom: 10,
   }}
 >
-  <Text style={{ fontWeight: "900" }}>Conversió metres/canes</Text>
+  <Text style={{ fontWeight: "900",color:colors.text }}>Conversió metres/canes</Text>
 </Pressable>
       {/* ✅ MARCADOR (scrollable) */}
       <View
@@ -1728,12 +1731,12 @@ if (canasValue <= 0) {
           padding: 12,
           borderRadius: 14,
           borderWidth: 1,
-          borderColor: "#ddd",
-          backgroundColor: "white",
+          borderColor: colors.border,
+          backgroundColor: colors.card,
         }}
       >
 
-<Text style={{ textAlign: "center", color: "#666", fontWeight: "700" }}>
+<Text style={{ textAlign: "center", color: colors.muted, fontWeight: "700" }}>
           Marcador en directe {scoreLoading ? "· actualitzant..." : ""}
         </Text>
 
@@ -1746,17 +1749,17 @@ if (canasValue <= 0) {
           }}
         >
           <View style={{ flex: 1, paddingRight: 8 }}>
-            <Text numberOfLines={1} style={{ fontWeight: "800" }}>
+            <Text numberOfLines={1} style={{ fontWeight: "800",color: colors.text }}>
               {teams.aName}
             </Text>
           </View>
 
-          <Text style={{ fontSize: 20, fontWeight: "900" }}>
+          <Text style={{ fontSize: 20, fontWeight: "900", color: colors.text }}>
             {scoreA} - {scoreB}
           </Text>
 
           <View style={{ flex: 1, paddingLeft: 8, alignItems: "flex-end" }}>
-            <Text numberOfLines={1} style={{ fontWeight: "800" }}>
+            <Text numberOfLines={1} style={{ fontWeight: "800", color: colors.text  }}>
               {teams.bName}
             </Text>
           </View>
@@ -1768,6 +1771,7 @@ if (canasValue <= 0) {
             fontWeight: "500",
             fontSize: 14,
             marginBottom: 8,
+              color:colors.text
           }}
         >
           Diferència: {Math.abs(scoreA - scoreB)}
@@ -1788,17 +1792,17 @@ if (canasValue <= 0) {
         >
           <View
             style={{
-              backgroundColor: "white",
+              backgroundColor: colors.card,
               borderRadius: 14,
               padding: 16,
               borderWidth: 1,
-              borderColor: "#ddd",
+              borderColor: colors.border,
             }}
           >
-            <Text style={{ fontSize: 18, fontWeight: "800", marginBottom: 8, textAlign: "center" }}>
+            <Text style={{ fontSize: 18, fontWeight: "800", marginBottom: 8, textAlign: "center",color: colors.text }}>
               No es pot empatar
             </Text>
-            <Text style={{ fontSize: 14, color: "#444", marginBottom: 14, textAlign: "center" }}>
+            <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 14, textAlign: "center"}}>
               S'ha de jugar el bélit d'or. Selecciona el guanyador:
             </Text>
 
@@ -1819,11 +1823,11 @@ if (canasValue <= 0) {
                 style={{
                   paddingVertical: 12,
                   borderRadius: 12,
-                  backgroundColor: "#111827",
+                  backgroundColor: colors.primary,
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: "white", fontWeight: "800" }}>{matchTeamsFixed?.aName ?? "Equip A"}</Text>
+                <Text style={{ color: colors.primaryText, fontWeight: "800" }}>{matchTeamsFixed?.aName ?? "Equip A"}</Text>
               </Pressable>
 
               <Pressable
@@ -1842,11 +1846,11 @@ if (canasValue <= 0) {
                 style={{
                   paddingVertical: 12,
                   borderRadius: 12,
-                  backgroundColor: "#111827",
+                  backgroundColor: colors.primary,
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: "white", fontWeight: "800" }}>{matchTeamsFixed?.bName ?? "Equip B"}</Text>
+                <Text style={{ color: colors.primaryText, fontWeight: "800" }}>{matchTeamsFixed?.bName ?? "Equip B"}</Text>
               </Pressable>
             </View>
           </View>
@@ -1864,27 +1868,27 @@ if (canasValue <= 0) {
         >
           <View
             style={{
-              backgroundColor: "white",
+              backgroundColor: colors.card,
               borderRadius: 14,
               padding: 16,
               borderWidth: 1,
-              borderColor: "#ddd",
+              borderColor: colors.border,
               alignItems: "center",
             }}
           >
-            <Text style={{ fontSize: 18, fontWeight: "900" }}>Resultat final</Text>
+            <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text }}>Resultat final</Text>
 
             <View style={{ height: 10 }} />
 
-            <Text style={{ fontSize: 20, fontWeight: "600" }}>{matchTeams?.aName ?? "Equip A"} - {finalScores?.a ?? scoreA}</Text>
+            <Text style={{ fontSize: 20, fontWeight: "600", color: colors.text }}>{matchTeams?.aName ?? "Equip A"} - {finalScores?.a ?? scoreA}</Text>
 
             <View style={{ height: 10 }} />
 
-            <Text style={{ fontSize: 20, fontWeight: "600" }}>{matchTeams?.bName ?? "Equip B"} - {finalScores?.b ?? scoreB}</Text>
+            <Text style={{ fontSize: 20, fontWeight: "600", color: colors.text }}>{matchTeams?.bName ?? "Equip B"} - {finalScores?.b ?? scoreB}</Text>
 
             <View style={{ height: 10 }} />
 
-            <Text style={{ color: "#666", textAlign: "center" }}>
+            <Text style={{ color: colors.muted, textAlign: "center" }}>
               Partit finalitzat. Pots comunicar el resultat als equips.
             </Text>
 
@@ -1900,10 +1904,10 @@ if (canasValue <= 0) {
                 paddingHorizontal: 16,
                 borderRadius: 12,
                 borderWidth: 1,
-                borderColor: "#ccc",
+                borderColor: colors.border,
               }}
             >
-              <Text style={{ fontWeight: "900" }}>Finalitzat</Text>
+              <Text style={{ fontWeight: "900", color: colors.text }}>Finalitzat</Text>
             </Pressable>
           </View>
         </View>

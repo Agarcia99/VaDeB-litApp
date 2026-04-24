@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect, useRouter } from "expo-router";
 import { supabase } from "../../src/supabase";
 import { BackButton, RefreshButton } from "../../components/HeaderButtons";
+import { useAppTheme, AppColors } from "../../src/theme";
 
 type ChampionshipRow = {
   id: number;
@@ -57,6 +58,8 @@ type SanctionRow = {
 
 export default function TeamSanctionsScreen() {
   const router = useRouter();
+  const { colors } = useAppTheme();
+  const styles = useMemo(() => getStyles(colors), [colors]);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -176,7 +179,7 @@ export default function TeamSanctionsScreen() {
 
       if (sanctionErr) throw sanctionErr;
 
-      setSanctions((sanctionData ?? []) as SanctionRow[]);
+      setSanctions(((sanctionData ?? [])as unknown) as SanctionRow[]);
     } catch (e: any) {
       Alert.alert("Error", e?.message ?? "No s'han pogut carregar les sancions.");
     } finally {
@@ -525,10 +528,11 @@ async function saveConfig() {
   );
 }
 
-const styles = StyleSheet.create({
+function getStyles(colors: AppColors) {
+  return StyleSheet.create({
   screen: {
     flex: 1,
-    backgroundColor: "#F6F7FB",
+    backgroundColor: colors.bg,
     paddingHorizontal: 16,
     paddingTop: 10,
   },
@@ -536,7 +540,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    backgroundColor: "#F6F7FB",
+    backgroundColor: colors.bg,
   },
   topRow: {
     marginBottom: 12,
@@ -545,95 +549,95 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     paddingVertical: 10,
     paddingHorizontal: 14,
-    backgroundColor: "white",
+    backgroundColor: colors.card,
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: colors.border,
   },
   backBtnText: {
     fontWeight: "900",
     fontSize: 16,
-    color: "#111827",
+    color: colors.text,
   },
   title: {
     fontSize: 24,
     fontWeight: "900",
-    color: "#111827",
+    color: colors.text,
     marginBottom: 4,
   },
   subTitle: {
-    color: "#6B7280",
+    color: colors.muted,
     fontWeight: "700",
     marginBottom: 14,
   },
   card: {
-    backgroundColor: "white",
+    backgroundColor: colors.card,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: colors.border,
     padding: 14,
     marginBottom: 14,
   },
   cardTitle: {
     fontSize: 17,
     fontWeight: "900",
-    color: "#111827",
+    color: colors.text,
     marginBottom: 12,
   },
   label: {
     fontWeight: "800",
-    color: "#111827",
+    color: colors.text,
     marginBottom: 8,
     marginTop: 8,
   },
   input: {
     borderWidth: 1,
-    borderColor: "#D1D5DB",
+    borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 10,
-    backgroundColor: "white",
+    backgroundColor: colors.card,
   },
   selectBtn: {
     borderWidth: 1,
-    borderColor: "#D1D5DB",
+    borderColor: colors.border,
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 12,
-    backgroundColor: "white",
+    backgroundColor: colors.card,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
   },
   selectBtnText: {
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
     flex: 1,
   },
   selectBtnChevron: {
     fontWeight: "900",
-    color: "#6B7280",
+    color: colors.muted,
   },
   dropdown: {
     marginTop: 8,
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: colors.border,
     borderRadius: 12,
     overflow: "hidden",
-    backgroundColor: "white",
+    backgroundColor: colors.card,
   },
   dropdownItem: {
     paddingHorizontal: 12,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: "#F3F4F6",
+    borderBottomColor: colors.border,
   },
   dropdownItemSelected: {
     backgroundColor: "#EEF2FF",
   },
   dropdownItemText: {
     fontWeight: "700",
-    color: "#111827",
+    color: colors.text,
   },
   dropdownItemTextSelected: {
     color: "#312E81",
@@ -651,21 +655,21 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   chipActive: {
-    backgroundColor: "#111827",
-    borderColor: "#111827",
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
   },
   chipInactive: {
-    backgroundColor: "white",
-    borderColor: "#D1D5DB",
+    backgroundColor: colors.card,
+    borderColor: colors.border,
   },
   chipText: {
     fontWeight: "800",
   },
   chipTextActive: {
-    color: "white",
+    color: colors.primaryText,
   },
   chipTextInactive: {
-    color: "#111827",
+    color: colors.text,
   },
   previewBox: {
     marginTop: 14,
@@ -686,14 +690,14 @@ const styles = StyleSheet.create({
   },
   primaryBtn: {
     marginTop: 14,
-    backgroundColor: "#111827",
+    backgroundColor: colors.primary,
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
     paddingVertical: 12,
   },
   primaryBtnText: {
-    color: "white",
+    color: colors.primaryText,
     fontWeight: "900",
   },
   dangerBtn: {
@@ -712,12 +716,12 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
   emptyText: {
-    color: "#6B7280",
+    color: colors.muted,
     fontWeight: "700",
   },
   sanctionCard: {
     borderWidth: 1,
-    borderColor: "#E5E7EB",
+    borderColor: colors.border,
     borderRadius: 12,
     padding: 12,
     marginBottom: 10,
@@ -725,16 +729,16 @@ const styles = StyleSheet.create({
   sanctionTitle: {
     fontWeight: "900",
     fontSize: 15,
-    color: "#111827",
+    color: colors.text,
   },
   sanctionMeta: {
     marginTop: 4,
-    color: "#374151",
+    color: colors.muted,
     fontWeight: "700",
   },
   sanctionDate: {
     marginTop: 6,
-    color: "#6B7280",
+    color: colors.muted,
     fontSize: 12,
     fontWeight: "700",
   },
@@ -746,15 +750,15 @@ const styles = StyleSheet.create({
   secondaryAction: {
     flex: 1,
     borderWidth: 1,
-    borderColor: "#D1D5DB",
+    borderColor: colors.border,
     borderRadius: 10,
     alignItems: "center",
     paddingVertical: 10,
-    backgroundColor: "white",
+    backgroundColor: colors.card,
   },
   secondaryActionText: {
     fontWeight: "800",
-    color: "#111827",
+    color: colors.text,
   },
   deleteAction: {
     flex: 1,
@@ -769,4 +773,5 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#B91C1C",
   },
-});
+  });
+}

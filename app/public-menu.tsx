@@ -6,35 +6,58 @@ import { supabase } from "../src/supabase";
 import * as Application from "expo-application";
 import { BackButton, RefreshButton } from "../components/HeaderButtons";
 import Constants from "expo-constants";
+import { useAppTheme } from "../src/theme";
+
+// --- App update gate ---
+type AppReleaseRow = {
+  platform: "android" | "ios";
+  latest_version: string;
+  min_supported_version: string | null;
+  store_url: string;
+  message: string | null;
+  is_active: boolean;
+};
+
+type MaintenanceConfigRow = {
+  value: {
+    enabled?: boolean;
+    message?: string | null;
+  } | null;
+};
+
+const currentVersion =
+  (Constants.expoConfig?.version as string | undefined) ??
+  Application.nativeApplicationVersion ??
+  "0.0.0";
+
+function parseVersion(v: string): number[] {
+  return String(v)
+    .split(".")
+    .map((x) => {
+      const n = parseInt(x, 10);
+      return Number.isFinite(n) ? n : 0;
+    });
+}
+
+function isVersionLess(a: string, b: string): boolean {
+  const av = parseVersion(a);
+  const bv = parseVersion(b);
+  const n = Math.max(av.length, bv.length);
+  for (let i = 0; i < n; i++) {
+    const ai = av[i] ?? 0;
+    const bi = bv[i] ?? 0;
+    if (ai < bi) return true;
+    if (ai > bi) return false;
+  }
+  return false;
+}
 
 export default function PublicMenu() {
   const router = useRouter();
+  const { colors, isDark, toggleMode } = useAppTheme();
   const [loading, setLoading] = useState(true);
   const [champName, setChampName] = useState<string>("");
   const [championTeamName, setChampionTeamName] = useState<string | null>(null);
-
-
-  // --- App update gate (manual store update prompt) ---
-  type AppReleaseRow = {
-    platform: "android" | "ios";
-    latest_version: string;
-    min_supported_version: string | null;
-    store_url: string;
-    message: string | null;
-    is_active: boolean;
-  };
-
-  type MaintenanceConfigRow = {
-    value: {
-      enabled?: boolean;
-      message?: string | null;
-    } | null;
-  };
-
-  const currentVersion =
-    (Constants.expoConfig?.version as string | undefined) ??
-    Application.nativeApplicationVersion ??
-    "0.0.0";
 
   const [updateVisible, setUpdateVisible] = useState(false);
   const [updateForce, setUpdateForce] = useState(false);
@@ -46,28 +69,6 @@ export default function PublicMenu() {
   const [maintenanceMessage, setMaintenanceMessage] = useState<string>(
     "Aplicació en manteniment, torna més tard"
   );
-
-  function parseVersion(v: string) {
-    return String(v)
-      .split(".")
-      .map((x) => {
-        const n = parseInt(x, 10);
-        return Number.isFinite(n) ? n : 0;
-      });
-  }
-
-  function isVersionLess(a: string, b: string) {
-    const av = parseVersion(a);
-    const bv = parseVersion(b);
-    const n = Math.max(av.length, bv.length);
-    for (let i = 0; i < n; i++) {
-      const ai = av[i] ?? 0;
-      const bi = bv[i] ?? 0;
-      if (ai < bi) return true;
-      if (ai > bi) return false;
-    }
-    return false;
-  }
 
   const checkForAppUpdate = useCallback(async () => {
     try {
@@ -106,7 +107,7 @@ export default function PublicMenu() {
     } catch (e: any) {
       console.log("Update check failed:", e?.message ?? e);
     }
-  }, [currentVersion]);
+  }, []);
 
   async function openStore() {
     if (!updateStoreUrl) {
@@ -279,14 +280,14 @@ export default function PublicMenu() {
         paddingHorizontal: 14,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: "#e6e6e6",
-        backgroundColor: "white",
+        borderColor: colors.border,
+        backgroundColor: colors.card,
         minHeight: 92,
         alignItems: "center",
       }}
     >
-      <Text style={{ fontWeight: "900", fontSize: 16, textAlign: "center" }}>{title}</Text>
-      <Text style={{ marginTop: 6, color: "#6b6b6b", fontWeight: "600", textAlign: "center" }}>
+      <Text style={{ fontWeight: "900", fontSize: 16, textAlign: "center", color: colors.text }}>{title}</Text>
+      <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "600", textAlign: "center" }}>
         {subtitle}
       </Text>
     </Pressable>
@@ -294,9 +295,9 @@ export default function PublicMenu() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: "center", padding: 16 }}>
-        <ActivityIndicator size="large" />
-        <Text style={{ textAlign: "center", marginTop: 12, color: "#666" }}>
+      <View style={{ flex: 1, justifyContent: "center", padding: 16, backgroundColor: colors.bg }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ textAlign: "center", marginTop: 12, color: colors.muted }}>
           Carregant…
         </Text>
       </View>
@@ -310,19 +311,19 @@ export default function PublicMenu() {
           padding: 24,
           justifyContent: "center",
           alignItems: "center",
-          backgroundColor: "#f8fafc",
+          backgroundColor: colors.bg,
         }}
       >
         <View
           style={{
             width: "100%",
             maxWidth: 420,
-            backgroundColor: "white",
+            backgroundColor: colors.card,
             borderRadius: 24,
             paddingVertical: 28,
             paddingHorizontal: 22,
             borderWidth: 1,
-            borderColor: "#e5e7eb",
+            borderColor: colors.border,
             alignItems: "center",
             shadowColor: "#000",
             shadowOpacity: 0.08,
@@ -349,7 +350,7 @@ export default function PublicMenu() {
             style={{
               fontSize: 24,
               fontWeight: "900",
-              color: "#111827",
+              color: colors.text,
               textAlign: "center",
             }}
           >
@@ -361,7 +362,7 @@ export default function PublicMenu() {
               marginTop: 12,
               fontSize: 16,
               lineHeight: 22,
-              color: "#6B7280",
+              color: colors.muted,
               fontWeight: "600",
               textAlign: "center",
             }}
@@ -376,17 +377,17 @@ export default function PublicMenu() {
               paddingVertical: 12,
               paddingHorizontal: 18,
               borderRadius: 14,
-              backgroundColor: "#111827",
+              backgroundColor: colors.primary,
             }}
           >
-            <Text style={{ color: "white", fontWeight: "900" }}>Tornar a provar</Text>
+            <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Tornar a provar</Text>
           </Pressable>
         </View>
       </View>
     );
   }
   return (
-    <View style={{ flex: 1, padding: 16 }}>
+    <View style={{ flex: 1, padding: 16, backgroundColor: colors.bg }}>
 
       {isMaintenanceMode && __DEV__ ? (
         <View
@@ -414,7 +415,7 @@ export default function PublicMenu() {
             width: 70,
             height: 70,
             borderRadius: 35,
-            backgroundColor: "#fff",
+            backgroundColor: colors.card,
             justifyContent: "center",
             alignItems: "center",
             shadowColor: "#000",
@@ -441,6 +442,7 @@ export default function PublicMenu() {
             fontSize: 20,
             fontWeight: "900",
             textAlign: "center",
+            color: colors.text,
           }}
         >
           {champName}
@@ -470,18 +472,18 @@ export default function PublicMenu() {
             padding: 18,
           }}
         >
-          <View style={{ backgroundColor: "white", borderRadius: 18, padding: 16 }}>
+          <View style={{ backgroundColor: colors.card, borderRadius: 18, padding: 16 }}>
             <Text style={{ fontSize: 18, fontWeight: "900", marginBottom: 8 }}>
               Nova versió disponible
             </Text>
 
-            <Text style={{ fontSize: 14, color: "#374151", marginBottom: 14 }}>
+            <Text style={{ fontSize: 14, color: colors.text, marginBottom: 14 }}>
               {updateMessage ??
                 "Hi ha una actualització disponible. Ves a la botiga per instal·lar-la."}
             </Text>
 
             {updateLatest ? (
-              <Text style={{ fontSize: 13, color: "#6B7280", marginBottom: 14, fontWeight: "700" }}>
+              <Text style={{ fontSize: 13, color: colors.muted, marginBottom: 14, fontWeight: "700" }}>
                 Versió instal·lada: {currentVersion} · Nova: {updateLatest}
               </Text>
             ) : null}
@@ -492,7 +494,7 @@ export default function PublicMenu() {
                   onPress={() => setUpdateVisible(false)}
                   style={{ paddingVertical: 10, paddingHorizontal: 12 }}
                 >
-                  <Text style={{ fontWeight: "800", color: "#6B7280" }}>Més tard</Text>
+                  <Text style={{ fontWeight: "800", color: colors.muted }}>Més tard</Text>
                 </Pressable>
               ) : null}
 
@@ -502,10 +504,10 @@ export default function PublicMenu() {
                   paddingVertical: 10,
                   paddingHorizontal: 14,
                   borderRadius: 12,
-                  backgroundColor: "#111827",
+                  backgroundColor: colors.primary,
                 }}
               >
-                <Text style={{ fontWeight: "900", color: "white" }}>Actualitzar</Text>
+                <Text style={{ fontWeight: "900", color: colors.primaryText }}>Actualitzar</Text>
               </Pressable>
             </View>
           </View>
@@ -559,6 +561,24 @@ export default function PublicMenu() {
             />
           </View>
         </View>
+
+        <Pressable
+          onPress={toggleMode}
+          style={{
+            alignSelf: "center",
+            marginBottom: 16,
+            paddingVertical: 10,
+            paddingHorizontal: 20,
+            borderRadius: 20,
+            backgroundColor: colors.card,
+            borderWidth: 1,
+            borderColor: colors.border,
+          }}
+        >
+          <Text style={{ color: colors.text, fontWeight: "800" }}>
+            {isDark ? "☀️ Mode clar" : "🌙 Mode fosc"}
+          </Text>
+        </Pressable>
 
         <RefreshButton
           onPress={loadChampionship}

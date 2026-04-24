@@ -3,6 +3,8 @@ import { Alert, FlatList, Modal, Pressable, Text, TextInput, View } from "react-
 import { useRouter } from "expo-router";
 import { supabase } from "../../src/supabase";
 import { BackButton, RefreshButton } from "../../components/HeaderButtons";
+import { useAdminGuard } from "../../hooks/use-admin-guard";
+import { useAppTheme, AppColors } from "../../src/theme";
 
 type ChampionshipRow = {
   id: number;
@@ -55,8 +57,9 @@ function dateRangeInclusive(start: string, end: string): string[] {
 
 export default function CreateCalendarScreen() {
   const router = useRouter();
-
-  const [loading, setLoading] = useState(true);
+  const { colors, isDark } = useAppTheme();
+  const { checking, isAdmin: allowed } = useAdminGuard();
+  const [loading, setLoading] = useState(false);
   const [championships, setChampionships] = useState<ChampionshipRow[]>([]);
   const [selectedChampionshipId, setSelectedChampionshipId] = useState<number | null>(null);
 
@@ -66,31 +69,11 @@ export default function CreateCalendarScreen() {
   const [creating, setCreating] = useState(false);
 
   useEffect(() => {
+    if (checking || !allowed) return; // espera a que la guarda admin validi l'accés
     (async () => {
       setLoading(true);
-
-      // Admin gate (same as other admin screens)
-      const { data: sessionRes } = await supabase.auth.getSession();
-      const user = sessionRes.session?.user;
-      if (!user) {
-        router.replace("/login");
-        return;
-      }
-
-      const { data: adminRow, error: adminErr } = await supabase
-        .from("championship_admin_user")
-        .select("user_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      if (adminErr || !adminRow) {
-        Alert.alert("Accés denegat", "Aquesta secció és només per administradors.");
-        router.back();
-        return;
-      }
-
-      const { data: champs, error } = await supabase
-        .from("championship")
+        
+      const { data: champs, error } = await supabase.from("championship")
         .select("id,name,year,is_active")
         .order("is_active", { ascending: false })
         .order("year", { ascending: false })
@@ -109,7 +92,7 @@ export default function CreateCalendarScreen() {
 
       setLoading(false);
     })();
-  }, []);
+  }, [checking, allowed]);
 
   const selectedChamp = useMemo(
     () => championships.find((c) => c.id === selectedChampionshipId) ?? null,
@@ -249,7 +232,7 @@ export default function CreateCalendarScreen() {
           onPress={() => router.back()}
           style={{ marginBottom:15 }}
         />
-        <Text style={{ fontSize: 22, fontWeight: "800", flex: 1, textAlign: "center", marginRight: 32 }}>
+        <Text style={{ fontSize: 22, fontWeight: "800", flex: 1, textAlign: "center", marginRight: 32 ,color:colors.text}}>
           🗓️ Crear calendari
         </Text>
 </View>
@@ -258,16 +241,16 @@ export default function CreateCalendarScreen() {
         onPress={() => setChampModalOpen(true)}
         style={{
           borderWidth: 1,
-          borderColor: "#ddd",
-          backgroundColor: "white",
+          borderColor: colors.border,
+          backgroundColor: colors.card,
           borderRadius: 12,
           paddingVertical: 12,
           paddingHorizontal: 14,
           marginBottom: 12,
         }}
       >
-        <Text style={{ fontWeight: "700" }}>{selectedChamp ? formatChamp(selectedChamp) : "Selecciona campionat"}</Text>
-        <Text style={{ color: "#666", marginTop: 2 }}>Toca per canviar</Text>
+        <Text style={{ fontWeight: "700", color: colors.text }}>{selectedChamp ? formatChamp(selectedChamp) : "Selecciona campionat"}</Text>
+        <Text style={{ color: colors.muted, marginTop: 2 }}>Toca per canviar</Text>
       </Pressable>
 
       <View
@@ -275,13 +258,13 @@ export default function CreateCalendarScreen() {
           padding: 12,
           borderRadius: 12,
           borderWidth: 1,
-          borderColor: "#eee",
-          backgroundColor: "#fafafa",
+          borderColor: colors.border,
+          backgroundColor: colors.card,
           marginBottom: 16,
         }}
       >
-        <Text style={{ fontWeight: "800", marginBottom: 6 }}>Què farà</Text>
-        <Text style={{ color: "#333", lineHeight: 20 }}>
+        <Text style={{ fontWeight: "800", marginBottom: 6, color: colors.text }}>Què farà</Text>
+        <Text style={{ color: colors.muted, lineHeight: 20 }}>
           Crearà els slots a <Text style={{ fontWeight: "700" }}>match_slot</Text> segons la configuració{" "}
           <Text style={{ fontWeight: "700" }}>championship_config</Text> amb key{" "}
           <Text style={{ fontWeight: "700" }}>"calendar"</Text>. Si ja existeixen slots, no duplicarà.
@@ -295,10 +278,10 @@ export default function CreateCalendarScreen() {
           paddingVertical: 14,
           paddingHorizontal: 14,
           borderRadius: 12,
-          backgroundColor: creating ? "#ddd" : "#111827",
+          backgroundColor: creating ? colors.muted : colors.primary,
         }}
       >
-        <Text style={{ color: "white", fontWeight: "800", textAlign: "center" }}>
+        <Text style={{ color: colors.text, fontWeight: "800", textAlign: "center" }}>
           {creating ? "Creant…" : "Crear slots del campionat"}
         </Text>
       </Pressable>

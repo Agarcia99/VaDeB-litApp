@@ -14,6 +14,7 @@ import { useRouter } from "expo-router";
 import { supabase } from "../../src/supabase";
 import { BackButton } from "../../components/HeaderButtons";
 import { Keyboard } from "react-native";
+import { useAppTheme } from "../../src/theme";
 
 type MatchSummary = {
   id: number;
@@ -154,6 +155,7 @@ function computeContributionForTeams(
 
 export default function EditMatchPlaysScreenV3() {
   const router = useRouter();
+  const { colors } = useAppTheme();
 
   const [matchIdInput, setMatchIdInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -728,7 +730,7 @@ setMatchSummary(summary);
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#F6F7FB" }}>
+    <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <ScrollView
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
@@ -739,28 +741,28 @@ setMatchSummary(summary);
           <BackButton onPress={() => router.back()} style={{ marginBottom: 15 }} />
         </View>
 
-        <Text style={{ fontSize: 24, fontWeight: "900", color: "#111827", marginBottom: 4 }}>
+        <Text style={{ fontSize: 24, fontWeight: "900", color: colors.text, marginBottom: 4 }}>
           🛠️ Corregir jugades
         </Text>
-        <Text style={{ color: "#6B7280", fontWeight: "700", marginBottom: 14 }}>
+        <Text style={{ color: colors.muted, fontWeight: "700", marginBottom: 14 }}>
           Editor V3 amb grups, selector de jugadors i previsualització del canvi.
         </Text>
 
         <View
           style={{
-            backgroundColor: "white",
+            backgroundColor: colors.card,
             borderRadius: 16,
             borderWidth: 1,
-            borderColor: "#E5E7EB",
+            borderColor: colors.border,
             padding: 14,
             marginBottom: 14,
           }}
         >
-          <Text style={{ fontSize: 17, fontWeight: "900", color: "#111827", marginBottom: 12 }}>
+          <Text style={{ fontSize: 17, fontWeight: "900", color: colors.text, marginBottom: 12 }}>
             Cercar partit
           </Text>
 
-          <Text style={{ fontWeight: "800", color: "#111827", marginBottom: 8 }}>ID del partit</Text>
+          <Text style={{ fontWeight: "800", color: colors.text, marginBottom: 8 }}>ID del partit</Text>
           <TextInput
             value={matchIdInput}
             onChangeText={setMatchIdInput}
@@ -768,11 +770,11 @@ setMatchSummary(summary);
             placeholder="Ex: 123"
             style={{
               borderWidth: 1,
-              borderColor: "#D1D5DB",
+              borderColor: colors.border,
               borderRadius: 12,
               paddingHorizontal: 12,
               paddingVertical: 10,
-              backgroundColor: "white",
+              backgroundColor: colors.card,
             }}
           />
 
@@ -781,7 +783,7 @@ setMatchSummary(summary);
             disabled={loading}
             style={{
               marginTop: 14,
-              backgroundColor: "#111827",
+              backgroundColor: colors.primary,
               borderRadius: 12,
               alignItems: "center",
               justifyContent: "center",
@@ -790,9 +792,9 @@ setMatchSummary(summary);
             }}
           >
             {loading ? (
-              <ActivityIndicator color="white" />
+              <ActivityIndicator color={colors.primaryText} />
             ) : (
-              <Text style={{ color: "white", fontWeight: "900" }}>Carregar partit</Text>
+              <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Carregar partit</Text>
             )}
           </Pressable>
         </View>
@@ -800,22 +802,22 @@ setMatchSummary(summary);
         {matchSummary ? (
           <View
             style={{
-              backgroundColor: "white",
+              backgroundColor: colors.card,
               borderRadius: 16,
               borderWidth: 1,
-              borderColor: "#E5E7EB",
+              borderColor: colors.border,
               padding: 14,
               marginBottom: 14,
             }}
           >
-            <Text style={{ fontWeight: "900", fontSize: 17, color: "#111827" }}>
+            <Text style={{ fontWeight: "900", fontSize: 17, color: colors.text }}>
               {matchSummary.team_a?.name ?? `Equip ${matchSummary.team_a_id}`} {matchSummary.score_team_a} -{" "}
               {matchSummary.score_team_b} {matchSummary.team_b?.name ?? `Equip ${matchSummary.team_b_id}`}
             </Text>
-            <Text style={{ marginTop: 6, color: "#4B5563", fontWeight: "700" }}>
+            <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "700" }}>
               Estat: {matchSummary.is_finished ? "Finalitzat" : "Obert"}
             </Text>
-            <Text style={{ marginTop: 4, color: "#4B5563", fontWeight: "700" }}>
+            <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "700" }}>
               Jugades carregades: {plays.length}
             </Text>
           </View>
@@ -824,15 +826,15 @@ setMatchSummary(summary);
         {plays.length > 0 ? (
           <View
             style={{
-              backgroundColor: "white",
+              backgroundColor: colors.card,
               borderRadius: 16,
               borderWidth: 1,
-              borderColor: "#E5E7EB",
+              borderColor: colors.border,
               padding: 14,
               marginBottom: 14,
             }}
           >
-            <Text style={{ fontSize: 17, fontWeight: "900", color: "#111827", marginBottom: 12 }}>
+            <Text style={{ fontSize: 17, fontWeight: "900", color: colors.text, marginBottom: 12 }}>
               Filtres
             </Text>
 
@@ -842,11 +844,11 @@ setMatchSummary(summary);
               placeholder="Buscar per atacant, id o event..."
               style={{
                 borderWidth: 1,
-                borderColor: "#D1D5DB",
+                borderColor: colors.border,
                 borderRadius: 12,
                 paddingHorizontal: 12,
                 paddingVertical: 10,
-                backgroundColor: "white",
+                backgroundColor: colors.card,
                 marginBottom: 12,
               }}
             />
@@ -859,11 +861,11 @@ setMatchSummary(summary);
                   paddingVertical: 8,
                   paddingHorizontal: 12,
                   borderWidth: 1,
-                  borderColor: filterRound === null ? "#111827" : "#D1D5DB",
-                  backgroundColor: filterRound === null ? "#111827" : "white",
+                  borderColor: filterRound === null ? colors.primary : colors.border,
+                  backgroundColor: filterRound === null ? colors.primary : colors.card,
                 }}
               >
-                <Text style={{ fontWeight: "800", color: filterRound === null ? "white" : "#111827" }}>
+                <Text style={{ fontWeight: "800", color: filterRound === null ? colors.primaryText : colors.text }}>
                   Totes les rondes
                 </Text>
               </Pressable>
@@ -877,11 +879,11 @@ setMatchSummary(summary);
                     paddingVertical: 8,
                     paddingHorizontal: 12,
                     borderWidth: 1,
-                    borderColor: filterRound === round ? "#111827" : "#D1D5DB",
-                    backgroundColor: filterRound === round ? "#111827" : "white",
+                    borderColor: filterRound === round ? colors.primary : colors.border,
+                    backgroundColor: filterRound === round ? colors.primary : colors.card,
                   }}
                 >
-                  <Text style={{ fontWeight: "800", color: filterRound === round ? "white" : "#111827" }}>
+                  <Text style={{ fontWeight: "800", color: filterRound === round ? colors.primaryText : colors.text }}>
                     R{round}
                   </Text>
                 </Pressable>
@@ -896,11 +898,11 @@ setMatchSummary(summary);
                   paddingVertical: 8,
                   paddingHorizontal: 12,
                   borderWidth: 1,
-                  borderColor: filterTurn === null ? "#111827" : "#D1D5DB",
-                  backgroundColor: filterTurn === null ? "#111827" : "white",
+                  borderColor: filterTurn === null ? colors.primary : colors.border,
+                  backgroundColor: filterTurn === null ? colors.primary : colors.card,
                 }}
               >
-                <Text style={{ fontWeight: "800", color: filterTurn === null ? "white" : "#111827" }}>
+                <Text style={{ fontWeight: "800", color: filterTurn === null ? colors.primaryText : colors.text }}>
                   Tots els torns
                 </Text>
               </Pressable>
@@ -914,11 +916,11 @@ setMatchSummary(summary);
                     paddingVertical: 8,
                     paddingHorizontal: 12,
                     borderWidth: 1,
-                    borderColor: filterTurn === turn ? "#111827" : "#D1D5DB",
-                    backgroundColor: filterTurn === turn ? "#111827" : "white",
+                    borderColor: filterTurn === turn ? colors.primary : colors.border,
+                    backgroundColor: filterTurn === turn ? colors.primary : colors.card,
                   }}
                 >
-                  <Text style={{ fontWeight: "800", color: filterTurn === turn ? "white" : "#111827" }}>
+                  <Text style={{ fontWeight: "800", color: filterTurn === turn ? colors.primaryText : colors.text }}>
                     Torn {turn}
                   </Text>
                 </Pressable>
@@ -935,10 +937,10 @@ setMatchSummary(summary);
               <View
                 key={group.key}
                 style={{
-                  backgroundColor: "white",
+                  backgroundColor: colors.card,
                   borderRadius: 16,
                   borderWidth: 1,
-                  borderColor: "#E5E7EB",
+                  borderColor: colors.border,
                   marginBottom: 12,
                   overflow: "hidden",
                 }}
@@ -948,19 +950,19 @@ setMatchSummary(summary);
                   style={{
                     paddingHorizontal: 14,
                     paddingVertical: 14,
-                    backgroundColor: "#F9FAFB",
+                    backgroundColor: colors.cardAlt,
                     flexDirection: "row",
                     alignItems: "center",
                     justifyContent: "space-between",
                   }}
                 >
                   <View>
-                    <Text style={{ fontWeight: "900", fontSize: 16, color: "#111827" }}>{group.label}</Text>
-                    <Text style={{ marginTop: 4, color: "#6B7280", fontWeight: "700" }}>
+                    <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>{group.label}</Text>
+                    <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "700" }}>
                       {group.items.length} jugad{group.items.length === 1 ? "a" : "es"}
                     </Text>
                   </View>
-                  <Text style={{ fontWeight: "900", fontSize: 18, color: "#111827" }}>
+                  <Text style={{ fontWeight: "900", fontSize: 18, color: colors.text }}>
                     {collapsed ? "＋" : "－"}
                   </Text>
                 </Pressable>
@@ -972,7 +974,7 @@ setMatchSummary(summary);
                         key={play.play_id}
                         style={{
                           borderWidth: 1,
-                          borderColor: "#E5E7EB",
+                          borderColor: colors.border,
                           borderRadius: 14,
                           padding: 12,
                           marginBottom: 10,
@@ -986,13 +988,13 @@ setMatchSummary(summary);
                           }}
                         >
                           <View style={{ flex: 1, paddingRight: 10 }}>
-                            <Text style={{ fontWeight: "900", color: "#111827", fontSize: 15 }}>
+                            <Text style={{ fontWeight: "900", color: colors.text, fontSize: 15 }}>
                               Play #{play.play_id}
                             </Text>
-                            <Text style={{ marginTop: 4, color: "#111827", fontWeight: "700" }}>
+                            <Text style={{ marginTop: 4, color: colors.text, fontWeight: "700" }}>
                               Atacant: {play.attacker_name ?? "—"}
                             </Text>
-                            <Text style={{ marginTop: 4, color: "#4B5563" }}>
+                            <Text style={{ marginTop: 4, color: colors.muted }}>
                               Eliminat: {play.eliminated ? "Sí" : "No"}
                               {play.eliminated_by_name ? ` · per ${play.eliminated_by_name}` : ""}
                             </Text>
@@ -1006,11 +1008,11 @@ setMatchSummary(summary);
                                 paddingHorizontal: 12,
                                 borderRadius: 10,
                                 borderWidth: 1,
-                                borderColor: "#D1D5DB",
-                                backgroundColor: "white",
+                                borderColor: colors.border,
+                                backgroundColor: colors.card,
                               }}
                             >
-                              <Text style={{ fontWeight: "800" }}>Editar</Text>
+                              <Text style={{ fontWeight: "800", color: colors.text }}>Editar</Text>
                             </Pressable>
 
                             <Pressable
@@ -1038,7 +1040,7 @@ setMatchSummary(summary);
                             contentContainerStyle={{ gap: 8, paddingRight: 8 }}
                           >
                             {play.events.length ? (
-                              play.events.map((ev, idx) => {
+                            play.events.map((ev, idx) => {
                                 const tone = getEventTone(ev.event_type);
 
                                 return (
@@ -1060,7 +1062,7 @@ setMatchSummary(summary);
                                 );
                               })
                             ) : (
-                              <Text style={{ color: "#9CA3AF" }}>Sense events</Text>
+                              <Text style={{ color: colors.muted }}>Sense events</Text>
                             )}
                           </ScrollView>
                         </View>
@@ -1076,30 +1078,29 @@ setMatchSummary(summary);
 
       <Modal visible={editOpen} transparent animationType="slide" onRequestClose={() => setEditOpen(false)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", padding: 16 }}>
-          <View style={{ backgroundColor: "white", borderRadius: 16, padding: 16, maxHeight: "90%" }}>
+          <View style={{ backgroundColor: colors.card, borderRadius: 16, padding: 16, maxHeight: "90%" }}>
             <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-              <Text style={{ fontSize: 20, fontWeight: "900", marginBottom: 12, color: "#111827" }}>
+              <Text style={{ fontSize: 20, fontWeight: "900", marginBottom: 12, color: colors.text }}>
                 Editar jugada {selectedPlay?.play_id}
               </Text>
 
               <View
                 style={{
                   borderRadius: 14,
-                  backgroundColor: "#F9FAFB",
+                  backgroundColor: colors.cardAlt,
                   borderWidth: 1,
-                  borderColor: "#E5E7EB",
+                  borderColor: colors.border,
                   padding: 12,
                   marginBottom: 14,
                 }}
               >
-                <Text style={{ fontWeight: "900", color: "#111827" }}>Resum</Text>
-                <Text style={{ marginTop: 6, color: "#374151", fontWeight: "700" }}>
+                <Text style={{ fontWeight: "900", color: colors.text }}>Resum</Text>
+                <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "700" }}>
                   Atacant: {selectedPlay?.attacker_name ?? "—"}
                 </Text>
-                <Text style={{ marginTop: 4, color: "#374151" }}>
-                  Abans: +{currentContributionBefore.teamA} / +{currentContributionBefore.teamB}
+                <Text style={{ marginTop: 4, color: colors.muted }}> +{currentContributionBefore.teamA} / +{currentContributionBefore.teamB}
                 </Text>
-                <Text style={{ marginTop: 4, color: "#374151" }}>
+                <Text style={{ marginTop: 4, color: colors.muted }}>
                   Després: +{currentContributionAfter.teamA} / +{currentContributionAfter.teamB}
                 </Text>
               </View>
@@ -1112,27 +1113,27 @@ setMatchSummary(summary);
                   marginBottom: 12,
                 }}
               >
-                <Text style={{ fontWeight: "800", color: "#111827" }}>Eliminat</Text>
+                <Text style={{ fontWeight: "800", color: colors.text }}>Eliminat</Text>
                 <Switch value={editEliminated} onValueChange={setEditEliminated} />
               </View>
 
-              <Text style={{ fontWeight: "800", marginBottom: 6, color: "#111827" }}>Eliminat per</Text>
+              <Text style={{ fontWeight: "800", marginBottom: 6, color: colors.text }}>Eliminat per</Text>
               <Pressable
                 onPress={() => openPlayerPicker("eliminated_by")}
                 style={{
                   borderWidth: 1,
-                  borderColor: "#D1D5DB",
+                  borderColor: colors.border,
                   borderRadius: 12,
                   paddingHorizontal: 12,
                   paddingVertical: 12,
-                  backgroundColor: "white",
+                  backgroundColor: colors.card,
                   marginBottom: 12,
                 }}
               >
                 <Text
                   style={{
                     fontWeight: "700",
-                    color: editEliminatedByPlayerId ? "#111827" : "#6B7280",
+                    color: editEliminatedByPlayerId ? colors.text : colors.muted,
                   }}
                 >
                   {editEliminatedByPlayerId
@@ -1150,7 +1151,7 @@ setMatchSummary(summary);
                 </Pressable>
               ) : null}
 
-              <Text style={{ fontWeight: "800", marginBottom: 8, color: "#111827" }}>Events</Text>
+              <Text style={{ fontWeight: "800", marginBottom: 8, color: colors.text }}>Events</Text>
 
               {eventDrafts.map((draft, index) => {
                 const tone = getEventTone(draft.event_type);
@@ -1181,7 +1182,7 @@ setMatchSummary(summary);
                       </Pressable>
                     </View>
 
-                    <Text style={{ fontWeight: "800", marginBottom: 6, color: "#111827" }}>Tipus</Text>
+                    <Text style={{ fontWeight: "800", marginBottom: 6, color: colors.text }}>Tipus</Text>
                     <ScrollView
                       horizontal
                       nestedScrollEnabled
@@ -1201,14 +1202,14 @@ setMatchSummary(summary);
                               paddingVertical: 8,
                               paddingHorizontal: 12,
                               borderWidth: 1,
-                              borderColor: active ? "#111827" : "#D1D5DB",
-                              backgroundColor: active ? "#111827" : "white",
+                              borderColor: active ? colors.primary : colors.border,
+                              backgroundColor: active ? colors.primary : colors.card,
                             }}
                           >
                             <Text
                               style={{
                                 fontWeight: "800",
-                                color: active ? "white" : "#111827",
+                                color: active ? colors.primaryText : colors.text,
                               }}
                             >
                               {prettyEventType(type)}
@@ -1218,40 +1219,40 @@ setMatchSummary(summary);
                       })}
                     </ScrollView>
 
-                    <Text style={{ fontWeight: "800", marginBottom: 6, color: "#111827" }}>Valor</Text>
+                    <Text style={{ fontWeight: "800", marginBottom: 6, color: colors.text }}>Valor</Text>
                     <TextInput
                       value={draft.value}
                       onChangeText={(value) => updateDraft(draft.id, { value })}
                       keyboardType="numeric"
                       style={{
                         borderWidth: 1,
-                        borderColor: "#D1D5DB",
+                        borderColor: colors.border,
                         borderRadius: 12,
                         paddingHorizontal: 12,
                         paddingVertical: 10,
-                        backgroundColor: "white",
+                        backgroundColor: colors.card,
                         marginBottom: 10,
                       }}
                     />
 
-                    <Text style={{ fontWeight: "800", marginBottom: 6, color: "#111827" }}>
+                    <Text style={{ fontWeight: "800", marginBottom: 6, color: colors.text }}>
                       Jugador (opcional)
                     </Text>
                     <Pressable
                       onPress={() => openPlayerPicker("event_player", draft.id)}
                       style={{
                         borderWidth: 1,
-                        borderColor: "#D1D5DB",
+                        borderColor: colors.border,
                         borderRadius: 12,
                         paddingHorizontal: 12,
                         paddingVertical: 12,
-                        backgroundColor: "white",
+                        backgroundColor: colors.card,
                       }}
                     >
                       <Text
                         style={{
                           fontWeight: "700",
-                          color: draft.player_id ? "#111827" : "#6B7280",
+                          color: draft.player_id ? colors.text : colors.muted,
                         }}
                       >
                         {draft.player_id
@@ -1275,29 +1276,29 @@ setMatchSummary(summary);
                 onPress={addDraftEvent}
                 style={{
                   borderWidth: 1,
-                  borderColor: "#D1D5DB",
+                  borderColor: colors.border,
                   borderRadius: 12,
                   paddingVertical: 12,
                   alignItems: "center",
                   marginBottom: 14,
-                  backgroundColor: "white",
+                  backgroundColor: colors.card,
                 }}
               >
-                <Text style={{ fontWeight: "900", color: "#111827" }}>＋ Afegir event</Text>
+                <Text style={{ fontWeight: "900", color: colors.text }}>＋ Afegir event</Text>
               </Pressable>
 
-              <Text style={{ fontWeight: "800", marginBottom: 6, color: "#111827" }}>Motiu del canvi</Text>
+              <Text style={{ fontWeight: "800", marginBottom: 6, color: colors.text }}>Motiu del canvi</Text>
               <TextInput
                 value={reason}
                 onChangeText={setReason}
                 placeholder="Ex: corregir canes mal apuntades"
                 style={{
                   borderWidth: 1,
-                  borderColor: "#D1D5DB",
+                  borderColor: colors.border,
                   borderRadius: 12,
                   paddingHorizontal: 12,
                   paddingVertical: 10,
-                  backgroundColor: "white",
+                  backgroundColor: colors.card,
                 }}
               />
 
@@ -1316,11 +1317,11 @@ setMatchSummary(summary);
                     paddingVertical: 12,
                     borderRadius: 12,
                     borderWidth: 1,
-                    borderColor: "#D1D5DB",
+                    borderColor: colors.border,
                     alignItems: "center",
                   }}
                 >
-                  <Text style={{ fontWeight: "800" }}>Cancel·lar</Text>
+                  <Text style={{ fontWeight: "800", color: colors.text }}>Cancel·lar</Text>
                 </Pressable>
 
                 <Pressable
@@ -1330,15 +1331,15 @@ setMatchSummary(summary);
                     flex: 1,
                     paddingVertical: 12,
                     borderRadius: 12,
-                    backgroundColor: "#111827",
+                    backgroundColor: colors.primary,
                     alignItems: "center",
                     opacity: saving ? 0.45 : 1,
                   }}
                 >
                   {saving ? (
-                    <ActivityIndicator color="white" />
+                    <ActivityIndicator color={colors.primaryText} />
                   ) : (
-                    <Text style={{ color: "white", fontWeight: "900" }}>Guardar</Text>
+                    <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Guardar</Text>
                   )}
                 </Pressable>
               </View>
@@ -1366,8 +1367,8 @@ setMatchSummary(summary);
         }}
       >
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", padding: 16 }}>
-          <View style={{ backgroundColor: "white", borderRadius: 16, padding: 16, maxHeight: "85%" }}>
-            <Text style={{ fontSize: 18, fontWeight: "900", marginBottom: 12, color: "#111827" }}>
+          <View style={{ backgroundColor: colors.card, borderRadius: 16, padding: 16, maxHeight: "85%" }}>
+            <Text style={{ fontSize: 18, fontWeight: "900", marginBottom: 12, color: colors.text }}>
               Seleccionar jugador
             </Text>
 
@@ -1394,7 +1395,7 @@ setMatchSummary(summary);
 
                 return (
                   <View key={teamId} style={{ marginBottom: 14 }}>
-                    <Text style={{ fontWeight: "900", color: "#111827", marginBottom: 8 }}>
+                    <Text style={{ fontWeight: "900", color: colors.text, marginBottom: 8 }}>
                       {teamName}
                     </Text>
 
@@ -1404,15 +1405,15 @@ setMatchSummary(summary);
                         onPress={() => applyPlayerSelection(player.playerId)}
                         style={{
                           borderWidth: 1,
-                          borderColor: "#E5E7EB",
+                          borderColor: colors.border,
                           borderRadius: 12,
                           paddingVertical: 12,
                           paddingHorizontal: 12,
                           marginBottom: 8,
-                          backgroundColor: "white",
+                          backgroundColor: colors.card,
                         }}
                       >
-                        <Text style={{ fontWeight: "800", color: "#111827" }}>
+                        <Text style={{ fontWeight: "800", color: colors.text }}>
                           {displayPlayer(player)}
                         </Text>
                       </Pressable>
@@ -1439,13 +1440,13 @@ setMatchSummary(summary);
               style={{
                 marginTop: 8,
                 borderWidth: 1,
-                borderColor: "#D1D5DB",
+                borderColor: colors.border,
                 borderRadius: 12,
                 paddingVertical: 12,
                 alignItems: "center",
               }}
             >
-              <Text style={{ fontWeight: "800" }}>Tancar</Text>
+              <Text style={{ fontWeight: "800", color: colors.text }}>Tancar</Text>
             </Pressable>
           </View>
         </View>

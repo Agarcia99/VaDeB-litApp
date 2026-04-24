@@ -11,78 +11,15 @@ import { supabase } from "../../src/supabase";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
 import { BackButton, RefreshButton } from "../../components/HeaderButtons";
+import { formatDateDDMMYYYY_HHMM } from "../../src/utils/format";
+import { compareMatches, getTodayRangeLocal } from "../../src/utils/matchUtils";
+import { useAppTheme } from "../../src/theme";
 
 type RefMap = { referee_id: number };
 
-function pad2(n: number) {
-  return String(n).padStart(2, "0");
-}
-
-function formatDateDDMMYYYY_HHMM(iso: string) {
-  const d = new Date(iso);
-  const day = pad2(d.getDate());
-  const month = pad2(d.getMonth() + 1);
-  const year = d.getFullYear();
-  const hour = pad2(d.getHours());
-  const min = pad2(d.getMinutes());
-  return `${day}/${month}/${year} - ${hour}:${min}`;
-}
-
-function getTodayRangeLocal() {
-  // Agafa el dia "d'avui" segons el mòbil (Europa/Madrid si el dispositiu està en aquesta TZ)
-  const now = new Date();
-  const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0);
-  return { start, end };
-}
-function getFieldOrder(fieldCode?: string | null) {
-  const code = (fieldCode ?? "").trim().toUpperCase();
-
-  if (code === "A") return 0;
-  if (code === "B") return 1;
-  return 99;
-}
-
-function compareMatches(a: any, b: any) {
-  const finishedA = !!a.is_finished;
-  const finishedB = !!b.is_finished;
-
-  // Pendents primer, finalitzats després
-  if (finishedA !== finishedB) {
-    return finishedA ? 1 : -1;
-  }
-
-  const timeA = a.match_date ? new Date(a.match_date).getTime() : Number.MAX_SAFE_INTEGER;
-  const timeB = b.match_date ? new Date(b.match_date).getTime() : Number.MAX_SAFE_INTEGER;
-
-  // Primer data i hora
-  if (timeA !== timeB) {
-    return timeA - timeB;
-  }
-
-  // Després camp A abans que B
-  const fieldA = getFieldOrder(a.field_code);
-  const fieldB = getFieldOrder(b.field_code);
-
-  if (fieldA !== fieldB) {
-    return fieldA - fieldB;
-  }
-
-  // Desempat estable extra
-  const refA = typeof a.referee_id === "number" ? a.referee_id : Number.MAX_SAFE_INTEGER;
-  const refB = typeof b.referee_id === "number" ? b.referee_id : Number.MAX_SAFE_INTEGER;
-
-  if (refA !== refB) {
-    return refB - refA;
-  }
-
-  const idA = typeof a.match_id === "number" ? a.match_id : Number.MAX_SAFE_INTEGER;
-  const idB = typeof b.match_id === "number" ? b.match_id : Number.MAX_SAFE_INTEGER;
-
-  return idA - idB;
-}
 export default function Matches() {
   const router = useRouter();
+  const { colors, isDark } = useAppTheme();
   const [loading, setLoading] = useState(true);
   const [matches, setMatches] = useState<any[]>([]);
   const [ref, setRef] = useState<RefMap | null>(null);
@@ -212,7 +149,7 @@ async function loadMatches() {
   }
 
   return (
-    <View style={{ flex: 1, padding: 16 }}>
+    <View style={{ flex: 1, padding: 16, backgroundColor: colors.bg }}>
       <View
         style={{
           flexDirection: "row",
@@ -241,6 +178,7 @@ async function loadMatches() {
           fontWeight: "bold",
           marginBottom: 16,
           textAlign: "center",
+          color: colors.text,
         }}
       >
         Partits d&apos;el campionat
@@ -257,7 +195,7 @@ async function loadMatches() {
               marginTop: 80,
             }}
           >
-            <Text style={{ textAlign: "center", fontSize: 16, color: "#666" }}>
+            <Text style={{ textAlign: "center", fontSize: 16, color: colors.muted }}>
               No hi ha partits.
             </Text>
           </View>
@@ -278,12 +216,12 @@ async function loadMatches() {
             typeof item.score_team_b === "number" ? item.score_team_b : null;
 
           const cardBg = isFinished
-            ? "#ffecec" // vermell suau
+            ? (isDark ? "#2A0E0E" : "#ffecec")
             : isMine
-              ? "#e6f7ed" // verd suau
+              ? (isDark ? "#0E2A14" : "#e6f7ed")
               : isUnassigned
-                ? "#fff8db" // groc suau
-                : "#fff0e0"; // taronja suau
+                ? (isDark ? "#2A2000" : "#fff8db")
+                : (isDark ? "#2A1400" : "#fff0e0");
 
           const leftColor = isFinished
             ? "#e74c3c" // vermell
@@ -343,7 +281,7 @@ async function loadMatches() {
     opacity: isFinished ? 0.9 : 1,
   }}
 >
-              <Text style={{ fontWeight: "bold", fontSize: 16 }}>
+              <Text style={{ fontWeight: "bold", fontSize: 16, color: colors.text }}>
                 {item.team_a_name} vs {item.team_b_name}
               </Text>
 
@@ -354,16 +292,16 @@ async function loadMatches() {
                 </Text>
               )}
 
-              <Text style={{ color: "#555", marginTop: 6 }}>
+              <Text style={{ color: colors.muted, marginTop: 6 }}>
                 {formatDateDDMMYYYY_HHMM(item.match_date)}
               </Text>
 
-              <Text style={{ color: "#888", marginTop: 2 }}>
+              <Text style={{ color: colors.muted, marginTop: 2 }}>
                 Camp: {item.field_code}
               </Text>
 
               {!!phaseName && (
-                <Text style={{ color: "#666", marginTop: 2, fontWeight: "700" }}>
+                <Text style={{ color: colors.muted, marginTop: 2, fontWeight: "700" }}>
                   {phaseName}
                 </Text>
               )}
