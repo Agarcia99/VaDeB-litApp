@@ -10,16 +10,19 @@ import {
 import { supabase } from "../src/supabase";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "@react-navigation/native";
-import { BackButton, RefreshButton } from "../components/HeaderButtons";
+import { RefreshButton } from "../components/HeaderButtons";
 import { formatDateDDMMYYYY_HHMM } from "../src/utils/format";
 import { compareMatches, getTodayRangeLocal } from "../src/utils/matchUtils";
 import { useAppTheme } from "../src/theme";
+import { useLanguage } from "../src/i18n/LanguageContext";
 
 type RefMap = { referee_id: number };
 
 export default function Matches() {
   const router = useRouter();
   const { colors, isDark } = useAppTheme();
+  const { t } = useLanguage();
+
   const [loading, setLoading] = useState(true);
   const [matches, setMatches] = useState<any[]>([]);
   const [ref, setRef] = useState<RefMap | null>(null);
@@ -44,8 +47,8 @@ export default function Matches() {
         await supabase.auth.signOut();
 
         Alert.alert(
-          "Sessió tancada",
-          "El teu usuari ha estat desactivat."
+          t("matchesReferee.sessionClosedTitle"),
+          t("matchesReferee.userDisabledSession")
         );
 
         router.replace("/login");
@@ -53,14 +56,13 @@ export default function Matches() {
     };
 
     checkAccess();
-  }, []);
+  }, [router, t]);
 
   useFocusEffect(
     useCallback(() => {
       loadMatches();
-    }, [])
+    }, [t])
   );
-
 
   async function loadRefereeNames(refIds: number[]) {
     const unique = Array.from(new Set(refIds.filter((x) => typeof x === "number" && x !== 1)));
@@ -69,12 +71,9 @@ export default function Matches() {
       return;
     }
 
-    // Schema-safe: referee table must at least have id + name
     const { data, error } = await supabase.from("referee").select("id,name").in("id", unique);
 
     if (error) {
-      // If referee table is protected, we just won't show names.
-      // You can loosen RLS for SELECT on referee for authenticated refs if needed.
       console.log("loadRefereeNames error:", error.message);
       setRefereeNameMap({});
       return;
@@ -95,7 +94,7 @@ export default function Matches() {
     const { data: sessionRes, error: sessionErr } = await supabase.auth.getSession();
 
     if (sessionErr) {
-      Alert.alert("Error", sessionErr.message);
+      Alert.alert(t("common.error"), sessionErr.message);
       setLoading(false);
       return;
     }
@@ -107,7 +106,6 @@ export default function Matches() {
       return;
     }
 
-    // Admin check (for config button)
     const { data: adminData } = await supabase
       .from("championship_admin_user")
       .select("user_id")
@@ -122,7 +120,7 @@ export default function Matches() {
       .single();
 
     if (refErr) {
-      Alert.alert("Error", "No s'ha pogut validar l'accés de l'àrbitre.");
+      Alert.alert(t("common.error"), t("matchesReferee.refereeAccessError"));
       await supabase.auth.signOut();
       router.replace("/login");
       setLoading(false);
@@ -130,7 +128,7 @@ export default function Matches() {
     }
 
     if (!refData) {
-      Alert.alert("Accés denegat", "Aquest usuari no està vinculat a cap àrbitre.");
+      Alert.alert(t("matchesReferee.accessDeniedTitle"), t("matchesReferee.noRefereeLinked"));
       await supabase.auth.signOut();
       router.replace("/login");
       setLoading(false);
@@ -138,7 +136,7 @@ export default function Matches() {
     }
 
     if (!refData.is_active) {
-      Alert.alert("Usuari desactivat", "Aquest usuari està desactivat.");
+      Alert.alert(t("matchesReferee.userDisabledTitle"), t("matchesReferee.userDisabled"));
       await supabase.auth.signOut();
       router.replace("/login");
       setLoading(false);
@@ -147,8 +145,6 @@ export default function Matches() {
 
     setRef({ referee_id: refData.referee_id });
 
-    // ✅ FILTRE ACTIU: només partits d'avui (el dia)
-    // Si vols DESACTIVAR el filtre per fer proves, comenta aquestes 3 línies:
     const { start, end } = getTodayRangeLocal();
     const startIso = start.toISOString();
     const endIso = end.toISOString();
@@ -160,20 +156,16 @@ export default function Matches() {
       .order("referee_id", { ascending: false })
       .order("match_date", { ascending: true });
 
-    // ✅ Si l'àrbitre és el "genèric" (referee_id=2), només veu els seus partits
     if (refData.referee_id === 2) {
       q = q.eq("referee_id", 2);
     }
 
-
-    // ✅ APLICA FILTRE "AVUI"
-    // Si vols DESACTIVAR el filtre per fer proves, comenta aquesta línia:
     q = q.gte("match_date", startIso).lt("match_date", endIso);
 
     const { data: matchData, error: matchErr } = await q;
 
     if (matchErr) {
-      Alert.alert("Error", matchErr.message);
+      Alert.alert(t("common.error"), matchErr.message);
       setLoading(false);
       return;
     }
@@ -219,7 +211,9 @@ export default function Matches() {
             backgroundColor: colors.card,
           }}
         >
-          <Text style={{ fontWeight: "600", color: colors.text }}>Sortir</Text>
+          <Text style={{ fontWeight: "600", color: colors.text }}>
+            {t("matchesReferee.logout")}
+          </Text>
         </Pressable>
 
         <RefreshButton
@@ -227,11 +221,12 @@ export default function Matches() {
             try {
               await loadMatches();
             } catch (e: any) {
-              Alert.alert("Error", e?.message ?? "No s'ha pogut actualitzar.");
+              Alert.alert(t("common.error"), e?.message ?? t("matchesReferee.refreshError"));
             }
           }}
           style={{ alignSelf: "center" }}
         />
+
         {isAdmin ? (
           <Pressable
             onPress={() => router.push("/admin")}
@@ -259,7 +254,7 @@ export default function Matches() {
           color: colors.text,
         }}
       >
-        Partits d&apos;avui
+        {t("matchesReferee.todayMatches")}
       </Text>
 
       <FlatList
@@ -274,7 +269,7 @@ export default function Matches() {
             }}
           >
             <Text style={{ textAlign: "center", fontSize: 16, color: colors.muted }}>
-              No hi ha partits.
+              {t("matchesReferee.noMatches")}
             </Text>
           </View>
         )}
@@ -302,22 +297,22 @@ export default function Matches() {
                 : (isDark ? "#2A1400" : "#fff0e0");
 
           const leftColor = isFinished
-            ? "#e74c3c" // vermell
+            ? "#e74c3c"
             : isMine
-              ? "#2ecc71" // verd
+              ? "#2ecc71"
               : isUnassigned
-                ? "#f1c40f" // groc
-                : "#f39c12"; // taronja
+                ? "#f1c40f"
+                : "#f39c12";
 
           const statusText = isFinished
-            ? "Partit Finalitzat"
+            ? t("matchesReferee.matchFinished")
             : isMine
-              ? "Assignat a tu"
+              ? t("matchesReferee.assignedToYou")
               : isUnassigned
-                ? "Sense àrbitre!"
+                ? t("matchesReferee.noReferee")
                 : assignedName
-                  ? `Assignat a ${assignedName}`
-                  : "Assignat";
+                  ? t("matchesReferee.assignedTo", { name: assignedName })
+                  : t("matchesReferee.assigned");
 
           const statusColor = isFinished
             ? "#e74c3c"
@@ -360,10 +355,9 @@ export default function Matches() {
               }}
             >
               <Text style={{ fontWeight: "bold", fontSize: 16, color: colors.text }}>
-                {item.team_a_name} vs {item.team_b_name}
+                {item.team_a_name} {t("publicMatches.vs")} {item.team_b_name}
               </Text>
 
-              {/* ✅ Resultat només si finalitzat */}
               {isFinished && scoreA !== null && scoreB !== null && (
                 <Text style={{ marginTop: 6, fontWeight: "800", color: "#e74c3c" }}>
                   {scoreA} - {scoreB}
@@ -375,7 +369,7 @@ export default function Matches() {
               </Text>
 
               <Text style={{ color: colors.muted, marginTop: 2 }}>
-                Camp: {item.field_code}
+                {t("matchesReferee.field")}: {item.field_code}
               </Text>
 
               {!!phaseName && (

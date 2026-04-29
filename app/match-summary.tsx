@@ -16,6 +16,7 @@ import * as Sharing from "expo-sharing";
 import { useFocusEffect } from "@react-navigation/native";
 import { supabase } from "../src/supabase";
 import { useAppTheme, AppColors } from "../src/theme";
+import { useLanguage } from "../src/i18n/LanguageContext";
 import { BackButton, RefreshButton } from "../components/HeaderButtons";
 import { formatDateDDMMYYYY_HHMM } from "../src/utils/format";
 
@@ -349,6 +350,9 @@ export default function MatchSummary() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const matchId = Number(id);
   const router = useRouter();
+  const { colors, isDark } = useAppTheme();
+  const { t } = useLanguage();
+  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
 
   const [loading, setLoading] = useState(true);
   const [match, setMatch] = useState<MatchInfo | null>(null);
@@ -368,38 +372,35 @@ export default function MatchSummary() {
   const [statItems, setStatItems] = useState<StatListItem[]>([]);
 
   const headerTeams = useMemo(() => {
-    const a = match?.team_a?.name ?? "Team A";
-    const b = match?.team_b?.name ?? "Team B";
+    const a = match?.team_a?.name ?? t("publicMatches.teamA");
+    const b = match?.team_b?.name ?? t("publicMatches.teamB");
     const sa = trimCharField(match?.team_a?.short_name);
     const sb = trimCharField(match?.team_b?.short_name);
     const aLabel = sa ? `${a}` : a;
     const bLabel = sb ? `${b} ` : b;
-    return `${aLabel} vs ${bLabel}`;
-  }, [match]);
+    return `${aLabel} ${t("publicMatches.vs")} ${bLabel}`;
+  }, [match, t]);
 
   const belitDorWinnerName = useMemo(() => {
     if (!hasBelitDor) return null;
     if (!match?.finished_at) return null;
-    const aName = match?.team_a?.name ?? "Equip A";
-    const bName = match?.team_b?.name ?? "Equip B";
+    const aName = match?.team_a?.name ?? t("publicMatches.teamA");
+    const bName = match?.team_b?.name ?? t("publicMatches.teamB");
     const sa = match?.score_team_a ?? 0;
     const sb = match?.score_team_b ?? 0;
     if (sa === sb) return null;
     return sa > sb ? aName : bName;
-  }, [hasBelitDor, match]);
-
-  const { colors, isDark } = useAppTheme();
-  const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
+  }, [hasBelitDor, match, t]);
 
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [matchId])
+    }, [matchId,t])
   );
 
   async function load() {
     if (!matchId || Number.isNaN(matchId)) {
-      Alert.alert("Error", "Match ID invàlid.");
+      Alert.alert(t("common.error"), t("matchSummary.invalidMatchId"));
       return;
     }
 
@@ -414,7 +415,7 @@ export default function MatchSummary() {
       .single();
 
     if (matchErr || !matchData) {
-      Alert.alert("Error", matchErr?.message ?? "No s'ha pogut carregar el partit.");
+      Alert.alert(t("common.error"), matchErr?.message ?? t("matchSummary.loadError"));
       setLoading(false);
       return;
     }
@@ -440,7 +441,7 @@ export default function MatchSummary() {
       .order("number", { ascending: true });
 
     if (mrErr) {
-      Alert.alert("Error", mrErr.message);
+      Alert.alert(t("common.error"), mrErr.message);
       setLoading(false);
       return;
     }
@@ -464,7 +465,7 @@ export default function MatchSummary() {
       .in("match_round_id", mrIds);
 
     if (rErr) {
-      Alert.alert("Error", rErr.message);
+      Alert.alert(t("common.error"), rErr.message);
       setLoading(false);
       return;
     }
@@ -478,7 +479,7 @@ export default function MatchSummary() {
       .in("round_id", roundIds);
 
     if (pErr) {
-      Alert.alert("Error", pErr.message);
+      Alert.alert(t("common.error"), pErr.message);
       setLoading(false);
       return;
     }
@@ -493,7 +494,7 @@ export default function MatchSummary() {
       .order("created_at", { ascending: true });
 
     if (eErr) {
-      Alert.alert("Error", eErr.message);
+      Alert.alert(t("common.error"), eErr.message);
       setLoading(false);
       return;
     }
@@ -550,8 +551,8 @@ function captainForTeam(teamId: number) {
     // NOT PRESENTED (incompareixença)
     const npEvent = eventRows.find((ev) => ev.event_type === "NOT_PRESENTED");
     if (npEvent) {
-      const aName = matchData.team_a?.[0]?.name ?? "Team A";
-      const bName = matchData.team_b?.[0]?.name ?? "Team B";
+      const aName = matchData.team_a?.name ?? t("publicMatches.teamA");
+      const bName = matchData.team_b?.name ?? t("publicMatches.teamB");
       const sa = matchData.score_team_a ?? 0;
       const sb = matchData.score_team_b ?? 0;
 
@@ -599,7 +600,7 @@ function captainForTeam(teamId: number) {
         .in("id", idsArr);
 
       if (playersErr) {
-        Alert.alert("Error", playersErr.message);
+        Alert.alert(t("common.error"), playersErr.message);
         setLoading(false);
         return;
       }
@@ -627,7 +628,7 @@ function captainForTeam(teamId: number) {
         .in("id", idsArr);
 
       if (teamsErr) {
-        Alert.alert("Error", teamsErr.message);
+        Alert.alert(t("common.error"), teamsErr.message);
         setLoading(false);
         return;
       }
@@ -665,15 +666,15 @@ function captainForTeam(teamId: number) {
     }
 
     function eventTypeLabel(et?: string | null) {
-      const t = (et ?? "").toUpperCase();
-      if (t === "CANAS_SCORED") return "Canes";
-      if (t === "TEAM_BONUS_CANAS") return "Bonus equip";
-      if (t === "DEFENDER_BONUS_CANAS") return "Bonus defensa";
-      if (t === "AIR_CATCH") return "Escapsada";
-      if (t === "MATACANAS") return "Matacanes";
-      if (!t) return "—";
-      return t;
-    }
+  const type = (et ?? "").toUpperCase();
+  if (type === "CANAS_SCORED") return t("matchSummary.canes");
+  if (type === "TEAM_BONUS_CANAS") return t("matchSummary.bonusTeam");
+  if (type === "DEFENDER_BONUS_CANAS") return t("matchSummary.bonusDefense");
+  if (type === "AIR_CATCH") return t("matchSummary.aircatch");
+  if (type === "MATACANAS") return t("matchSummary.killed");
+  if (!type) return "—";
+  return type;
+}
 
     // Build PDF event rows (acta): one row per play_event
     const playByIdForPdf = new Map<number, PlayRow>();
@@ -843,17 +844,17 @@ if (et === "AIR_CATCH" || et === "MATACANAS") {
 
     const out: TimelineItem[] = [];
 
-    for (const t of sortedTurns) {
-      const atkLabel = teamLabel(teamMap, t.attackingTeamId);
-      const defLabel = teamLabel(teamMap, t.defendingTeamId);
+    for (const turnGroup of sortedTurns) {
+      const atkLabel = teamLabel(teamMap, turnGroup.attackingTeamId);
+      const defLabel = teamLabel(teamMap, turnGroup.defendingTeamId);
 
       out.push({
-        key: `h-${t.mrNumber}-${t.turn}`,
+        key: `h-${turnGroup.mrNumber}-${turnGroup.turn}`,
         kind: "turn_header",
-        text: `Ronda ${t.mrNumber} · Torn ${t.turn} — Ataca: ${atkLabel}`,
+        text: `${t("matchSummary.round")} ${turnGroup.mrNumber} · ${t("matchSummary.turn")} ${turnGroup.turn} — ${t("matchSummary.attack")}: ${atkLabel}`,
       });
 
-      const playsSorted = [...t.plays].sort((a, b) => a.id - b.id);
+      const playsSorted = [...turnGroup.plays].sort((a, b) => a.id - b.id);
 
       function playText(pl: PlayRow) {
         const attacker = playerName(pl.attacker_player_id);
@@ -866,27 +867,27 @@ if (et === "AIR_CATCH" || et === "MATACANAS") {
           const et = ev.event_type ?? "";
           if (et === "CANAS_SCORED") {
             const v = typeof ev.value === "number" ? ev.value : 0;
-            parts.push(`${attacker} ha fet ${v} canes`);
+            parts.push(`${attacker} ${t("matchSummary.done").toLowerCase()} ${v} ${t("matchSummary.canes").toLowerCase()}`);
             continue;
           }
           if (et === "AIR_CATCH") {
             const byName = byDefault ?? (ev.player_id ? playerName(ev.player_id) : null);
-            parts.push(byName ? `${attacker} escapsat per ${byName}` : `${attacker} escapsat`);
+            parts.push(byName ? `${attacker} ${t("matchSummary.aircatchby").toLowerCase()} ${byName}` : `${attacker} ${t("matchSummary.aircatchby").toLowerCase()}`);
             continue;
           }
           if (et === "MATACANAS") {
             const byName = byDefault ?? (ev.player_id ? playerName(ev.player_id) : null);
-            parts.push(byName ? `${attacker} matacanat per ${byName}` : `${attacker} matacanat`);
+            parts.push(byName ? `${attacker} ${t("matchSummary.killedby").toLowerCase()} ${byName}` : `${attacker} ${t("matchSummary.killedby").toLowerCase()}`);
             continue;
           }
           if (et === "TEAM_BONUS_CANAS") {
             const v = typeof ev.value === "number" ? ev.value : 0;
-            parts.push(`Metre guanyat: +${v} (${atkLabel})`);
+            parts.push(`${t("matchSummary.metersWon")}: +${v} (${atkLabel})`);
             continue;
           }
           if (et === "DEFENDER_BONUS_CANAS") {
             const v = typeof ev.value === "number" ? ev.value : 0;
-            parts.push(`Metre perdut: +${v} (${defLabel})`);
+            parts.push(`${t("matchSummary.metersLost")}: +${v} (${defLabel})`);
             continue;
           }
 
@@ -894,10 +895,10 @@ if (et === "AIR_CATCH" || et === "MATACANAS") {
             const who = ev.player_id ? playerName(ev.player_id) : attacker;
             const v = typeof ev.value === "number" ? ` (${ev.value})` : "";
             parts.push(`${who}: ${et}${v}`);
+            }
           }
-        }
 
-        if (parts.length === 0) return `Jugada #${pl.id}`;
+        if (parts.length === 0) return `${t("matchSummary.plays")} #${pl.id}`;
         return parts.join(" · ");
       }
 
@@ -905,8 +906,8 @@ if (et === "AIR_CATCH" || et === "MATACANAS") {
         const evs = eventsByPlayId.get(pl.id) ?? [];
         const types = new Set<string>(evs.map((e) => (e.event_type ?? "").toUpperCase()).filter(Boolean));
 
-        if (types.has("MATACANAS")) return { label: "Matacanes", variant: "red" as const };
-        if (types.has("AIR_CATCH")) return { label: "Escapsat", variant: "blue" as const };
+        if (types.has("MATACANAS")) return { label: t("matchSummary.killed"), variant: "red" as const };
+        if (types.has("AIR_CATCH")) return { label: t("matchSummary.aircatch"), variant: "blue" as const };
 
         if (
           types.has("METERS_REQUESTED") ||
@@ -915,11 +916,11 @@ if (et === "AIR_CATCH" || et === "MATACANAS") {
           types.has("TEAM_BONUS_CANAS") ||
           types.has("DEFENDER_BONUS_CANAS")
         ) {
-          return { label: "Metres", variant: "purple" as const };
+          return { label: t("matchSummary.meters"), variant: "purple" as const };
         }
 
-        if (types.has("CANAS_SCORED")) return { label: "Canes", variant: "green" as const };
-        return { label: "Jugada", variant: "gray" as const };
+        if (types.has("CANAS_SCORED")) return { label: t("matchSummary.canes"), variant: "green" as const };
+        return { label: t("matchSummary.plays"), variant: "gray" as const };
       }
 
       playsSorted.forEach((pl, idx) => {
@@ -934,23 +935,23 @@ if (et === "AIR_CATCH" || et === "MATACANAS") {
       const aId = matchData.team_a_id;
       const bId = matchData.team_b_id;
 
-      if (t.attackingTeamId && aId && t.attackingTeamId === aId) cumA += t.attackerPoints;
-      else if (t.attackingTeamId && bId && t.attackingTeamId === bId) cumB += t.attackerPoints;
+      if (turnGroup.attackingTeamId && aId && turnGroup.attackingTeamId === aId) cumA += turnGroup.attackerPoints;
+      else if (turnGroup.attackingTeamId && bId && turnGroup.attackingTeamId === bId) cumB += turnGroup.attackerPoints;
 
-      if (t.defendingTeamId && aId && t.defendingTeamId === aId) cumA += t.defenderPoints;
-      else if (t.defendingTeamId && bId && t.defendingTeamId === bId) cumB += t.defenderPoints;
+      if (turnGroup.defendingTeamId && aId && turnGroup.defendingTeamId === aId) cumA += turnGroup.defenderPoints;
+      else if (turnGroup.defendingTeamId && bId && turnGroup.defendingTeamId === bId) cumB += turnGroup.defenderPoints;
 
       let winner = "";
       const aLabel = teamLabel(teamMap, matchData.team_a_id);
       const bLabel = teamLabel(teamMap, matchData.team_b_id);
-      if (cumA > cumB) winner = `Guanya ${aLabel}`;
-      else if (cumB > cumA) winner = `Guanya ${bLabel}`;
-      else winner = `Empat `;
+      if (cumA > cumB) winner = `${t("matchSummary.winner")} ${aLabel}`;
+      else if (cumB > cumA) winner = `${t("matchSummary.winner")} ${bLabel}`;
+      else winner = `${t("matchSummary.draw")}`;
 
       out.push({
-        key: `e-${t.mrNumber}-${t.turn}`,
+        key: `e-${turnGroup.mrNumber}-${turnGroup.turn}`,
         kind: "turn_end",
-        text: `Canvi de torn — ${winner} · Marcador: ${cumA} - ${cumB}`,
+        text: `${t("matchSummary.changeTurn")} — ${winner} · ${t("matchSummary.score")}: ${cumA} - ${cumB}`,
       });
     }
 
@@ -965,7 +966,7 @@ if (et === "AIR_CATCH" || et === "MATACANAS") {
     // Build lineups tab items
     
 const lineupOut: LineupListItem[] = [];
-lineupOut.push({ key: "lh", kind: "lineup_header", text: "Alineacions per rondes" });
+lineupOut.push({ key: "lh", kind: "lineup_header", text: t("matchSummary.lineupsByRound") });
 
 // Group lineups by round_id
 const rlByRound = new Map<number, RoundLineupRow[]>();
@@ -1023,8 +1024,8 @@ for (const r of roundsSorted) {
     kind: "lineup_round",
     roundNumber: r.match_round_id ? (matchRoundNumberById.get(r.match_round_id) ?? null) : null,
     turn: r.turn ?? null,
-    attackTeamLabel: atkTeamId ? teamLabel(teamMap, atkTeamId) : "Atac",
-    defenseTeamLabel: defTeamId ? teamLabel(teamMap, defTeamId) : "Defensa",
+    attackTeamLabel: atkTeamId ? teamLabel(teamMap, atkTeamId) : t("matchSummary.attack"),
+    defenseTeamLabel: defTeamId ? teamLabel(teamMap, defTeamId) : t("matchSummary.defense"),
     playersAttack: atkPlayers,
     playersDefense: defPlayers,
   });
@@ -1032,7 +1033,7 @@ for (const r of roundsSorted) {
 
 // Build stats tab items
     const statsOut: StatListItem[] = [];
-    statsOut.push({ key: "sh", kind: "stat_header", text: "Estadístiques" });
+    statsOut.push({ key: "sh", kind: "stat_header", text: t("matchSummary.statsTitle") });
 
     // Build helper maps: play -> round -> teams
     const playById = new Map<number, PlayRow>();
@@ -1109,14 +1110,11 @@ for (const r of roundsSorted) {
       }
     }
 
-    const aShort = matchData.team_a?.[0]?.short_name || trimCharField(matchData.team_a?.[0]?.name) || "Equip A";
-    const bShort = matchData.team_b?.[0]?.short_name || trimCharField(matchData.team_b?.[0]?.name) || "Equip B";
-
-    statsOut.push({ key: "sr1", kind: "stat_row", label: "Canes", a: totals.canesA, b: totals.canesB });
-    statsOut.push({ key: "sr2", kind: "stat_row", label: "Matacanes", a: totals.matA, b: totals.matB });
-    statsOut.push({ key: "sr3", kind: "stat_row", label: "Escapsats", a: totals.airA, b: totals.airB });
-    statsOut.push({ key: "sr4", kind: "stat_row", label: "Metres guanyats", a: totals.metresGainA, b: totals.metresGainB });
-    statsOut.push({ key: "sr5", kind: "stat_row", label: "Metres perduts", a: totals.metresLostA, b: totals.metresLostB });
+    statsOut.push({ key: "sr1", kind: "stat_row", label: t("matchSummary.canes"), a: totals.canesA, b: totals.canesB });
+    statsOut.push({ key: "sr2", kind: "stat_row", label: t("matchSummary.killed"), a: totals.matA, b: totals.matB });
+    statsOut.push({ key: "sr3", kind: "stat_row", label: t("matchSummary.aircatch"), a: totals.airA, b: totals.airB });
+    statsOut.push({ key: "sr4", kind: "stat_row", label: t("matchSummary.metersWon"), a: totals.metresGainA, b: totals.metresGainB });
+    statsOut.push({ key: "sr5", kind: "stat_row", label: t("matchSummary.metersLost"), a: totals.metresLostA, b: totals.metresLostB });
 
     function mapToTopRows(map: Map<number, number>, max = 3) {
       return Array.from(map.entries())
@@ -1129,9 +1127,9 @@ for (const r of roundsSorted) {
     const topMatRows = mapToTopRows(topMat, 3);
     const topAirRows = mapToTopRows(topAir, 3);
 
-    if (topCanesRows.length) statsOut.push({ key: "stc", kind: "stat_top", title: "Top canadors", rows: topCanesRows });
-    if (topMatRows.length) statsOut.push({ key: "stm", kind: "stat_top", title: "Top matacanes", rows: topMatRows });
-    if (topAirRows.length) statsOut.push({ key: "sta", kind: "stat_top", title: "Top escapsats", rows: topAirRows });
+    if (topCanesRows.length) statsOut.push({ key: "stc", kind: "stat_top",title: t("matchSummary.topCanadors"), rows: topCanesRows });
+    if (topMatRows.length) statsOut.push({ key: "stm", kind: "stat_top", title: t("matchSummary.topMatacanes"), rows: topMatRows });
+    if (topAirRows.length) statsOut.push({ key: "sta", kind: "stat_top", title: t("matchSummary.topEscapsadas"), rows: topAirRows });
 
     // Apply
     if (npEvent) {
@@ -1161,7 +1159,7 @@ for (const r of roundsSorted) {
 
       const canShare = await Sharing.isAvailableAsync();
       if (!canShare) {
-        Alert.alert("No disponible", "La funció de compartir no està disponible en aquest dispositiu.");
+        Alert.alert(t("matchSummary.notAvailable"), t("matchSummary.shareNotAvailable"));
         return;
       }
 
@@ -1172,10 +1170,14 @@ for (const r of roundsSorted) {
         : "—";
       const fieldCode = trimCharField(match.slot?.field_code) || "—";
       const referee = refereeName ?? "—";
-      const teamA = match.team_a?.short_name || trimCharField(match.team_a?.name) || "Equip A";
-      const teamB = match.team_b?.short_name || trimCharField(match.team_b?.name) || "Equip B";
+      const teamA = match.team_a?.short_name || trimCharField(match.team_a?.name) || t("publicMatches.teamA");
+      const teamB = match.team_b?.short_name || trimCharField(match.team_b?.name) || t("publicMatches.teamB");
 
-      const status = match.is_finished ? "Finalitzat" : match.started_at ? "En curs" : "No iniciat";
+      const status = match.is_finished
+  ? t("matchSummary.statusFinished")
+  : match.started_at
+  ? t("matchSummary.statusLive")
+  : t("matchSummary.statusPending");
 
       const finalA = match.score_team_a ?? 0;
       const finalB = match.score_team_b ?? 0;
@@ -1204,8 +1206,8 @@ for (const r of roundsSorted) {
                 turn: 1,
                 when: datePrevText,
                 team: "—",
-                player: "—",
-                type: "Incompareixença",
+                player: "—",  
+                type: t("matchSummary.notPresented"),
                 value: `${notPresentedInfo.absent} (+${notPresentedInfo.points} ${notPresentedInfo.awarded})`,
                 attackTeam: "—",
                 defenseTeam: "—",
@@ -1219,21 +1221,21 @@ for (const r of roundsSorted) {
       await Sharing.shareAsync(uri, {
         mimeType: "application/pdf",
         UTI: "com.adobe.pdf",
-        dialogTitle: "Compartir acta (PDF)",
+        dialogTitle: t("matchSummary.sharePdf"),
       });
     } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "No s'ha pogut generar el PDF.");
+      Alert.alert(t("common.error"), e?.message ?? t("matchSummary.pdfError"));
     } finally {
       setExportingPdf(false);
     }
-  }, [match, refereeName, notPresentedInfo, headerTeams, liveScore, pdfEventRows]);
+  }, [match, refereeName, notPresentedInfo, headerTeams, liveScore, pdfEventRows,t]);
 
   if (loading) {
     return (
       <SafeAreaView style={styles.screen}>
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" />
-          <Text style={styles.loadingText}>Carregant resum...</Text>
+          <Text style={styles.loadingText}>{t("matchSummary.loading")}</Text>
         </View>
       </SafeAreaView>
     );
@@ -1268,7 +1270,7 @@ for (const r of roundsSorted) {
 
               <Text style={styles.dateText}>{formatDateDDMMYYYY_HHMM(match?.match_date)}</Text>
 
-              {refereeName && <Text style={styles.refereeText}>Arbitrat per: {refereeName}</Text>}
+              {refereeName && <Text style={styles.refereeText}>{t("matchSummary.referee")}: {refereeName}</Text>}
 
               {!!match?.phase?.name && (
                 <Text style={styles.phaseText} numberOfLines={1}>
@@ -1280,7 +1282,7 @@ for (const r of roundsSorted) {
                 <View style={styles.scoreBox}>
                   <Text style={styles.scoreValue}>{scoreA}</Text>
                   <Text style={styles.scoreLabel} numberOfLines={1}>
-                    {match?.team_a?.short_name || trimCharField(match?.team_a?.name) || "Equip A"}
+                    {match?.team_a?.short_name || trimCharField(match?.team_a?.name) || t("publicMatches.teamA")}
                   </Text>
                 </View>
 
@@ -1289,7 +1291,7 @@ for (const r of roundsSorted) {
                 <View style={styles.scoreBox}>
                   <Text style={styles.scoreValue}>{scoreB}</Text>
                   <Text style={styles.scoreLabel} numberOfLines={1}>
-                    {match?.team_b?.short_name || trimCharField(match?.team_b?.name) || "Equip B"}
+                    {match?.team_b?.short_name || trimCharField(match?.team_b?.name) || t("publicMatches.teamB")}
                   </Text>
                 </View>
               </View>
@@ -1297,20 +1299,20 @@ for (const r of roundsSorted) {
               <View style={styles.metaRow}>
                 {match?.finished_at ? (
                   <View style={[styles.metaPill, styles.metaPillFinished]}>
-                    <Text style={styles.metaPillLabel}>Finalitzat</Text>
+                    <Text style={styles.metaPillLabel}>{t("matchSummary.statusFinished")}</Text>
                     <Text style={styles.metaPillValue}>{formatDateDDMMYYYY_HHMM(match.finished_at)}</Text>
                   </View>
                 ) : (
                   <View style={[styles.metaPill, styles.metaPillPending]}>
-                    <Text style={styles.metaPillLabel}>Estat</Text>
-                    <Text style={styles.metaPillValue}>En curs</Text>
+                    <Text style={styles.metaPillLabel}>{t("matchSummary.statusLabel")}</Text>
+                    <Text style={styles.metaPillValue}>{t("matchSummary.statusLive")}</Text>
                   </View>
                 )}
 
                 {notPresentedInfo ? (
                   <View style={{ width: "100%", alignItems: "center" }}>
                     <View style={styles.badgeWarn}>
-                      <Text style={styles.badgeWarnText}>⚠️ Incompareixença</Text>
+                      <Text style={styles.badgeWarnText}>⚠️ {t("matchSummary.notPresented")}</Text>
                     </View>
                   </View>
                 ) : null}
@@ -1326,14 +1328,14 @@ for (const r of roundsSorted) {
                 ]}
               >
                 <Text style={styles.pdfButtonText}>
-                  {exportingPdf ? "Generant PDF..." : "Exportar acta (PDF)"}
+                  {exportingPdf ? t("matchSummary.generatingPdf") : t("matchSummary.exportPdf")}
                 </Text>
               </Pressable>*/}
 
               {notPresentedInfo && match?.finished_at ? (
                 <View style={styles.notPresentedCard}>
                   <Text style={styles.notPresentedText}>
-                    {notPresentedInfo.absent} no presentat: +{notPresentedInfo.points} {notPresentedInfo.awarded}
+                    {notPresentedInfo.absent} {t("matchSummary.notPresentedShort")}: +{notPresentedInfo.points} {notPresentedInfo.awarded}
                   </Text>
                 </View>
               ) : null}
@@ -1349,7 +1351,7 @@ for (const r of roundsSorted) {
                     pressed && { opacity: 0.85 },
                   ]}
                 >
-                  <Text style={[styles.tabText, tab === "summary" ? styles.tabTextActive : styles.tabTextIdle]}>Resum</Text>
+                  <Text style={[styles.tabText, tab === "summary" ? styles.tabTextActive : styles.tabTextIdle]}>{t("matchSummary.summary")}</Text>
                 </Pressable>
 
                 <Pressable
@@ -1360,7 +1362,7 @@ for (const r of roundsSorted) {
                     pressed && { opacity: 0.85 },
                   ]}
                 >
-                  <Text style={[styles.tabText, tab === "lineups" ? styles.tabTextActive : styles.tabTextIdle]}>Alineacions</Text>
+                  <Text style={[styles.tabText, tab === "lineups" ? styles.tabTextActive : styles.tabTextIdle]}>{t("matchSummary.lineups")}</Text>
                 </Pressable>
 
                 <Pressable
@@ -1371,15 +1373,15 @@ for (const r of roundsSorted) {
                     pressed && { opacity: 0.85 },
                   ]}
                 >
-                  <Text style={[styles.tabText, tab === "stats" ? styles.tabTextActive : styles.tabTextIdle]}>Stats</Text>
+                  <Text style={[styles.tabText, tab === "stats" ? styles.tabTextActive : styles.tabTextIdle]}>{t("matchSummary.stats")}</Text>
                 </Pressable>
               </View>
             )}
 
             {!notPresentedInfo && tab === "summary" && (
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Detall de jugades</Text>
-                <Text style={styles.sectionSub}>Cronologia del partit</Text>
+                <Text style={styles.sectionTitle}>{t("matchSummary.detailPlays")}</Text>
+                <Text style={styles.sectionSub}>{t("matchSummary.timeline")}</Text>
               </View>
             )}
           </View>
@@ -1388,19 +1390,19 @@ for (const r of roundsSorted) {
           <View style={styles.emptyWrap}>
             <Text style={styles.emptyText}>
               {notPresentedInfo
-                ? "Partit no jugat per incompareixença."
-                : tab === "summary"
-                ? "No hi ha jugades registrades per aquest partit."
-                : tab === "lineups"
-                ? "No hi ha alineacions registrades per aquest partit."
-                : "No hi ha estadístiques disponibles."}
+  ? t("matchSummary.emptyNotPlayed")
+  : tab === "summary"
+  ? t("matchSummary.emptySummary")
+  : tab === "lineups"
+  ? t("matchSummary.emptyLineups")
+  : t("matchSummary.emptyStats")}
             </Text>
           </View>
         )}
         ListFooterComponent={() =>
           !notPresentedInfo && hasBelitDor && belitDorWinnerName ? (
             <View style={styles.belitDorFooter}>
-              <Text style={styles.belitDorFooterText}>🏆 Bélit d’or l’ha guanyat {belitDorWinnerName}</Text>
+              <Text style={styles.belitDorFooterText}>🏆 {t("matchSummary.belitDor", { name: belitDorWinnerName })}</Text>
             </View>
           ) : (
             <View style={{ height: 8 }} />
@@ -1437,7 +1439,7 @@ for (const r of roundsSorted) {
                     item.badge?.variant === "gray" && styles.badgeGray,
                   ]}
                 >
-                  <Text style={styles.badgeText}>{item.badge?.label ?? "Jugada"}</Text>
+                  <Text style={styles.badgeText}>{item.badge?.label ?? t("matchSummary.plays")}</Text>
                 </View>
 
                 <View style={styles.playTextWrap}>
@@ -1452,7 +1454,7 @@ for (const r of roundsSorted) {
             return (
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>{item.text}</Text>
-                <Text style={styles.sectionSub}>Plantilles del partit</Text>
+                <Text style={styles.sectionSub}>{t("matchSummary.matchLineups")}</Text>
               </View>
             );
           }
@@ -1463,16 +1465,16 @@ if (item.kind === "lineup_round") {
     <View style={styles.card}>
       <Text style={styles.lineupTeamTitle}>
         {item.roundNumber != null && item.turn != null
-          ? `Ronda ${item.roundNumber} · Torn ${item.turn}`
+          ? `${t("matchSummary.round")} ${item.roundNumber} · ${t("matchSummary.turn")} ${item.turn}`
           : item.roundNumber != null
-          ? `Ronda ${item.roundNumber}`
+          ? `${t("matchSummary.round")} ${item.roundNumber}`
           : item.turn != null
-          ? `Torn ${item.turn}`
-          : "Alineació"}
+          ? `${t("matchSummary.turn")} ${item.turn}`
+          : t("matchSummary.lineup")}
       </Text>
 
       <View style={{ marginTop: 10 }}>
-        <Text style={styles.lineupRoleTitle}>{`Atac · ${item.attackTeamLabel}`}</Text>
+        <Text style={styles.lineupRoleTitle}>{`${t("matchSummary.attack")} · ${item.attackTeamLabel}`}</Text>
         {item.playersAttack.length === 0 ? (
           <Text style={styles.lineupEmpty}>—</Text>
         ) : (
@@ -1491,7 +1493,7 @@ if (item.kind === "lineup_round") {
       </View>
 
       <View style={{ marginTop: 14 }}>
-        <Text style={styles.lineupRoleTitle}>{`Defensa · ${item.defenseTeamLabel}`}</Text>
+        <Text style={styles.lineupRoleTitle}>{`${t("matchSummary.defense")} · ${item.defenseTeamLabel}`}</Text>
         {item.playersDefense.length === 0 ? (
           <Text style={styles.lineupEmpty}>—</Text>
         ) : (
@@ -1518,7 +1520,7 @@ if (item.kind === "lineup_team") {
                 <Text style={styles.lineupTeamTitle}>{item.teamLabel}</Text>
 
                 <View style={{ marginTop: 10 }}>
-                  <Text style={styles.lineupRoleTitle}>Atac</Text>
+                  <Text style={styles.lineupRoleTitle}>{t("matchSummary.attack")}</Text>
                   {item.playersAttack.length === 0 ? (
                     <Text style={styles.lineupEmpty}>—</Text>
                   ) : (
@@ -1539,7 +1541,7 @@ if (item.kind === "lineup_team") {
                 </View>
 
                 <View style={{ marginTop: 12 }}>
-                  <Text style={styles.lineupRoleTitle}>Defensa</Text>
+                  <Text style={styles.lineupRoleTitle}>{t("matchSummary.defense")}</Text>
                   {item.playersDefense.length === 0 ? (
                     <Text style={styles.lineupEmpty}>—</Text>
                   ) : (
@@ -1566,7 +1568,7 @@ if (item.kind === "lineup_team") {
             return (
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>{item.text}</Text>
-                <Text style={styles.sectionSub}>Dades del partit</Text>
+                <Text style={styles.sectionSub}>{t("matchSummary.statsSubtitle")}</Text>
               </View>
             );
           }
@@ -1864,7 +1866,7 @@ function getStyles(colors: AppColors, isDark = false) {
       borderColor: "#A7F3C0",
     },
     badgeRed: {
-      backgroundColor: isDark ? "rgba(239,68,68,0.12)" : "#FEECEC",
+      backgroundColor: isDark ? "rgba(243, 169, 169, 0.93)" : "#FEECEC",
       borderColor: "#FCA5A5",
     },
     badgeBlue: {
@@ -1872,7 +1874,7 @@ function getStyles(colors: AppColors, isDark = false) {
       borderColor: "#93C5FD",
     },
     badgePurple: {
-      backgroundColor: isDark ? "rgba(139,92,246,0.12)" : "#F3ECFF",
+      backgroundColor: isDark ? "rgb(181, 154, 245)" : "#F3ECFF",
       borderColor: "#C4B5FD",
     },
     badgeGray: {

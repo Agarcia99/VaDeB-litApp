@@ -1,15 +1,20 @@
 import React from "react";
 import { Pressable, Text, Platform, ViewStyle, StyleProp } from "react-native";
 import { useAppTheme } from "../src/theme";
+import { useLanguage } from "../src/i18n/LanguageContext";
 
 export function BackButton({
   onPress,
   style,
+  label,
 }: {
   onPress: () => void;
   style?: StyleProp<ViewStyle>;
+  label?: string;
 }) {
   const { colors } = useAppTheme();
+  const { t } = useLanguage();
+
   return (
     <Pressable
       onPress={onPress}
@@ -40,7 +45,9 @@ export function BackButton({
       ]}
     >
       <Text style={{ fontSize: 18, fontWeight: "800", color: colors.text }}>←</Text>
-      <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>Tornar</Text>
+      <Text style={{ fontSize: 15, fontWeight: "700", color: colors.text }}>
+        {label ?? t("common.back")}
+      </Text>
     </Pressable>
   );
 }
@@ -48,13 +55,15 @@ export function BackButton({
 export function RefreshButton({
   onPress,
   style,
-  label = "↻ Actualitzar",
+  label,
 }: {
   onPress: () => void;
   style?: StyleProp<ViewStyle>;
   label?: string;
 }) {
   const { colors } = useAppTheme();
+  const { t } = useLanguage();
+
   return (
     <Pressable
       onPress={onPress}
@@ -71,8 +80,9 @@ export function RefreshButton({
         style,
       ]}
     >
-      <Text style={{ fontWeight: "800", color: colors.text }}>{label}</Text>
+      <Text style={{ fontWeight: "800", color: colors.text }}>
+        {label ?? t("common.refresh")}
+      </Text>
     </Pressable>
   );
 }
-

@@ -11,8 +11,9 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { supabase } from "../src/supabase";
-import { BackButton, RefreshButton } from "../components/HeaderButtons";
+import { BackButton } from "../components/HeaderButtons";
 import { useAppTheme } from "../src/theme";
+import { useLanguage } from "../src/i18n/LanguageContext";
 
 type Row = {
   rank: number;
@@ -48,13 +49,14 @@ function Block({
   valueLabel: string;
   getValue: (r: Row) => number;
   accent: string;
-  emptyText?: string;
+  emptyText: string;
   onPressRow?: (r: Row) => void;
 }) {
   const { colors } = useAppTheme();
-  const playerLabel = (r: Row) => {
-    const short = (r.team_short_name ?? "").trim();
-    return short ? `${r.player_name} - ${short}` : r.player_name;
+
+  const playerLabel = (row: Row) => {
+    const short = (row.team_short_name ?? "").trim();
+    return short ? `${row.player_name} - ${short}` : row.player_name;
   };
 
   return (
@@ -80,8 +82,16 @@ function Block({
         }) as any),
       }}
     >
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "baseline" }}>
-        <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text }}>{title}</Text>
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "baseline",
+        }}
+      >
+        <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text }}>
+          {title}
+        </Text>
       </View>
 
       {loading ? (
@@ -89,14 +99,15 @@ function Block({
           <ActivityIndicator />
         </View>
       ) : rows.length === 0 ? (
-        <Text style={{ color: colors.muted, marginTop: 10 }}>{emptyText ?? "Encara no hi ha dades."}</Text>
+        <Text style={{ color: colors.muted, marginTop: 10 }}>{emptyText}</Text>
       ) : (
         <FlatList
           data={rows}
           keyExtractor={(item) => `${item.player_id}-${item.rank}`}
-          scrollEnabled={false} // IMPORTANT: el scroll el fa la ScrollView pare
+          scrollEnabled={false}
           renderItem={({ item }) => {
             const medal = medalForRank(item.rank);
+
             return (
               <Pressable
                 onPress={() => onPressRow?.(item)}
@@ -110,14 +121,21 @@ function Block({
                   opacity: pressed ? 0.85 : 1,
                 })}
               >
-                <View style={{ flexDirection: "row", alignItems: "center", flex: 1, paddingRight: 10 }}>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    flex: 1,
+                    paddingRight: 10,
+                  }}
+                >
                   <View
                     style={{
                       minWidth: 28,
                       height: 28,
                       paddingHorizontal: 8,
                       borderRadius: 999,
-                      backgroundColor: medal ? medal.bg : "#EEF2FF",
+                      backgroundColor: medal ? medal.bg : colors.ranking,
                       alignItems: "center",
                       justifyContent: "center",
                       marginRight: 10,
@@ -125,12 +143,20 @@ function Block({
                       borderColor: "#E5E7EB",
                     }}
                   >
-                    <Text style={{ color: medal ? medal.fg : colors.text, fontWeight: "900" }}>
+                    <Text
+                      style={{
+                        color: medal ? medal.fg : colors.text,
+                        fontWeight: "900",
+                      }}
+                    >
                       {medal ? medal.label : item.rank}
                     </Text>
                   </View>
 
-                  <Text numberOfLines={1} style={{ fontWeight: "800", flex: 1, color: colors.text }}>
+                  <Text
+                    numberOfLines={1}
+                    style={{ fontWeight: "800", flex: 1, color: colors.text }}
+                  >
                     {playerLabel(item)}
                   </Text>
                 </View>
@@ -160,6 +186,7 @@ function Block({
 export default function RankingsScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
+  const { t } = useLanguage();
 
   const [loading, setLoading] = useState(true);
   const [championship, setChampionship] = useState<{ id: number; name: string } | null>(null);
@@ -180,16 +207,16 @@ export default function RankingsScreen() {
   const hasQuery = norm(query).length > 0;
 
   useEffect(() => {
-    // load initial (top 10) using full views with rank limit
     loadRankings("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Debounce search so we don't spam Supabase on each keystroke
   useEffect(() => {
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       loadRankings(query);
     }, 250);
-    return () => clearTimeout(t);
+
+    return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query]);
 
@@ -215,9 +242,7 @@ export default function RankingsScreen() {
     setChampionship({ id: ch.id, name: ch.name });
 
     const like = `%${q}%`;
-    const baseOr = q
-      ? `player_name.ilike.${like},team_short_name.ilike.${like}`
-      : null;
+    const baseOr = q ? `player_name.ilike.${like},team_short_name.ilike.${like}` : null;
 
     const [a, b, c] = await Promise.all([
       q
@@ -257,9 +282,9 @@ export default function RankingsScreen() {
             .order("rank", { ascending: true }),
     ]);
 
-    setCanadors(((a as any).data as any) ?? []);
-    setMatacanes(((b as any).data as any) ?? []);
-    setRecollidors(((c as any).data as any) ?? []);
+    setCanadors(((a as any).data as Row[]) ?? []);
+    setMatacanes(((b as any).data as Row[]) ?? []);
+    setRecollidors(((c as any).data as Row[]) ?? []);
 
     setLoading(false);
   }
@@ -268,6 +293,7 @@ export default function RankingsScreen() {
     const topC = canadors?.[0]?.total_canes ?? 0;
     const topM = matacanes?.[0]?.total_matacanes ?? 0;
     const topR = recollidors?.[0]?.total_air_catches ?? 0;
+
     return { topC, topM, topR };
   }, [canadors, matacanes, recollidors]);
 
@@ -293,9 +319,7 @@ export default function RankingsScreen() {
           marginTop: 5,
         }}
       >
-        <BackButton
-          onPress={() => router.replace("/public-menu")}
-        />
+        <BackButton onPress={() => router.replace("/public-menu")} />
 
         <Pressable
           onPress={() => router.push("/player-search")}
@@ -308,15 +332,24 @@ export default function RankingsScreen() {
             backgroundColor: colors.card,
           }}
         >
-          <Text style={{ fontWeight: "900", color: colors.text }}>🔎 Cercar jugador</Text>
+          <Text style={{ fontWeight: "900", color: colors.text }}>
+            {t("rankings.searchPlayer")}
+          </Text>
         </Pressable>
       </View>
 
-      <Text style={{ fontSize: 20, fontWeight: "900", marginTop: 14, textAlign: "center", color: colors.text }}>
-        Classificacions individuals
+      <Text
+        style={{
+          fontSize: 20,
+          fontWeight: "900",
+          marginTop: 14,
+          textAlign: "center",
+          color: colors.text,
+        }}
+      >
+        {t("rankings.title")}
       </Text>
 
-      {/* Search */}
       <View
         style={{
           marginTop: 12,
@@ -338,11 +371,14 @@ export default function RankingsScreen() {
           }) as any),
         }}
       >
-        <Text style={{ fontSize: 13, fontWeight: "800", color: colors.text }}>Cerca&apos;t al rànquing</Text>
+        <Text style={{ fontSize: 13, fontWeight: "800", color: colors.text }}>
+          {t("rankings.searchTitle")}
+        </Text>
+
         <TextInput
           value={query}
           onChangeText={setQuery}
-          placeholder="Escriu el teu nom o equip..."
+          placeholder={t("rankings.searchPlaceholder")}
           placeholderTextColor="#9CA3AF"
           autoCapitalize="none"
           autoCorrect={false}
@@ -375,12 +411,13 @@ export default function RankingsScreen() {
               },
             ]}
           >
-            <Text style={{ color: colors.primaryText, fontWeight: "800" }}>Netejar</Text>
+            <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
+              {t("rankings.clear")}
+            </Text>
           </Pressable>
         )}
       </View>
 
-      {/* Summary strip */}
       <View
         style={{
           marginTop: 12,
@@ -404,62 +441,82 @@ export default function RankingsScreen() {
         }}
       >
         <View style={{ alignItems: "center", flex: 1 }}>
-          <Text style={{ color: "#16a34a", fontWeight: "600" }}>Top canes</Text>
-          <Text style={{ fontSize: 18, fontWeight: "900", marginTop: 2, color: colors.text }}>{summary.topC}</Text>
+          <Text style={{ color: "#16a34a", fontWeight: "600" }}>
+            {t("rankings.topCanes")}
+          </Text>
+          <Text style={{ fontSize: 18, fontWeight: "900", marginTop: 2, color: colors.text }}>
+            {summary.topC}
+          </Text>
         </View>
+
         <View style={{ width: 1, backgroundColor: colors.border }} />
+
         <View style={{ alignItems: "center", flex: 1 }}>
-          <Text style={{ color: "#ef4444", fontWeight: "600" }}>Top matacanes</Text>
-          <Text style={{ fontSize: 18, fontWeight: "900", marginTop: 2, color: colors.text }}>{summary.topM}</Text>
+          <Text style={{ color: "#ef4444", fontWeight: "600" }}>
+            {t("rankings.topMatacanes")}
+          </Text>
+          <Text style={{ fontSize: 18, fontWeight: "900", marginTop: 2, color: colors.text }}>
+            {summary.topM}
+          </Text>
         </View>
+
         <View style={{ width: 1, backgroundColor: colors.border }} />
+
         <View style={{ alignItems: "center", flex: 1 }}>
-          <Text style={{ color: "#3b82f6", fontWeight: "600" }}>Top recollides</Text>
-          <Text style={{ fontSize: 18, fontWeight: "900", marginTop: 2, color: colors.text }}>{summary.topR}</Text>
+          <Text style={{ color: "#3b82f6", fontWeight: "600" }}>
+            {t("rankings.topRecollides")}
+          </Text>
+          <Text style={{ fontSize: 18, fontWeight: "900", marginTop: 2, color: colors.text }}>
+            {summary.topR}
+          </Text>
         </View>
       </View>
 
       {hasQuery && (
         <View style={{ marginTop: 12, marginBottom: 2 }}>
           <Text style={{ color: colors.muted, fontWeight: "700" }}>
-            Resultats per: <Text style={{ color: colors.text, fontWeight: "900" }}>{query.trim()}</Text>
+            {t("rankings.resultsFor")}{" "}
+            <Text style={{ color: colors.text, fontWeight: "900" }}>{query.trim()}</Text>
           </Text>
+
           <Text style={{ color: colors.muted, marginTop: 2 }}>
-            Mostrem el teu registre (posició i puntuació) a cada classificació. Si no surts, és que encara no tens dades.
+            {t("rankings.searchHelp")}
           </Text>
         </View>
       )}
-<View style={{ marginTop: 12, marginBottom: 2 }}/>
+
+      <View style={{ marginTop: 12, marginBottom: 2 }} />
+
       <Block
-        title={hasQuery ? "Resultat canadors" : "Top 10 canadors"}
+        title={hasQuery ? t("rankings.canadorsResult") : t("rankings.canadorsTop10")}
         loading={loading}
         rows={canadors}
         valueLabel=""
         getValue={(r) => r.total_canes ?? 0}
         accent="#16a34a"
-        emptyText={hasQuery ? "No hi ha coincidències a canadors." : "Encara no hi ha dades."}
+        emptyText={hasQuery ? t("rankings.noCanadorsMatches") : t("rankings.noDataYet")}
         onPressRow={openPlayerDetail}
       />
 
       <Block
-        title={hasQuery ? "Resultat matacanes" : "Top 10 matacanes"}
+        title={hasQuery ? t("rankings.matacanesResult") : t("rankings.matacanesTop10")}
         loading={loading}
         rows={matacanes}
         valueLabel=""
         getValue={(r) => r.total_matacanes ?? 0}
         accent="#ef4444"
-        emptyText={hasQuery ? "No hi ha coincidències a matacanes." : "Encara no hi ha dades."}
+        emptyText={hasQuery ? t("rankings.noMatacanesMatches") : t("rankings.noDataYet")}
         onPressRow={openPlayerDetail}
       />
 
       <Block
-        title={hasQuery ? "Resultat recollidors" : "Top 10 recollidors"}
+        title={hasQuery ? t("rankings.recollidorsResult") : t("rankings.recollidorsTop10")}
         loading={loading}
         rows={recollidors}
         valueLabel=""
         getValue={(r) => r.total_air_catches ?? 0}
         accent="#3b82f6"
-        emptyText={hasQuery ? "No hi ha coincidències a recollidors." : "Encara no hi ha dades."}
+        emptyText={hasQuery ? t("rankings.noRecollidorsMatches") : t("rankings.noDataYet")}
         onPressRow={openPlayerDetail}
       />
     </ScrollView>

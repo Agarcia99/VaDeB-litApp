@@ -392,6 +392,7 @@ export default function EditMatchTimesScreenV2() {
               paddingHorizontal: 12,
               paddingVertical: 10,
               marginBottom: 12,
+              color: colors.text,
             }}
           />
 

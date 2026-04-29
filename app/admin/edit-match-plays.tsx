@@ -72,9 +72,6 @@ type TeamPlayerOption = {
 const EVENT_TYPES = [
   "AIR_CATCH",
   "MATACANAS",
-  "METERS_REQUESTED",
-  "METERS_ACCEPTED",
-  "METERS_MEASURED",
   "CANAS_SCORED",
   "TEAM_BONUS_CANAS",
   "DEFENDER_BONUS_CANAS",
@@ -97,22 +94,6 @@ function prettyEventType(eventType: string) {
     .split("_")
     .map((x) => x.charAt(0).toUpperCase() + x.slice(1))
     .join(" ");
-}
-
-function getEventTone(eventType: string) {
-  switch (eventType) {
-    case "CANAS_SCORED":
-    case "TEAM_BONUS_CANAS":
-    case "BELIT_DOR":
-    case "NOT_PRESENTED":
-      return { bg: "#ECFDF5", border: "#A7F3D0", text: "#065F46" };
-    case "MATACANAS":
-    case "AIR_CATCH":
-    case "DEFENDER_BONUS_CANAS":
-      return { bg: "#EFF6FF", border: "#BFDBFE", text: "#1D4ED8" };
-    default:
-      return { bg: "#F3F4F6", border: "#E5E7EB", text: "#374151" };
-  }
 }
 
 function summarizeEvents(events: EventItem[]) {
@@ -155,7 +136,7 @@ function computeContributionForTeams(
 
 export default function EditMatchPlaysScreenV3() {
   const router = useRouter();
-  const { colors } = useAppTheme();
+  const { colors,isDark } = useAppTheme();
 
   const [matchIdInput, setMatchIdInput] = useState("");
   const [loading, setLoading] = useState(false);
@@ -510,6 +491,23 @@ setMatchSummary(summary);
     }
   }
 
+  function getEventTone(eventType: string) {
+  switch (eventType) {
+    case "CANAS_SCORED":
+    case "TEAM_BONUS_CANAS":
+    case "BELIT_DOR":
+    case "NOT_PRESENTED":
+      return { bg: isDark ? "rgb(122, 224, 158)" : "#ECFDF5", border: "#A7F3D0", text: "#065F46" };
+    case "MATACANAS":
+    case "AIR_CATCH":
+    case "DEFENDER_BONUS_CANAS":
+      return { bg: isDark ? "rgb(191, 219, 254)" : "#EFF6FF", border: "#BFDBFE", text: "#1D4ED8" };
+    default:
+      return { bg: isDark ? "rgb(191, 219, 254)" : "#F3F4F6", border: "#E5E7EB", text: "#374151" };
+  }
+}
+
+
   function openEdit(play: PlayRow) {
     setSelectedPlay(play);
     setEditEliminated(!!play.eliminated);
@@ -775,6 +773,7 @@ setMatchSummary(summary);
               paddingHorizontal: 12,
               paddingVertical: 10,
               backgroundColor: colors.card,
+              color: colors.text,
             }}
           />
 
@@ -794,7 +793,7 @@ setMatchSummary(summary);
             {loading ? (
               <ActivityIndicator color={colors.primaryText} />
             ) : (
-              <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Carregar partit</Text>
+              <Text style={{ color: colors.text, fontWeight: "900"}}>Carregar partit</Text>
             )}
           </Pressable>
         </View>
@@ -849,6 +848,7 @@ setMatchSummary(summary);
                 paddingHorizontal: 12,
                 paddingVertical: 10,
                 backgroundColor: colors.card,
+                color: colors.text,
                 marginBottom: 12,
               }}
             />
@@ -1232,6 +1232,7 @@ setMatchSummary(summary);
                         paddingVertical: 10,
                         backgroundColor: colors.card,
                         marginBottom: 10,
+                        color: colors.text,
                       }}
                     />
 
@@ -1299,6 +1300,7 @@ setMatchSummary(summary);
                   paddingHorizontal: 12,
                   paddingVertical: 10,
                   backgroundColor: colors.card,
+                  color: colors.text,
                 }}
               />
 

@@ -11,8 +11,10 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../src/supabase";
 import { useAppTheme } from "../src/theme";
+import { useLanguage } from "../src/i18n/LanguageContext";
 import { FontAwesome5 } from "@expo/vector-icons";
 import { BackButton } from "@/components/HeaderButtons";
+import { sendPushNotification } from "../src/notifications/sendPushNotification";
 
 function isUnassignedReferee(refereeId: number | null | undefined) {
   return refereeId === 1 || refereeId === null || typeof refereeId === "undefined";
@@ -22,6 +24,7 @@ export default function MatchScreen() {
   const router = useRouter();
   const params = useLocalSearchParams<{ id?: string }>();
   const matchId = Number(params.id);
+  const { t } = useLanguage();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -33,7 +36,7 @@ export default function MatchScreen() {
   const [simulateModalOpen, setSimulateModalOpen] = useState(false);
   const [simulateChecking, setSimulateChecking] = useState(false);
   const [simulateCanRun, setSimulateCanRun] = useState<boolean | null>(null);
-  const [simulatePreviewText, setSimulatePreviewText] = useState("Carrega la previsualització abans de simular.");
+  const [simulatePreviewText, setSimulatePreviewText] = useState(t("matchDetail.loadingPreview"));
   const [simulateTeamACount, setSimulateTeamACount] = useState<number | null>(null);
   const [simulateTeamBCount, setSimulateTeamBCount] = useState<number | null>(null);
 
@@ -130,19 +133,19 @@ export default function MatchScreen() {
   const teamA = useMemo(() => {
     if (!matchView) return null;
     const id = pickId(matchView, "A");
-    const name = pickName(matchView, "A") ?? "Equip A";
+    const name = pickName(matchView, "A") ?? t("publicMatches.teamA");
     return id ? { id, name } : null;
-  }, [matchView]);
+  }, [matchView, t]);
 
   const teamB = useMemo(() => {
     if (!matchView) return null;
     const id = pickId(matchView, "B");
-    const name = pickName(matchView, "B") ?? "Equip B";
+    const name = pickName(matchView, "B") ?? t("publicMatches.teamB");
     return id ? { id, name } : null;
-  }, [matchView]);
+  }, [matchView, t]);
 
   const winnerTeamName =
-    coinFlipWinnerTeam === "A" ? teamA?.name ?? "Equip A" : coinFlipWinnerTeam === "B" ? teamB?.name ?? "Equip B" : null;
+    coinFlipWinnerTeam === "A" ? teamA?.name ?? t("publicMatches.teamA") : coinFlipWinnerTeam === "B" ? teamB?.name ?? t("publicMatches.teamB") : null;
 
   const coinFlipModal = (
     <Modal
@@ -176,15 +179,15 @@ export default function MatchScreen() {
         >
           <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8 }}>
           <FontAwesome5 name="coins" size={18} color={colors.text} />
-            <Text style={{ fontSize: 20, fontWeight: "900", color: colors.text }}>Moneda a l'aire</Text>
+            <Text style={{ fontSize: 20, fontWeight: "900", color: colors.text }}>{t("matchDetail.coinFlipTitle")}</Text>
           </View>
 
           <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "600", textAlign: "center" }}>
             {coinFlipStep === "pickFace"
-              ? "Escull quin equip és Cara i tira la moneda"
+              ? t("matchDetail.coinFlipPickFace")
               : coinFlipSpinning
-                ? "Tirant la moneda…"
-                : "Resultat"}
+                ? t("matchDetail.coinFlipSpinning")
+                : t("matchDetail.result")}
           </Text>
 
           <View style={{ alignItems: "center", marginTop: 16, marginBottom: 10 }}>
@@ -236,7 +239,7 @@ export default function MatchScreen() {
               ) : (
                 <View style={{ alignItems: "center", paddingHorizontal: 10 }}>
                   <Text style={{ fontSize: 12, fontWeight: "900", color: colors.muted, letterSpacing: 0.8 }}>
-                    {coinFlipFace === "Cara" ? "CARA" : "CREU"}
+                    {coinFlipFace === "Cara" ? t("matchDetail.faceUpper") : t("matchDetail.crossUpper")}
                   </Text>
                   <Text
                     numberOfLines={2}
@@ -248,7 +251,7 @@ export default function MatchScreen() {
                       textAlign: "center",
                     }}
                   >
-                    {coinFlipWinnerTeam === "A" ? (teamA?.name ?? "Equip A") : (teamB?.name ?? "Equip B")}
+                    {coinFlipWinnerTeam === "A" ? (teamA?.name ?? t("publicMatches.teamA")) : (teamB?.name ?? t("publicMatches.teamB"))}
                   </Text>
                 </View>
               )}
@@ -257,16 +260,16 @@ export default function MatchScreen() {
 
           {coinFlipStep === "pickFace" ? (
             <View style={{ marginTop: 4 }}>
-            <Text style={{ textAlign: "center", fontWeight: "900", fontSize: 16, color: colors.text }}>Quin equip és Cara?</Text>
+            <Text style={{ textAlign: "center", fontWeight: "900", fontSize: 16, color: colors.text }}>{t("matchDetail.whichTeamIsFace")}</Text>
 
               <View style={{ flexDirection: "row", gap: 10, justifyContent: "center", marginTop: 12, flexWrap: "wrap" }}>
-                {(["A", "B"] as const).map((t) => {
-                  const selected = coinFlipFaceTeam === t;
-                  const label = t === "A" ? teamA?.name ?? "Equip A" : teamB?.name ?? "Equip B";
+                {(["A", "B"] as const).map((tKey) => {
+                  const selected = coinFlipFaceTeam === tKey;
+                  const label = tKey === "A" ? teamA?.name ?? t("publicMatches.teamA") : teamB?.name ?? t("publicMatches.teamB");
                   return (
                     <Pressable
-                      key={t}
-                      onPress={() => setCoinFlipFaceTeam(t)}
+                      key={tKey}
+                      onPress={() => setCoinFlipFaceTeam(tKey)}
                       style={{
                         paddingVertical: 10,
                         paddingHorizontal: 12,
@@ -278,7 +281,7 @@ export default function MatchScreen() {
                         alignItems: "center",
                       }}
                     >
-                      <Text style={{ fontWeight: "900", color: colors.text }}>Cara: {label}</Text>
+                      <Text style={{ fontWeight: "900", color: colors.text }}>{t("matchDetail.faceLabel", { team: label })}</Text>
                     </Pressable>
                   );
                 })}
@@ -297,7 +300,7 @@ export default function MatchScreen() {
                   opacity: coinFlipSpinning ? 0.6 : 1,
                 }}
               >
-                <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Tirar moneda</Text>
+                <Text style={{ color: colors.primaryText, fontWeight: "900" }}>{t("matchDetail.throwCoin")}</Text>
               </Pressable>
 
               <Pressable
@@ -305,20 +308,20 @@ export default function MatchScreen() {
                 onPress={() => setCoinFlipVisible(false)}
                 style={{ paddingVertical: 10, alignItems: "center", marginTop: 6, opacity: coinFlipSpinning ? 0.6 : 1 }}
               >
-                <Text style={{ color: colors.muted, fontWeight: "800" }}>Tancar</Text>
+                <Text style={{ color: colors.muted, fontWeight: "800" }}>{t("common.back")}</Text>
               </Pressable>
             </View>
           ) : (
             <View style={{ marginTop: 4 }}>
               {winnerTeamName ? (
                 <Text style={{ fontWeight: "900", fontSize: 18, color: colors.text, textAlign: "center" }}>
-          Guanya: {winnerTeamName}
+          {t("matchDetail.winner", { team: winnerTeamName })}
         </Text>
               ) : null}
 
               {coinFlipFace ? (
                 <Text style={{ textAlign: "center", marginTop: 8, color: colors.muted, fontWeight: "700" }}>
-                  Ha sortit: {coinFlipFace}
+                  {t("matchDetail.cameOut", { face: coinFlipFace === "Cara" ? t("matchDetail.face") : t("matchDetail.cross") })}
                 </Text>
               ) : null}
 
@@ -372,9 +375,9 @@ export default function MatchScreen() {
             borderColor: colors.border,
           }}
         >
-          <Text style={{ fontSize: 20, fontWeight: "900", textAlign: "center", color: colors.text }}>🧪 Simular partit complet</Text>
+          <Text style={{ fontSize: 20, fontWeight: "900", textAlign: "center", color: colors.text }}>{t("matchDetail.simulateFullMatch")}</Text>
           <Text style={{ marginTop: 8, color: colors.muted, fontWeight: "600", textAlign: "center" }}>
-            Només per admins. Aquesta opció només funciona si el partit està completament buit.
+            {t("matchDetail.adminOnlyEmptyMatch")}
           </Text>
 
           <View style={{ height: 16 }} />
@@ -388,12 +391,12 @@ export default function MatchScreen() {
               backgroundColor: simulateCanRun === false ? "#FEF2F2" : colors.bg,
             }}
           >
-            <Text style={{ fontWeight: "900", fontSize: 16, marginBottom: 8, color: colors.text }}>Previsualització</Text>
+            <Text style={{ fontWeight: "900", fontSize: 16, marginBottom: 8, color: colors.text }}>{t("matchDetail.preview")}</Text>
             <Text style={{ color: colors.muted, fontWeight: "700", marginBottom: 4 }}>
-              Jugadors {teamA?.name ?? "Equip A"}: {simulateTeamACount ?? "-"}
+              {t("matchDetail.playersTeam", { team: teamA?.name ?? t("publicMatches.teamA"), count: simulateTeamACount ?? "-" })}
             </Text>
             <Text style={{ color: colors.muted, fontWeight: "700", marginBottom: 8 }}>
-              Jugadors {teamB?.name ?? "Equip B"}: {simulateTeamBCount ?? "-"}
+              {t("matchDetail.playersTeam", { team: teamB?.name ?? t("publicMatches.teamB"), count: simulateTeamBCount ?? "-" })}
             </Text>
             <Text style={{ color: simulateCanRun === false ? "#B91C1C" : colors.text, fontWeight: "900" }}>
               {simulatePreviewText}
@@ -417,7 +420,7 @@ export default function MatchScreen() {
             {simulateChecking ? (
               <ActivityIndicator color={isDark ? "#a78bfa" : "#6D28D9"} />
             ) : (
-              <Text style={{ fontWeight: "900", color: isDark ? "#a78bfa" : "#6D28D9" }}>Carregar previsualització</Text>
+              <Text style={{ fontWeight: "900", color: isDark ? "#a78bfa" : "#6D28D9" }}>{t("matchDetail.loadPreview")}</Text>
             )}
           </Pressable>
 
@@ -436,7 +439,7 @@ export default function MatchScreen() {
             {saving ? (
               <ActivityIndicator color={colors.primaryText} />
             ) : (
-              <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Acceptar simulació</Text>
+              <Text style={{ color: colors.primaryText, fontWeight: "900" }}>{t("matchDetail.acceptSimulation")}</Text>
             )}
           </Pressable>
 
@@ -445,7 +448,7 @@ export default function MatchScreen() {
             disabled={saving || simulateChecking}
             style={{ paddingVertical: 12, alignItems: "center", marginTop: 10, opacity: saving || simulateChecking ? 0.6 : 1 }}
           >
-            <Text style={{ color: colors.muted, fontWeight: "800" }}>Tancar</Text>
+            <Text style={{ color: colors.muted, fontWeight: "800" }}>{t("common.back")}</Text>
           </Pressable>
         </View>
       </View>
@@ -463,7 +466,7 @@ export default function MatchScreen() {
 
     const { data: sessionRes, error: sessionErr } = await supabase.auth.getSession();
     if (sessionErr) {
-      Alert.alert("Error", sessionErr.message);
+      Alert.alert(t("common.error"), sessionErr.message);
       setLoading(false);
       return;
     }
@@ -489,7 +492,7 @@ export default function MatchScreen() {
       .single();
 
     if (refErr || !refMap) {
-      Alert.alert("Error", "No s'ha trobat el teu referee_id (referee_user).");
+      Alert.alert(t("common.error"), t("matchDetail.refereeIdMissing"));
       setLoading(false);
       return;
     }
@@ -503,7 +506,7 @@ export default function MatchScreen() {
       .single();
 
     if (mvErr || !mv) {
-      Alert.alert("Error", "No s'ha pogut carregar el partit.");
+      Alert.alert(t("common.error"), t("matchDetail.matchLoadError"));
       setLoading(false);
       return;
     }
@@ -517,7 +520,7 @@ export default function MatchScreen() {
       .single();
 
     if (mrErr || !mr) {
-      Alert.alert("Error", "No s'ha pogut carregar el match (taula match).");
+      Alert.alert(t("common.error"), t("matchDetail.matchTableLoadError"));
       setLoading(false);
       return;
     }
@@ -550,16 +553,16 @@ export default function MatchScreen() {
     // Si no té àrbitre, NO deixem continuar si no s'assigna
     if (isUnassignedReferee(mr.referee_id)) {
       Alert.alert(
-        "Partit sense àrbitre",
-        "Aquest partit no té àrbitre. Vols assignar-te'l a tu?",
+        t("matchDetail.matchWithoutReferee"),
+        t("matchDetail.assignSelfQuestion"),
         [
           {
-            text: "No",
+            text: t("common.no"),
             style: "cancel",
             onPress: () => router.back(),
           },
           {
-            text: "Sí",
+            text: t("common.yes"),
             onPress: async () => {
               await assignSelfAsReferee(refMap.referee_id);
               await detectPreparedState();
@@ -591,21 +594,21 @@ export default function MatchScreen() {
   async function assignSelfAsReferee(refereeId: number) {
     const { error } = await supabase.from("match").update({ referee_id: refereeId }).eq("id", matchId);
     if (error) {
-      Alert.alert("Error", `No s'ha pogut assignar l'àrbitre: ${error.message}`);
+      Alert.alert(t("common.error"), t("matchDetail.assignError", { message: error.message }));
       return;
     }
     await refreshMatch();
-    Alert.alert("Fet", "T'has assignat aquest partit.");
+    Alert.alert(t("lineup.doneTitle"), t("matchDetail.assignedSelf"));
   }
 
   async function assignGenericReferee() {
     const { error } = await supabase.from("match").update({ referee_id: 2 }).eq("id", matchId);
     if (error) {
-      Alert.alert("Error", `No s'ha pogut assignar l'àrbitre genèric: ${error.message}`);
+      Alert.alert(t("common.error"), t("matchDetail.genericAssignError", { message: error.message }));
       return;
     }
     await refreshMatch();
-    Alert.alert("Fet", "Assignat a àrbitre genèric.");
+    Alert.alert(t("lineup.doneTitle"), t("matchDetail.assignedGeneric"));
   }
 
 
@@ -687,7 +690,7 @@ export default function MatchScreen() {
 
     // Si ja està preparat, no fem res
     if (started) {
-      Alert.alert("Info", "Aquest partit ja està preparat.");
+      Alert.alert("Info", t("matchDetail.matchAlreadyPrepared"));
       return;
     }
 
@@ -709,7 +712,7 @@ export default function MatchScreen() {
 
       const mr1 = orderedMR.find((x: any) => x.number === 1);
       if (!mr1) {
-        Alert.alert("Error", "No s'ha pogut crear/obtenir match_round 1.");
+        Alert.alert(t("common.error"), t("matchDetail.roundOneError"));
         return;
       }
 
@@ -724,7 +727,7 @@ export default function MatchScreen() {
 
       if (existingRounds && existingRounds.length > 0) {
         await detectPreparedState();
-        Alert.alert("Info", "Ja hi havia rounds creats. No s'ha duplicat res.");
+        Alert.alert("Info", t("matchDetail.roundsAlreadyCreated"));
         return;
       }
 
@@ -747,10 +750,22 @@ export default function MatchScreen() {
           .eq("id", matchId);
 
       if (startedErr) {
-          console.warn("No s'ha pogut guardar started_at:", startedErr.message);
-          // opcional: Alert.alert("Error", "No s'ha pogut guardar l'inici del partit.");
+        console.warn("No s'ha pogut guardar started_at:", startedErr.message);
+      } else {
+        await sendPushNotification({
+          championshipId: matchRow?.championship_id,
+          teamIds: [teamA?.id, teamB?.id],
+          type: "match_started",
+          title: "Partit començat",
+          message: `${teamA?.name ?? "Equip A"} vs ${teamB?.name ?? "Equip B"} ja ha començat`,
+          data: {
+            match_id: matchId,
+          },
+          dedupeKey: `match_started_${matchId}`,
+        });
       }
-      Alert.alert("Partit iniciat ✅", "Rounds creats i atac/defensa establert.");
+
+      Alert.alert(t("matchDetail.matchStartedTitle"), t("matchDetail.matchStartedMessage"));
       // ✅ Anar directament a la primera alineació (Round 1, Torn 1)
       const { data: firstRound, error: frErr } = await supabase
         .from("round")
@@ -760,13 +775,13 @@ export default function MatchScreen() {
         .single();
 
       if (frErr || !firstRound) {
-        Alert.alert("Error", "No s'ha pogut obtenir el primer round.");
+        Alert.alert(t("common.error"), t("matchDetail.firstRoundError"));
         return;
       }
 
       router.replace({ pathname: "/lineup", params: { matchId: String(matchId), roundId: String(firstRound.id) } });
     } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Error iniciant el partit.");
+      Alert.alert(t("common.error"), e?.message ?? t("matchDetail.startMatchError"));
     } finally {
       setSaving(false);
     }
@@ -779,11 +794,11 @@ export default function MatchScreen() {
     const teamName = teamId === teamA.id ? teamA.name : teamB.name;
 
     Alert.alert(
-      "Confirmar inici",
-      `Estàs segur que comença ${teamName}?`,
+      t("matchDetail.confirmStart"),
+      t("matchDetail.confirmStartQuestion", { team: teamName }),
       [
-        { text: "Cancel·lar", style: "cancel" },
-        { text: "Sí", style: "destructive", onPress: () => startMatch(teamId) },
+        { text: t("publicMatches.cancel"), style: "cancel" },
+        { text: t("common.yes"), style: "destructive", onPress: () => startMatch(teamId) },
       ]
     );
   }
@@ -796,14 +811,14 @@ export default function MatchScreen() {
     if (!matchView || !matchRow || !teamA || !teamB) return;
 
     if (matchRow.is_finished) {
-      Alert.alert("Partit Finalitzat", "Aquest partit ja està tancat.");
+      Alert.alert(t("matchDetail.matchFinishedTitle"), t("matchDetail.matchAlreadyClosed"));
       return;
     }
 
     if (started) {
       Alert.alert(
-        "No presentat",
-        "Aquest partit ja està preparat/iniciat. No es pot marcar com a no presentat."
+        t("matchDetail.notPresented"),
+        t("matchDetail.noShowBlocked")
       );
       return;
     }
@@ -908,10 +923,23 @@ export default function MatchScreen() {
 
       if (mErr) throw mErr;
 
-      Alert.alert("Partit finalitzat", `Resultat registrat: ${scoreA} - ${scoreB}`);
+      await sendPushNotification({
+        championshipId: matchRow?.championship_id,
+        teamIds: [teamA.id, teamB.id],
+        type: "match_finished",
+        title: "Partit finalitzat",
+        message: `${teamA.name} ${scoreA} - ${scoreB} ${teamB.name}`,
+        data: {
+          match_id: matchId,
+          reason: "no_show",
+        },
+        dedupeKey: `match_finished:${matchId}`,
+      });
+      
+      Alert.alert(t("matchDetail.matchFinished"), t("matchDetail.resultRegistered", { scoreA, scoreB }));
       router.replace("/matches");
     } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Error marcant no presentat.");
+      Alert.alert(t("common.error"), e?.message ?? t("matchDetail.noShowError"));
     } finally {
       setSaving(false);
     }
@@ -944,7 +972,7 @@ export default function MatchScreen() {
     if (!teamA || !teamB) return;
 
     if (!coinFlipFaceTeam) {
-      Alert.alert("Falta selecció", "Escull quin equip és Cara abans de tirar la moneda.");
+      Alert.alert(t("matchDetail.missingFaceSelection"), t("matchDetail.chooseFaceBeforeThrow"));
       return;
     }
 
@@ -1009,30 +1037,30 @@ function onNoShowPress() {
     if (!teamA || !teamB) return;
 
     if (matchRow?.is_finished) {
-      Alert.alert("Partit Finalitzat", "Aquest partit ja està tancat.");
+      Alert.alert(t("matchDetail.matchFinishedTitle"), t("matchDetail.matchAlreadyClosed"));
       return;
     }
 
     if (started) {
       Alert.alert(
-        "No presentat",
-        "Aquest partit ja està preparat/iniciat. No es pot marcar com a no presentat."
+        t("matchDetail.notPresented"),
+        t("matchDetail.noShowBlocked")
       );
       return;
     }
 
-    Alert.alert("No presentat", "Quin equip NO s'ha presentat?", [
+    Alert.alert(t("matchDetail.notPresented"), t("matchDetail.noShowQuestion"), [
   {
-    text: `No presentat: ${teamA.name}`,
+    text: t("matchDetail.noShowTeam", { team: teamA.name }),
     style: "destructive",
     onPress: () => {
       Alert.alert(
-        "Confirmar incompareixença",
-        `Estàs segur que ${teamA.name} no s'ha presentat? Aquesta acció tancarà el partit.`,
+        t("matchDetail.confirmNoShow"),
+        t("matchDetail.confirmNoShowQuestion", { team: teamA.name }),
         [
-          { text: "Cancel·lar", style: "cancel" },
+          { text: t("publicMatches.cancel"), style: "cancel" },
           {
-            text: "Sí, confirmar",
+            text: t("matchDetail.confirmYes"),
             style: "destructive",
             onPress: () => finishByNoShow(teamA.id),
           },
@@ -1041,16 +1069,16 @@ function onNoShowPress() {
     },
   },
   {
-    text: `No presentat: ${teamB.name}`,
+    text: t("matchDetail.noShowTeam", { team: teamB.name }),
     style: "destructive",
     onPress: () => {
       Alert.alert(
-        "Confirmar incompareixença",
-        `Estàs segur que ${teamB.name} no s'ha presentat? Aquesta acció tancarà el partit.`,
+        t("matchDetail.confirmNoShow"),
+        t("matchDetail.confirmNoShowQuestion", { team: teamB.name }),
         [
-          { text: "Cancel·lar", style: "cancel" },
+          { text: t("publicMatches.cancel"), style: "cancel" },
           {
-            text: "Sí, confirmar",
+            text: t("matchDetail.confirmYes"),
             style: "destructive",
             onPress: () => finishByNoShow(teamB.id),
           },
@@ -1058,7 +1086,7 @@ function onNoShowPress() {
       );
     },
   },
-  { text: "Cancel·lar", style: "cancel" },
+  { text: t("publicMatches.cancel"), style: "cancel" },
 ]);
 
   }
@@ -1070,7 +1098,7 @@ function onNoShowPress() {
     try {
       setSimulateChecking(true);
       setSimulateCanRun(null);
-      setSimulatePreviewText("Comprovant si el partit està buit...");
+      setSimulatePreviewText(t("matchDetail.checkingEmptyMatch"));
 
       const { data: teamPlayers, error: teamPlayersErr } = await supabase
         .from("team_player")
@@ -1088,7 +1116,7 @@ function onNoShowPress() {
 
       if (teamACount < 4 || teamBCount < 4) {
         setSimulateCanRun(false);
-        setSimulatePreviewText("❌ No es pot simular: cada equip ha de tenir almenys 4 jugadors.");
+        setSimulatePreviewText(t("matchDetail.simulationNotEnoughPlayers"));
         return;
       }
 
@@ -1103,7 +1131,7 @@ function onNoShowPress() {
 
       if (matchRoundIds.length === 0) {
         setSimulateCanRun(true);
-        setSimulatePreviewText("✅ El partit està buit. Es generaran totes les rondes, jugades i el resultat final automàticament.");
+        setSimulatePreviewText(t("matchDetail.simulationEmptyOk"));
         return;
       }
 
@@ -1154,15 +1182,15 @@ function onNoShowPress() {
 
       if (hasData) {
         setSimulateCanRun(false);
-        setSimulatePreviewText("❌ El partit ja té dades creades. La simulació completa només es permet en partits completament buits.");
+        setSimulatePreviewText(t("matchDetail.simulationHasData"));
         return;
       }
 
       setSimulateCanRun(true);
-      setSimulatePreviewText("✅ El partit està buit. Es generaran totes les rondes, jugades i el resultat final automàticament.");
+      setSimulatePreviewText(t("matchDetail.simulationEmptyOk"));
     } catch (e: any) {
       setSimulateCanRun(false);
-      setSimulatePreviewText(`❌ Error comprovant el partit: ${e?.message ?? "error desconegut"}`);
+      setSimulatePreviewText(t("matchDetail.simulationCheckError", { message: e?.message ?? "error desconegut" }));
     } finally {
       setSimulateChecking(false);
     }
@@ -1170,12 +1198,12 @@ function onNoShowPress() {
 
   async function runFullSimulation() {
     Alert.alert(
-      "Simulació completa",
-      "Segur que vols simular el partit complet? Es tancarà automàticament amb totes les jugades generades.",
+      t("matchDetail.simulationConfirmTitle"),
+      t("matchDetail.simulationConfirmMessage"),
       [
-        { text: "Cancel·lar", style: "cancel" },
+        { text: t("publicMatches.cancel"), style: "cancel" },
         {
-          text: "Confirmar",
+          text: t("matchDetail.confirm"),
           onPress: async () => {
             try {
               setSaving(true);
@@ -1190,9 +1218,9 @@ function onNoShowPress() {
               await refreshMatch();
               await detectPreparedState();
 
-              Alert.alert("Fet ✅", "Partit simulat i finalitzat correctament.");
+              Alert.alert(t("lineup.doneTitle"), t("matchDetail.simulationDone"));
             } catch (e: any) {
-              Alert.alert("Error", e?.message ?? "No s'ha pogut simular el partit.");
+              Alert.alert(t("common.error"), e?.message ?? t("matchDetail.simulationError"));
             } finally {
               setSaving(false);
             }
@@ -1215,7 +1243,7 @@ function onNoShowPress() {
   }
 
   const refereeLabel = isUnassignedReferee(matchView.referee_id)
-    ? "Sense àrbitre"
+    ? t("matchDetail.noReferee")
     : matchView.referee_name ?? `#${matchView.referee_id}`;
 
   const firstTeamName =
@@ -1231,11 +1259,11 @@ function onNoShowPress() {
         onPress={() => {
           if (saving || !!matchRow?.is_finished) return;
           Alert.alert(
-            "Assignar",
-            "Vols assignar aquest partit a l'àrbitre genèric?",
+            t("matchDetail.assign"),
+            t("matchDetail.assignGenericQuestion"),
             [
-              { text: "Cancel·lar", style: "cancel" },
-              { text: "Assignar", style: "destructive", onPress: assignGenericReferee },
+              { text: t("publicMatches.cancel"), style: "cancel" },
+              { text: t("matchDetail.assign"), style: "destructive", onPress: assignGenericReferee },
             ]
           );
         }}
@@ -1253,7 +1281,7 @@ function onNoShowPress() {
           opacity: saving || !!matchRow?.is_finished ? 0.6 : 1
         }}
       >
-        <Text style={{ fontWeight: "800", color: colors.text }}>Assignar a àrbitre genèric</Text>
+        <Text style={{ fontWeight: "800", color: colors.text }}>{t("matchDetail.assignGeneric")}</Text>
       </Pressable>
 )}
 
@@ -1278,7 +1306,7 @@ function onNoShowPress() {
           }}
         >
           <Text style={{ fontSize: 16, fontWeight: "800", textAlign: "center", color: colors.text }}>
-            Qui tira primer?
+            {t("matchDetail.whoThrowsFirst")}
           </Text>
 
           <View style={{ height: 14 }} />
@@ -1318,7 +1346,7 @@ function onNoShowPress() {
 
           {saving ? (
             <Text style={{ marginTop: 10, textAlign: "center", color: colors.muted }}>
-              Preparant partit...
+              {t("matchDetail.preparingMatch")}
             </Text>
           ) : null}
         </View>
@@ -1333,14 +1361,14 @@ function onNoShowPress() {
             alignItems: "center",
           }}
         >
-          <Text style={{ fontSize: 16, fontWeight: "800", color: colors.text }}>Partit preparat ✅</Text>
+          <Text style={{ fontSize: 16, fontWeight: "800", color: colors.text }}>{t("matchDetail.matchPrepared")}</Text>
           <Text style={{ marginTop: 6, textAlign: "center", color: colors.muted }}>
             {firstTeamName ? (
               <>
-                Comença: <Text style={{ fontWeight: "900" }}>{firstTeamName}</Text>
+                {t("matchDetail.starts")} <Text style={{ fontWeight: "900" }}>{firstTeamName}</Text>
               </>
             ) : (
-              "Ja podem continuar."
+              t("matchDetail.canContinue")
             )}
           </Text>
 
@@ -1361,7 +1389,7 @@ function onNoShowPress() {
               borderColor: colors.border,
             }}
           >
-            <Text style={{ fontWeight: "600", color: colors.text }}>Continuar</Text>
+            <Text style={{ fontWeight: "600", color: colors.text }}>{t("matchDetail.continue")}</Text>
           </Pressable>
         </View>
       )}
@@ -1385,15 +1413,15 @@ function onNoShowPress() {
     >
       <View style={{ flexDirection: "row", justifyContent: "center", alignItems: "center", gap: 8 }}>
          <FontAwesome5 name="coins" size={18} color={colors.text} />
-         <Text style={{ fontSize: 16, fontWeight: "900", color: colors.text }}>Moneda a l'aire</Text>
+         <Text style={{ fontSize: 16, fontWeight: "900", color: colors.text }}>{t("matchDetail.coinFlipTitle")}</Text>
       </View>
       <Text style={{ marginTop: 2, color: colors.muted }}>
-        Decideix qui escull primer
+        {t("matchDetail.decideWhoChooses")}
       </Text>
 
       {coinFlipResult && teamA && teamB && (
         <Text style={{ marginTop: 8, fontWeight: "800",color:colors.text }}>
-          Resultat: {coinFlipResult === "A" ? teamA.name : teamB.name}
+          {t("matchDetail.result")}: {coinFlipResult === "A" ? teamA.name : teamB.name}
           {coinFlipAt ? `  ·  ${new Date(coinFlipAt).toLocaleTimeString()}` : ""}
         </Text>
       )}
@@ -1413,9 +1441,9 @@ function onNoShowPress() {
         opacity: saving || !!matchRow?.is_finished || started ? 0.6 : 1,
       }}
     >
-      <Text style={{ fontWeight: "900" }}>No presentat</Text>
+      <Text style={{ fontWeight: "900" }}>{t("matchDetail.notPresented")}</Text>
       <Text style={{ marginTop: 2, color: "#7a2f2f" }}>
-        Finalitza el partit (5 - 0)
+        {t("matchDetail.finishMatchFiveZero")}
       </Text>
     </Pressable>
     {isAdmin && (
@@ -1425,7 +1453,7 @@ function onNoShowPress() {
           setSimulateCanRun(null);
           setSimulateTeamACount(null);
           setSimulateTeamBCount(null);
-          setSimulatePreviewText("Carrega la previsualització abans de simular.");
+          setSimulatePreviewText(t("matchDetail.loadingPreview"));
         }}
         disabled={saving || !!matchRow?.is_finished}
         style={{
@@ -1440,9 +1468,9 @@ function onNoShowPress() {
           opacity: saving || !!matchRow?.is_finished ? 0.6 : 1,
         }}
       >
-        <Text style={{ fontWeight: "800", color: "#6D28D9"}}>🧪 Simular partit complet</Text>
+        <Text style={{ fontWeight: "800", color: "#6D28D9"}}>{t("matchDetail.simulateFullMatch")}</Text>
         <Text style={{ marginTop: 2, color: "#7a2f2f" }}>
-        Opció per fer TESTING.
+        {t("matchDetail.testingOption")}
       </Text>
       </Pressable>
 )}

@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState,useRef } from "react";
+import { useCallback, useMemo, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -17,10 +17,11 @@ import DateTimePicker, { DateTimePickerEvent } from "@react-native-community/dat
 import { useFocusEffect } from "@react-navigation/native";
 import * as Calendar from "expo-calendar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useRouter, Stack } from "expo-router";
+import { useRouter } from "expo-router";
 import { supabase } from "../src/supabase";
-import { BackButton, RefreshButton } from "../components/HeaderButtons";
+import { BackButton } from "../components/HeaderButtons";
 import { useAppTheme, AppColors } from "../src/theme";
+import { useLanguage } from "../src/i18n/LanguageContext";
 import { formatDateDDMMYYYY_HHMM, pad2 } from "../src/utils/format";
 import { getFieldOrder } from "../src/utils/matchUtils";
 
@@ -34,7 +35,7 @@ type MatchRow = {
   id: number;
   match_date: string | null;
   started_at: string | null;
-  display_status: string| null;
+  display_status: string | null;
   is_finished: boolean;
   score_team_a: number;
   score_team_b: number;
@@ -58,23 +59,21 @@ const CALENDAR_PREF_TITLE_KEY = "preferred_calendar_title_v1";
 function trimCharField(s?: string | null) {
   return (s ?? "").trim();
 }
+
 function compareMatches(a: MatchRow, b: MatchRow) {
   const timeA = a.match_date ? new Date(a.match_date).getTime() : Number.MAX_SAFE_INTEGER;
   const timeB = b.match_date ? new Date(b.match_date).getTime() : Number.MAX_SAFE_INTEGER;
 
-  if (timeA !== timeB) {
-    return timeA - timeB;
-  }
+  if (timeA !== timeB) return timeA - timeB;
 
   const fieldA = getFieldOrder(a.slot?.field_code);
   const fieldB = getFieldOrder(b.slot?.field_code);
 
-  if (fieldA !== fieldB) {
-    return fieldA - fieldB;
-  }
+  if (fieldA !== fieldB) return fieldA - fieldB;
 
   return a.id - b.id;
 }
+
 type DatePreset = "all" | "today" | "yesterday" | "week" | "custom";
 type StatusFilter = "all" | "finished" | "pending";
 
@@ -86,22 +85,10 @@ function endOfDayLocal(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
 }
 
-function labelForPreset(p: DatePreset) {
-  if (p === "today") return "Avui";
-  if (p === "yesterday") return "Ahir";
-  if (p === "week") return "7 dies";
-  return "Tot";
-}
-
-function labelForStatus(s: StatusFilter) {
-  if (s === "finished") return "Finalitzats";
-  if (s === "pending") return "Pendents";
-  return "Tots";
-}
-
 export default function PublicMatches() {
   const router = useRouter();
   const { colors, isDark } = useAppTheme();
+  const { t } = useLanguage();
   const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
 
   const [loading, setLoading] = useState(true);
@@ -110,75 +97,54 @@ export default function PublicMatches() {
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [teams, setTeams] = useState<TeamMini[]>([]);
 
-  // Filters (collapsed by default)
   const [showFilters, setShowFilters] = useState(false);
-
   const [preset, setPreset] = useState<DatePreset>("all");
-const [draftStart, setDraftStart] = useState<Date | null>(null);
-const [draftEnd, setDraftEnd] = useState<Date | null>(null);
+  const [draftStart, setDraftStart] = useState<Date | null>(null);
+  const [draftEnd, setDraftEnd] = useState<Date | null>(null);
   const [customStart, setCustomStart] = useState<Date | null>(null);
   const [customEnd, setCustomEnd] = useState<Date | null>(null);
   const [pickingCustom, setPickingCustom] = useState<"start" | "end" | null>(null);
   const [status, setStatus] = useState<StatusFilter>("all");
-const [showApplySingleDay, setShowApplySingleDay] = useState(false);
+  const [showApplySingleDay, setShowApplySingleDay] = useState(false);
 
   const [teamId, setTeamId] = useState<number | null>(null);
   const [showTeamPicker, setShowTeamPicker] = useState(false);
+
   const [calendarPickerOpen, setCalendarPickerOpen] = useState(false);
   const [calendarOptions, setCalendarOptions] = useState<CalendarOption[]>([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [calendarTargetMatch, setCalendarTargetMatch] = useState<MatchRow | null>(null);
-const displayStart = pickingCustom ? draftStart : customStart;
-const displayEnd = pickingCustom ? draftEnd : customEnd;
-const [savedCalendarId, setSavedCalendarId] = useState<string | null>(null);
-const [savedCalendarTitle, setSavedCalendarTitle] = useState<string | null>(null);
-const listRef = useRef<FlatList<MatchRow>>(null);
-const scrollOffsetRef = useRef(0);
-const shouldRestoreScrollRef = useRef(false);
-const restoreMatchIdRef = useRef<number | null>(null);
-const [listVisible, setListVisible] = useState(true);
-const [initialLoaded, setInitialLoaded] = useState(false);
+  const [savedCalendarId, setSavedCalendarId] = useState<string | null>(null);
+  const [savedCalendarTitle, setSavedCalendarTitle] = useState<string | null>(null);
 
-  useFocusEffect(
-  useCallback(() => {
-    const run = async () => {
-      const mustRestore = shouldRestoreScrollRef.current;
+  const displayStart = pickingCustom ? draftStart : customStart;
+  const displayEnd = pickingCustom ? draftEnd : customEnd;
 
-      if (mustRestore) {
-        setListVisible(false);
-      }
+  const listRef = useRef<FlatList<MatchRow>>(null);
+  const shouldRestoreScrollRef = useRef(false);
+  const restoreMatchIdRef = useRef<number | null>(null);
 
-      const loadedMatches = await load();
+  const [listVisible, setListVisible] = useState(true);
+  const [initialLoaded, setInitialLoaded] = useState(false);
 
-      if (mustRestore && restoreMatchIdRef.current != null) {
-        const idx = (loadedMatches ?? []).findIndex(
-          (m) => m.id === restoreMatchIdRef.current
-        );
+  function labelForPreset(p: DatePreset) {
+    if (p === "today") return t("publicMatches.today");
+    if (p === "yesterday") return t("publicMatches.yesterday");
+    if (p === "week") return t("publicMatches.week");
+    return t("publicMatches.allNeutral");
+  }
 
-        setTimeout(() => {
-          if (idx >= 0) {
-            listRef.current?.scrollToIndex({
-              index: idx,
-              animated: false,
-              viewPosition: 0.5,
-            });
-          }
-
-          shouldRestoreScrollRef.current = false;
-          setListVisible(true);
-        }, 120);
-      } else {
-        setListVisible(true);
-      }
-    };
-
-    run();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [preset, status, teamId, customStart, customEnd])
-);
+  function labelForStatus(s: StatusFilter) {
+    if (s === "finished") return t("publicMatches.finished");
+    if (s === "pending") return t("publicMatches.pending");
+    return t("publicMatches.all");
+  }
 
   const teamChips = useMemo(() => {
-    const base: Array<{ id: number | null; label: string }> = [{ id: null, label: "Tots" }];
+    const base: Array<{ id: number | null; label: string }> = [
+      { id: null, label: t("publicMatches.all") },
+    ];
+
     const extra = teams
       .slice()
       .sort((a, b) =>
@@ -186,12 +152,13 @@ const [initialLoaded, setInitialLoaded] = useState(false);
           b.name || trimCharField(b.short_name) || ""
         )
       )
-      .map((t) => ({
-        id: t.id,
-        label: t.name || trimCharField(t.short_name) || `#${t.id}`,
+      .map((team) => ({
+        id: team.id,
+        label: team.name || trimCharField(team.short_name) || `#${team.id}`,
       }));
+
     return [...base, ...extra];
-  }, [teams]);
+  }, [teams, t]);
 
   const summary = useMemo(() => {
     const finished = matches.filter((m) => m.is_finished).length;
@@ -203,12 +170,16 @@ const [initialLoaded, setInitialLoaded] = useState(false);
     const now = new Date();
 
     if (preset === "all") return {};
+
     if (preset === "custom" && customStart) {
-      const s = startOfDayLocal(customStart);
-      const e = customEnd ? endOfDayLocal(customEnd) : endOfDayLocal(customStart);
-      return { start: s, end: e };
+      const start = startOfDayLocal(customStart);
+      const end = customEnd ? endOfDayLocal(customEnd) : endOfDayLocal(customStart);
+      return { start, end };
     }
-    if (preset === "today") return { start: startOfDayLocal(now), end: endOfDayLocal(now) };
+
+    if (preset === "today") {
+      return { start: startOfDayLocal(now), end: endOfDayLocal(now) };
+    }
 
     if (preset === "yesterday") {
       const d = new Date(now);
@@ -216,83 +187,74 @@ const [initialLoaded, setInitialLoaded] = useState(false);
       return { start: startOfDayLocal(d), end: endOfDayLocal(d) };
     }
 
-    // last 7 days (including today)
     const d0 = startOfDayLocal(now);
     const start = new Date(d0);
     start.setDate(d0.getDate() - 6);
+
     return { start, end: endOfDayLocal(now) };
   }
 
   function handleCustomDateChange(e: DateTimePickerEvent, selected?: Date) {
-  if (e.type === "dismissed") {
-    setPickingCustom(null);
-    setShowApplySingleDay(false);
-    return;
-  }
-
-  const picked = selected ?? new Date();
-
-  if (pickingCustom === "start") {
-    // 1) Guardem start al draft, però NO apliquem filtre encara
-    setDraftStart(picked);
-    setDraftEnd(null);
-
-setShowApplySingleDay(true);   // ✅ AFEGEIX AQUESTA LÍNIA
-
-    // 2) Passem directament a triar la data final
-    setPickingCustom("end");
-    return;
-  }
-
-  if (pickingCustom === "end") {
-    const s0 = draftStart ?? customStart ?? picked;
-
-    let start = s0;
-    let end = picked;
-
-    if (end.getTime() < start.getTime()) {
-      const tmp = start;
-      start = end;
-      end = tmp;
+    if (e.type === "dismissed") {
+      setPickingCustom(null);
+      setShowApplySingleDay(false);
+      return;
     }
 
-    // ✅ Ara sí: apliquem el filtre definitiu
-    setCustomStart(start);
-    setCustomEnd(end);
-    setPreset("custom");
-    setShowApplySingleDay(false);
-    // reset draft + tanquem el picker
-    setDraftStart(null);
-    setDraftEnd(null);
-    setPickingCustom(null);
+    const picked = selected ?? new Date();
 
-    // i tanquem filtres com ja feies
-    setShowTeamPicker(false);
-    setShowFilters(false);
+    if (pickingCustom === "start") {
+      setDraftStart(picked);
+      setDraftEnd(null);
+      setShowApplySingleDay(true);
+      setPickingCustom("end");
+      return;
+    }
+
+    if (pickingCustom === "end") {
+      const s0 = draftStart ?? customStart ?? picked;
+
+      let start = s0;
+      let end = picked;
+
+      if (end.getTime() < start.getTime()) {
+        const tmp = start;
+        start = end;
+        end = tmp;
+      }
+
+      setCustomStart(start);
+      setCustomEnd(end);
+      setPreset("custom");
+      setShowApplySingleDay(false);
+      setDraftStart(null);
+      setDraftEnd(null);
+      setPickingCustom(null);
+      setShowTeamPicker(false);
+      setShowFilters(false);
+    }
   }
-}
 
-async function loadSavedCalendarPreference() {
-  const [[, id], [, title]] = await AsyncStorage.multiGet([
-    CALENDAR_PREF_KEY,
-    CALENDAR_PREF_TITLE_KEY,
-  ]);
+  async function loadSavedCalendarPreference() {
+    const [[, id], [, title]] = await AsyncStorage.multiGet([
+      CALENDAR_PREF_KEY,
+      CALENDAR_PREF_TITLE_KEY,
+    ]);
 
-  setSavedCalendarId(id ?? null);
-  setSavedCalendarTitle(title ?? null);
-}
+    setSavedCalendarId(id ?? null);
+    setSavedCalendarTitle(title ?? null);
+  }
 
-async function clearSavedCalendarPreference() {
-  await AsyncStorage.multiRemove([CALENDAR_PREF_KEY, CALENDAR_PREF_TITLE_KEY]);
-  setSavedCalendarId(null);
-  setSavedCalendarTitle(null);
-}
+  async function clearSavedCalendarPreference() {
+    await AsyncStorage.multiRemove([CALENDAR_PREF_KEY, CALENDAR_PREF_TITLE_KEY]);
+    setSavedCalendarId(null);
+    setSavedCalendarTitle(null);
+  }
 
   async function load(isRefresh = false) {
     if (isRefresh) setRefreshing(true);
     else setLoading(true);
 
-    // Active championship
     const { data: ch, error: chErr } = await supabase
       .from("championship")
       .select("id")
@@ -301,7 +263,7 @@ async function clearSavedCalendarPreference() {
       .maybeSingle();
 
     if (chErr) {
-      Alert.alert("Error", chErr.message);
+      Alert.alert(t("common.error"), chErr.message);
       setLoading(false);
       setRefreshing(false);
       setInitialLoaded(true);
@@ -317,14 +279,13 @@ async function clearSavedCalendarPreference() {
       return [];
     }
 
-    // Teams for this championship (from team_player)
     const { data: tpData, error: tpErr } = await supabase
       .from("team_player")
       .select("team:team_id(id,name,short_name)")
       .eq("championship_id", ch.id);
 
     if (tpErr) {
-      Alert.alert("Error", tpErr.message);
+      Alert.alert(t("common.error"), tpErr.message);
       setLoading(false);
       setRefreshing(false);
       setInitialLoaded(true);
@@ -332,10 +293,12 @@ async function clearSavedCalendarPreference() {
     }
 
     const tMap = new Map<number, TeamMini>();
+
     for (const row of tpData ?? []) {
-      const t = (row as any).team as TeamMini | null;
-      if (t?.id) tMap.set(t.id, t);
+      const team = (row as any).team as TeamMini | null;
+      if (team?.id) tMap.set(team.id, team);
     }
+
     setTeams(Array.from(tMap.values()));
 
     const { start, end } = calcDateRange();
@@ -348,21 +311,18 @@ async function clearSavedCalendarPreference() {
       .eq("championship_id", ch.id)
       .order("match_date", { ascending: true });
 
-    // Status filter
     if (status === "finished") q = q.eq("is_finished", true);
     if (status === "pending") q = q.eq("is_finished", false);
 
-    // Date filter (applies to match_date; pending with null date won't match)
     if (start) q = q.gte("match_date", start.toISOString());
     if (end) q = q.lte("match_date", end.toISOString());
 
-    // Team filter
     if (teamId) q = q.or(`team_a_id.eq.${teamId},team_b_id.eq.${teamId}`);
 
     const { data, error } = await q;
 
     if (error) {
-      Alert.alert("Error", error.message);
+      Alert.alert(t("common.error"), error.message);
       setLoading(false);
       setRefreshing(false);
       setInitialLoaded(true);
@@ -370,12 +330,52 @@ async function clearSavedCalendarPreference() {
     }
 
     const sortedMatches = ((data ?? []) as unknown as MatchRow[]).slice().sort(compareMatches);
+
     setMatches(sortedMatches);
     setLoading(false);
     setRefreshing(false);
     setInitialLoaded(true);
+
     return sortedMatches;
   }
+
+  useFocusEffect(
+    useCallback(() => {
+      const run = async () => {
+        const mustRestore = shouldRestoreScrollRef.current;
+
+        if (mustRestore) {
+          setListVisible(false);
+        }
+
+        const loadedMatches = await load();
+
+        if (mustRestore && restoreMatchIdRef.current != null) {
+          const idx = (loadedMatches ?? []).findIndex(
+            (m) => m.id === restoreMatchIdRef.current
+          );
+
+          setTimeout(() => {
+            if (idx >= 0) {
+              listRef.current?.scrollToIndex({
+                index: idx,
+                animated: false,
+                viewPosition: 0.5,
+              });
+            }
+
+            shouldRestoreScrollRef.current = false;
+            setListVisible(true);
+          }, 120);
+        } else {
+          setListVisible(true);
+        }
+      };
+
+      run();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [preset, status, teamId, customStart, customEnd])
+  );
 
   const onRefresh = useCallback(() => {
     load(true);
@@ -385,7 +385,7 @@ async function clearSavedCalendarPreference() {
   async function openCalendarPickerForMatch(item: MatchRow) {
     try {
       if (!item.match_date) {
-        Alert.alert("Sense data", "Aquest partit encara no té data assignada.");
+        Alert.alert(t("publicMatches.noDateTitle"), t("publicMatches.noDateMessage"));
         return;
       }
 
@@ -396,8 +396,8 @@ async function clearSavedCalendarPreference() {
 
       if (status !== "granted") {
         Alert.alert(
-          "Permís necessari",
-          "Cal donar permís al calendari per afegir aquest partit."
+          t("publicMatches.permissionNeeded"),
+          t("publicMatches.calendarPermissionMessage")
         );
         return;
       }
@@ -413,7 +413,7 @@ async function clearSavedCalendarPreference() {
       );
 
       if (!editableCalendars.length) {
-        Alert.alert("Error", "No s'ha trobat cap calendari editable al dispositiu.");
+        Alert.alert(t("common.error"), t("publicMatches.noEditableCalendar"));
         return;
       }
 
@@ -421,7 +421,7 @@ async function clearSavedCalendarPreference() {
         .map((cal) => ({
           id: cal.id,
           title: cal.title,
-          subtitle: [cal.source?.name ?? null, cal.isPrimary ? "Principal" : null]
+          subtitle: [cal.source?.name ?? null, cal.isPrimary ? t("publicMatches.primaryCalendar") : null]
             .filter(Boolean)
             .join(" · "),
         }))
@@ -430,7 +430,7 @@ async function clearSavedCalendarPreference() {
       setCalendarOptions(options);
       setCalendarPickerOpen(true);
     } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "No s'ha pogut carregar la llista de calendaris.");
+      Alert.alert(t("common.error"), e?.message ?? t("publicMatches.calendarLoadError"));
     } finally {
       await loadSavedCalendarPreference();
       setCalendarLoading(false);
@@ -440,23 +440,35 @@ async function clearSavedCalendarPreference() {
   async function addMatchToCalendar(calendarId: string, calendarTitle: string, item: MatchRow) {
     try {
       if (!item.match_date) {
-        Alert.alert("Sense data", "Aquest partit encara no té data assignada.");
+        Alert.alert(t("publicMatches.noDateTitle"), t("publicMatches.noDateMessage"));
         return;
       }
 
-      const aName = trimCharField(item.team_a?.name) || item.team_a?.short_name || "Equip A";
-      const bName = trimCharField(item.team_b?.name) || item.team_b?.short_name || "Equip B";
-      const fieldCode = item.slot?.field_code ? `Camp ${item.slot.field_code}` : "Camp pendent";
+      const aName =
+        trimCharField(item.team_a?.name) ||
+        item.team_a?.short_name ||
+        t("publicMatches.teamA");
+
+      const bName =
+        trimCharField(item.team_b?.name) ||
+        item.team_b?.short_name ||
+        t("publicMatches.teamB");
+
+      const fieldCode = item.slot?.field_code
+        ? t("publicMatches.field", { field: item.slot.field_code })
+        : t("publicMatches.fieldPending");
 
       const startDate = new Date(item.match_date);
       const endDate = new Date(startDate.getTime() + 90 * 60 * 1000);
 
       await Calendar.createEventAsync(calendarId, {
-        title: `${aName} vs ${bName}`,
+        title: `${aName} ${t("publicMatches.vs")} ${bName}`,
         startDate,
         endDate,
         location: fieldCode,
-        notes: `Partit del campionat${item.phase?.name ? ` · ${item.phase.name}` : ""}`,
+        notes: t("publicMatches.eventNotes", {
+          phase: item.phase?.name ? ` · ${item.phase.name}` : "",
+        }),
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       });
 
@@ -464,42 +476,47 @@ async function clearSavedCalendarPreference() {
         [CALENDAR_PREF_KEY, calendarId],
         [CALENDAR_PREF_TITLE_KEY, calendarTitle],
       ]);
+
       setSavedCalendarId(calendarId);
       setSavedCalendarTitle(calendarTitle);
       setCalendarPickerOpen(false);
       setCalendarOptions([]);
       setCalendarTargetMatch(null);
-      Alert.alert("Afegit ✅", `El partit s'ha afegit al calendari: ${calendarTitle}`);
+
+      Alert.alert(
+        t("publicMatches.calendarAddedTitle"),
+        t("publicMatches.calendarAddedMessage", { calendar: calendarTitle })
+      );
     } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "No s'ha pogut afegir el partit al calendari.");
+      Alert.alert(t("common.error"), e?.message ?? t("publicMatches.calendarAddError"));
     }
   }
 
   async function tryAddToSavedCalendar(item: MatchRow) {
-  const [[, savedCalendarId], [, savedCalendarTitle]] = await AsyncStorage.multiGet([
-    CALENDAR_PREF_KEY,
-    CALENDAR_PREF_TITLE_KEY,
-  ]);
+    const [[, savedCalendarId], [, savedCalendarTitle]] = await AsyncStorage.multiGet([
+      CALENDAR_PREF_KEY,
+      CALENDAR_PREF_TITLE_KEY,
+    ]);
 
-  if (!savedCalendarId) return false;
+    if (!savedCalendarId) return false;
 
-  const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
+    const calendars = await Calendar.getCalendarsAsync(Calendar.EntityTypes.EVENT);
 
-  const stillValid = calendars.find(
-    (cal) =>
-      cal.id === savedCalendarId &&
-      cal.allowsModifications &&
-      (Platform.OS !== "ios" || cal.source?.name !== "Subscribed Calendars")
-  );
+    const stillValid = calendars.find(
+      (cal) =>
+        cal.id === savedCalendarId &&
+        cal.allowsModifications &&
+        (Platform.OS !== "ios" || cal.source?.name !== "Subscribed Calendars")
+    );
 
-  if (!stillValid) {
-    await AsyncStorage.multiRemove([CALENDAR_PREF_KEY, CALENDAR_PREF_TITLE_KEY]);
-    return false;
+    if (!stillValid) {
+      await AsyncStorage.multiRemove([CALENDAR_PREF_KEY, CALENDAR_PREF_TITLE_KEY]);
+      return false;
+    }
+
+    await addMatchToCalendar(savedCalendarId, savedCalendarTitle ?? stillValid.title, item);
+    return true;
   }
-
-  await addMatchToCalendar(savedCalendarId, savedCalendarTitle ?? stillValid.title, item);
-  return true;
-}
 
   const calendarPickerModal = (
     <Modal
@@ -530,11 +547,13 @@ async function clearSavedCalendarPreference() {
           }}
         >
           <Text style={{ fontSize: 20, fontWeight: "900", color: colors.text, textAlign: "center" }}>
-            Selecciona calendari
+            {t("publicMatches.selectCalendar")}
           </Text>
+
           <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "700", textAlign: "center" }}>
-            Tria on vols afegir aquest partit pendent.
+            {t("publicMatches.selectCalendarSubtitle")}
           </Text>
+
           {savedCalendarId && savedCalendarTitle ? (
             <View
               style={{
@@ -547,13 +566,14 @@ async function clearSavedCalendarPreference() {
               }}
             >
               <Text style={{ color: colors.muted, fontWeight: "700", textAlign: "center" }}>
-                Calendari guardat actual
+                {t("publicMatches.currentSavedCalendar")}
               </Text>
               <Text style={{ color: colors.text, fontWeight: "900", textAlign: "center", marginTop: 4 }}>
                 {savedCalendarTitle}
               </Text>
             </View>
           ) : null}
+
           <ScrollView style={{ marginTop: 14 }} showsVerticalScrollIndicator={false}>
             {calendarLoading ? (
               <View style={{ paddingVertical: 24, alignItems: "center" }}>
@@ -577,9 +597,14 @@ async function clearSavedCalendarPreference() {
                     opacity: pressed ? 0.92 : 1,
                   })}
                 >
-                  <Text style={{ fontWeight: "900", color: colors.text, fontSize: 16 }}>{cal.title}</Text>
+                  <Text style={{ fontWeight: "900", color: colors.text, fontSize: 16 }}>
+                    {cal.title}
+                  </Text>
+
                   {cal.subtitle ? (
-                    <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "700" }}>{cal.subtitle}</Text>
+                    <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "700" }}>
+                      {cal.subtitle}
+                    </Text>
                   ) : null}
                 </Pressable>
               ))
@@ -591,8 +616,8 @@ async function clearSavedCalendarPreference() {
               onPress={async () => {
                 await clearSavedCalendarPreference();
                 Alert.alert(
-                  "Calendari restablert",
-                  "La propera vegada podràs escollir un calendari de nou."
+                  t("publicMatches.calendarResetTitle"),
+                  t("publicMatches.calendarResetMessage")
                 );
                 setCalendarPickerOpen(false);
                 setCalendarTargetMatch(null);
@@ -604,7 +629,7 @@ async function clearSavedCalendarPreference() {
               }}
             >
               <Text style={{ color: "#DC2626", fontWeight: "900" }}>
-                Restablir calendari guardat
+                {t("publicMatches.resetSavedCalendar")}
               </Text>
             </Pressable>
           ) : null}
@@ -620,275 +645,324 @@ async function clearSavedCalendarPreference() {
               alignItems: "center",
             }}
           >
-            <Text style={{ color: colors.muted, fontWeight: "900" }}>Cancel·lar</Text>
+            <Text style={{ color: colors.muted, fontWeight: "900" }}>
+              {t("publicMatches.cancel")}
+            </Text>
           </Pressable>
         </View>
       </View>
     </Modal>
   );
+
   if (!initialLoaded || loading) {
     return (
-      <SafeAreaView edges={["left","right","bottom"]} style={styles.loadingWrap}>
+      <SafeAreaView edges={["left", "right", "bottom"]} style={styles.loadingWrap}>
         <ActivityIndicator size="large" color={colors.primary} />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView edges={["left","right","bottom"]} style={styles.screen}>
+    <SafeAreaView edges={["left", "right", "bottom"]} style={styles.screen}>
       {calendarPickerModal}
-<FlatList
-        ref={listRef}
+
+      <FlatList
         style={{ opacity: listVisible ? 1 : 0 }}
-  onScroll={(e) => {
-    scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
-  }}
-  scrollEventThrottle={16}
-  onScrollToIndexFailed={() => {
-    setTimeout(() => {
-      const targetId = restoreMatchIdRef.current;
-      const idx = matches.findIndex((m) => m.id === targetId);
-      if (idx >= 0) {
-        listRef.current?.scrollToIndex({
-          index: idx,
-          animated: false,
-          viewPosition: 0.5,
-        });
-      }
-    }, 150);
-  }}
+        onScrollToIndexFailed={() => {
+          setTimeout(() => {
+            const targetId = restoreMatchIdRef.current;
+            const idx = matches.findIndex((m) => m.id === targetId);
+
+            if (idx >= 0) {
+              listRef.current?.scrollToIndex({
+                index: idx,
+                animated: false,
+                viewPosition: 0.5,
+              });
+            }
+
+            shouldRestoreScrollRef.current = false;
+            setListVisible(true);
+          }, 150);
+        }}
+        ref={listRef}
         ListHeaderComponent={
           <View>
-      	      {/* Back (same style as Rankings) */}
-	      <View style={{ paddingTop: 10,paddingBottom: 10 }}>
-<BackButton
-          onPress={() => router.replace("/public-menu")}
-          style={{ marginTop:5 }}
-        />
-	      </View>
-      {/* Filters dropdown */}
-      <View style={styles.filtersCard}>
-        <Pressable
-          onPress={() => {
-            setShowFilters((v) => !v);
-            setShowTeamPicker(false);
-          }}
-          style={styles.filtersHeader}
-        >
-          <Text style={styles.filtersTitle}>Filtres</Text>
-          <Text style={styles.filtersChevron}>{showFilters ? "▲" : "▼"}</Text>
-        </Pressable>
-
-        {showFilters && (
-          <View style={{ marginTop: 12 }}>
-            <Text style={styles.sectionLabel}>Estat</Text>
-            <View style={styles.chipsWrap}>
-              {([
-                ["all", "Tots"],
-                ["pending", "Pendents"],
-                ["finished", "Finalitzats"],
-              ] as Array<[StatusFilter, string]>).map(([key, label]) => {
-                const active = status === key;
-                return (
-                    <Pressable
-                      key={key}
-                      onPress={() => {
-                        setStatus(key);
-                        setShowTeamPicker(false);
-                        setShowFilters(false);
-                      }}
-                    style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
-                  >
-                    <Text style={[styles.chipText, active ? styles.chipTextActive : styles.chipTextInactive]}>
-                      {label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
+            <View style={{ paddingTop: 10, paddingBottom: 10 }}>
+              <BackButton
+                onPress={() => router.replace("/public-menu")}
+                style={{ marginTop: 5 }}
+              />
             </View>
 
-            <Text style={[styles.sectionLabel, { marginTop: 14 }]}>Dates</Text>
-            <View style={styles.chipsWrap}>
-              {([
-                ["all", "Tot"],
-                ["today", "Avui"],
-                ["yesterday", "Ahir"],
-                ["week", "7 dies"],
-              ] as Array<[DatePreset, string]>).map(([key, label]) => {
-                const active = preset === key;
-                return (
-                  <Pressable
-                    key={key}
-                    onPress={() => {
-                      setPreset(key);
-                      if (key !== "custom") {
-                        setCustomStart(null);
-                        setCustomEnd(null);
-                      }
-                      setShowTeamPicker(false);
-                      setShowFilters(false);
-                    }}
-                    style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
-                  >
-                    <Text style={[styles.chipText, active ? styles.chipTextActive : styles.chipTextInactive]}>
-                      {label}
-                    </Text>
-                  </Pressable>
-                );
-              })}
-            </View>
+            <View style={styles.filtersCard}>
+              <Pressable
+                onPress={() => {
+                  setShowFilters((v) => !v);
+                  setShowTeamPicker(false);
+                }}
+                style={styles.filtersHeader}
+              >
+                <Text style={styles.filtersTitle}>{t("publicMatches.filters")}</Text>
+                <Text style={styles.filtersChevron}>{showFilters ? "▲" : "▼"}</Text>
+              </Pressable>
 
-            {/* Calendar / custom date range */}
-            <Pressable
-              onPress={() => {
-  // inicialitza el draft amb el filtre actual (si n’hi havia)
-  setDraftStart(customStart);
-  setDraftEnd(customEnd);
-  setPickingCustom("start");
-}}
-              style={[styles.pickerButton, { marginTop: 10 }]}
-            >
-              <Text style={styles.pickerButtonText} numberOfLines={1}>
-                {displayStart
-  ? `Calendari: ${pad2(displayStart.getDate())}/${pad2(displayStart.getMonth() + 1)}/${displayStart.getFullYear()}` +
-    (displayEnd
-      ? ` - ${pad2(displayEnd.getDate())}/${pad2(displayEnd.getMonth() + 1)}/${displayEnd.getFullYear()}`
-      : "")
-  : "Calendari: escull data/rang"}
+              {showFilters && (
+                <View style={{ marginTop: 12 }}>
+                  <Text style={styles.sectionLabel}>{t("publicMatches.status")}</Text>
 
-              </Text>
-              <Text style={styles.filtersChevron}>📅</Text>
-            </Pressable>
-{showApplySingleDay && draftStart && (
-  <Pressable
-    onPress={() => {
-      // aplica només aquell dia
-      setCustomStart(draftStart);
-      setCustomEnd(draftStart);
-      setPreset("custom");
-
-      // neteja estat de selecció
-      setDraftStart(null);
-      setDraftEnd(null);
-      setPickingCustom(null);
-      setShowApplySingleDay(false);
-
-      // tanca filtres com ja fas
-      setShowTeamPicker(false);
-      setShowFilters(false);
-    }}
-    style={[styles.chip, styles.chipActive, { alignSelf: "flex-start", marginTop: 10 }]}
-  >
-    <Text style={styles.chipTextActive}>Aplicar només aquest dia</Text>
-  </Pressable>
-)}
-
-            {pickingCustom && (
-              <View style={{ marginTop: 10 }}>
-                <DateTimePicker
-                  value={
-                    pickingCustom === "start"
-    ? new Date() // ✅ força que el picker no “vingui” amb la data ja aplicada
-    : (draftStart ?? customStart ?? new Date())
-                  }
-                  mode="date"
-                  display="default"
-                  onChange={handleCustomDateChange}
-                />
-              </View>
-            )}
-
-            <Text style={[styles.sectionLabel, { marginTop: 14 }]}>Equip</Text>
-
-            <Pressable onPress={() => setShowTeamPicker((v) => !v)} style={styles.pickerButton}>
-              <Text style={styles.pickerButtonText} numberOfLines={1}>
-                {teamId
-                  ? `Filtre: ${teamChips.find((x) => x.id === teamId)?.label ?? "Equip"}`
-                  : "Filtre: Tots els equips"}
-              </Text>
-              <Text style={styles.filtersChevron}>{showTeamPicker ? "▲" : "▼"}</Text>
-            </Pressable>
-
-            {showTeamPicker && (
-              <View style={[styles.pickerPanel, { maxHeight: 260 }]}>
-                <ScrollView showsVerticalScrollIndicator={false} nestedScrollEnabled keyboardShouldPersistTaps="handled">
                   <View style={styles.chipsWrap}>
-                    {teamChips.map((t) => {
-                      const active = teamId === t.id;
+                    {([
+                      ["all", t("publicMatches.all")],
+                      ["pending", t("publicMatches.pending")],
+                      ["finished", t("publicMatches.finished")],
+                    ] as Array<[StatusFilter, string]>).map(([key, label]) => {
+                      const active = status === key;
+
                       return (
                         <Pressable
-                          key={String(t.id)}
+                          key={key}
                           onPress={() => {
-                            setTeamId(t.id);
+                            setStatus(key);
                             setShowTeamPicker(false);
-                              setShowFilters(false);
+                            setShowFilters(false);
                           }}
                           style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
                         >
-                          <Text style={[styles.chipText, active ? styles.chipTextActive : styles.chipTextInactive]}>
-                            {t.label}
+                          <Text
+                            style={[
+                              styles.chipText,
+                              active ? styles.chipTextActive : styles.chipTextInactive,
+                            ]}
+                          >
+                            {label}
                           </Text>
                         </Pressable>
                       );
                     })}
                   </View>
-                </ScrollView>
+
+                  <Text style={[styles.sectionLabel, { marginTop: 14 }]}>
+                    {t("publicMatches.dates")}
+                  </Text>
+
+                  <View style={styles.chipsWrap}>
+                    {([
+                      ["all", t("publicMatches.allNeutral")],
+                      ["today", t("publicMatches.today")],
+                      ["yesterday", t("publicMatches.yesterday")],
+                      ["week", t("publicMatches.week")],
+                    ] as Array<[DatePreset, string]>).map(([key, label]) => {
+                      const active = preset === key;
+
+                      return (
+                        <Pressable
+                          key={key}
+                          onPress={() => {
+                            setPreset(key);
+                            if (key !== "custom") {
+                              setCustomStart(null);
+                              setCustomEnd(null);
+                            }
+                            setShowTeamPicker(false);
+                            setShowFilters(false);
+                          }}
+                          style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
+                        >
+                          <Text
+                            style={[
+                              styles.chipText,
+                              active ? styles.chipTextActive : styles.chipTextInactive,
+                            ]}
+                          >
+                            {label}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+
+                  <Pressable
+                    onPress={() => {
+                      setDraftStart(customStart);
+                      setDraftEnd(customEnd);
+                      setPickingCustom("start");
+                    }}
+                    style={[styles.pickerButton, { marginTop: 10 }]}
+                  >
+                    <Text style={styles.pickerButtonText} numberOfLines={1}>
+                      {displayStart
+                        ? t("publicMatches.calendarSelected", {
+                          start: `${pad2(displayStart.getDate())}/${pad2(
+                            displayStart.getMonth() + 1
+                          )}/${displayStart.getFullYear()}`,
+                          end: displayEnd
+                            ? ` - ${pad2(displayEnd.getDate())}/${pad2(
+                              displayEnd.getMonth() + 1
+                            )}/${displayEnd.getFullYear()}`
+                            : "",
+                        })
+                        : t("publicMatches.calendarChooseRange")}
+                    </Text>
+                    <Text style={styles.filtersChevron}>📅</Text>
+                  </Pressable>
+
+                  {showApplySingleDay && draftStart && (
+                    <Pressable
+                      onPress={() => {
+                        setCustomStart(draftStart);
+                        setCustomEnd(draftStart);
+                        setPreset("custom");
+                        setDraftStart(null);
+                        setDraftEnd(null);
+                        setPickingCustom(null);
+                        setShowApplySingleDay(false);
+                        setShowTeamPicker(false);
+                        setShowFilters(false);
+                      }}
+                      style={[styles.chip, styles.chipActive, { alignSelf: "flex-start", marginTop: 10 }]}
+                    >
+                      <Text style={styles.chipTextActive}>
+                        {t("publicMatches.applyOnlyThisDay")}
+                      </Text>
+                    </Pressable>
+                  )}
+
+                  {pickingCustom && (
+                    <View style={{ marginTop: 10 }}>
+                      <DateTimePicker
+                        value={
+                          pickingCustom === "start"
+                            ? new Date()
+                            : draftStart ?? customStart ?? new Date()
+                        }
+                        mode="date"
+                        display="default"
+                        onChange={handleCustomDateChange}
+                      />
+                    </View>
+                  )}
+
+                  <Text style={[styles.sectionLabel, { marginTop: 14 }]}>
+                    {t("publicMatches.team")}
+                  </Text>
+
+                  <Pressable
+                    onPress={() => setShowTeamPicker((v) => !v)}
+                    style={styles.pickerButton}
+                  >
+                    <Text style={styles.pickerButtonText} numberOfLines={1}>
+                      {teamId
+                        ? t("publicMatches.teamFilter", {
+                          team:
+                            teamChips.find((x) => x.id === teamId)?.label ??
+                            t("publicMatches.team"),
+                        })
+                        : t("publicMatches.teamFilterAll")}
+                    </Text>
+                    <Text style={styles.filtersChevron}>{showTeamPicker ? "▲" : "▼"}</Text>
+                  </Pressable>
+
+                  {showTeamPicker && (
+                    <View style={[styles.pickerPanel, { maxHeight: 260 }]}>
+                      <ScrollView
+                        showsVerticalScrollIndicator={false}
+                        nestedScrollEnabled
+                        keyboardShouldPersistTaps="handled"
+                      >
+                        <View style={styles.chipsWrap}>
+                          {teamChips.map((team) => {
+                            const active = teamId === team.id;
+
+                            return (
+                              <Pressable
+                                key={String(team.id)}
+                                onPress={() => {
+                                  setTeamId(team.id);
+                                  setShowTeamPicker(false);
+                                  setShowFilters(false);
+                                }}
+                                style={[styles.chip, active ? styles.chipActive : styles.chipInactive]}
+                              >
+                                <Text
+                                  style={[
+                                    styles.chipText,
+                                    active ? styles.chipTextActive : styles.chipTextInactive,
+                                  ]}
+                                >
+                                  {team.label}
+                                </Text>
+                              </Pressable>
+                            );
+                          })}
+                        </View>
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
+              )}
+            </View>
+
+            <View style={styles.summaryCard}>
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryPill}>
+                  <Text style={styles.summaryPillLabel}>{t("publicMatches.total")}</Text>
+                  <Text style={styles.summaryPillValue}>{summary.total}</Text>
+                </View>
+
+                <View style={[styles.summaryPill, styles.pillPending]}>
+                  <Text style={styles.summaryPillLabel}>{t("publicMatches.pending")}</Text>
+                  <Text style={styles.summaryPillValue}>{summary.pending}</Text>
+                </View>
+
+                <View style={[styles.summaryPill, styles.pillFinished]}>
+                  <Text style={styles.summaryPillLabel}>{t("publicMatches.finished")}</Text>
+                  <Text style={styles.summaryPillValue}>{summary.finished}</Text>
+                </View>
               </View>
-            )}
-          </View>
-        )}
-      </View>
-{/* Top summary */}
-      <View style={styles.summaryCard}>
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryPill}>
-            <Text style={styles.summaryPillLabel}>Total</Text>
-            <Text style={styles.summaryPillValue}>{summary.total}</Text>
-          </View>
-<View style={[styles.summaryPill, styles.pillPending]}>
-            <Text style={styles.summaryPillLabel}>Pendents</Text>
-            <Text style={styles.summaryPillValue}>{summary.pending}</Text>
-          </View>
-          <View style={[styles.summaryPill, styles.pillFinished]}>
-            <Text style={styles.summaryPillLabel}>Finalitzats</Text>
-            <Text style={styles.summaryPillValue}>{summary.finished}</Text>
-          </View>
-        </View>
 
-        <Text style={styles.summarySub}>
-          {labelForStatus(status)} · {preset === "all" ? "Totes les dates" : labelForPreset(preset)}
-          {teamId ? ` · ${teamChips.find((t) => t.id === teamId)?.label ?? ""}` : ""}
-        </Text>
-      </View>
-
-      
+              <Text style={styles.summarySub}>
+                {labelForStatus(status)} ·{" "}
+                {preset === "all" ? t("publicMatches.allDates") : labelForPreset(preset)}
+                {teamId ? ` · ${teamChips.find((team) => team.id === teamId)?.label ?? ""}` : ""}
+              </Text>
+            </View>
           </View>
         }
-
         contentContainerStyle={{ paddingBottom: 18 }}
         data={matches}
         keyExtractor={(item) => item.id.toString()}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListEmptyComponent={() => (
           <View style={styles.emptyWrap}>
-            <Text style={styles.emptyTitle}>Sense partits</Text>
-            <Text style={styles.emptySub}>No hi ha partits amb aquests filtres.</Text>
+            <Text style={styles.emptyTitle}>{t("publicMatches.noMatches")}</Text>
+            <Text style={styles.emptySub}>{t("publicMatches.noMatchesWithFilters")}</Text>
           </View>
         )}
         renderItem={({ item }) => {
-          const aName = trimCharField(item.team_a?.name) || item.team_a?.short_name || "Equip A";
-          const bName = trimCharField(item.team_b?.name) || item.team_b?.short_name || "Equip B";
+          const aName =
+            trimCharField(item.team_a?.name) ||
+            item.team_a?.short_name ||
+            t("publicMatches.teamA");
+
+          const bName =
+            trimCharField(item.team_b?.name) ||
+            item.team_b?.short_name ||
+            t("publicMatches.teamB");
 
           const isAjornat = item.display_status === "AJORNAT";
-          const isLive = !!item.started_at && !item.is_finished;
+          const isLive = !!item.started_at && !item.is_finished && !isAjornat;
           const score = isLive ? "" : `${item.score_team_a ?? 0} - ${item.score_team_b ?? 0}`;
-          const canOpenSummary = !isAjornat && item.is_finished || !!item.started_at;
+          const canOpenSummary = !isAjornat && (item.is_finished || !!item.started_at);
 
           return (
             <Pressable
               onPress={() => {
                 if (isAjornat) {
-                  Alert.alert("Partit ajornat", "Aquest partit està ajornat temporalment.");
+                  Alert.alert(
+                    t("publicMatches.postponedMatch"),
+                    t("publicMatches.postponedMatchMessage")
+                  );
                   return;
                 }
 
@@ -900,135 +974,149 @@ async function clearSavedCalendarPreference() {
                 }
 
                 Alert.alert(
-                "Partit pendent",
-                "Vols afegir aquest partit al calendari del telèfon?",
-                [
-                  { text: "Cancel·lar", style: "cancel" },
-
-                  ...(savedCalendarId
-                    ? [
+                  t("publicMatches.pendingMatch"),
+                  t("publicMatches.pendingMatchCalendarQuestion"),
+                  [
+                    { text: t("publicMatches.cancel"), style: "cancel" },
+                    ...(savedCalendarId
+                      ? [
                         {
-                          text: `Afegir a ${savedCalendarTitle ?? "calendari guardat"}`,
+                          text: t("publicMatches.addToSavedCalendar", {
+                            calendar:
+                              savedCalendarTitle ??
+                              t("publicMatches.savedCalendarFallback"),
+                          }),
                           onPress: async () => {
                             const reused = await tryAddToSavedCalendar(item);
-                            if (!reused) {
-                              await openCalendarPickerForMatch(item);
-                            }
+                            if (!reused) await openCalendarPickerForMatch(item);
                           },
                         },
                         {
-                          text: "Canviar calendari",
+                          text: t("publicMatches.changeCalendar"),
                           onPress: () => openCalendarPickerForMatch(item),
                         },
                       ]
-                    : [
+                      : [
                         {
-                          text: "Afegir al calendari",
+                          text: t("publicMatches.addToCalendar"),
                           onPress: () => openCalendarPickerForMatch(item),
                         },
                       ]),
-                ]
-              );
+                  ]
+                );
               }}
-              onLongPress={() => Alert.alert("ID del partit", String(item.id))}
+              onLongPress={() => Alert.alert(t("publicMatches.matchIdTitle"), String(item.id))}
               delayLongPress={350}
               style={({ pressed }) => [
-              styles.matchCard,
-              isAjornat
-                ? styles.matchCardAjornat
-                : isLive
-                ? styles.matchCardLive
-                : item.is_finished
-                ? styles.matchCardFinished
-                : styles.matchCardPending,
+                styles.matchCard,
+                isAjornat
+                  ? styles.matchCardAjornat
+                  : isLive
+                    ? styles.matchCardLive
+                    : item.is_finished
+                      ? styles.matchCardFinished
+                      : styles.matchCardPending,
                 pressed && canOpenSummary ? { transform: [{ scale: 0.99 }], opacity: 0.95 } : null,
               ]}
             >
               <View style={styles.matchTopRow}>
-  <Text style={styles.matchTitle} numberOfLines={1}>
-    {aName} <Text style={styles.vs}>vs</Text> {bName}
-  </Text>
+                <Text style={styles.matchTitle} numberOfLines={1}>
+                  {aName} <Text style={styles.vs}>{t("publicMatches.vs")}</Text> {bName}
+                </Text>
 
-  <View style={styles.matchMetaRow}>
-    <View style={styles.metaRow}>
-      {item.match_date ? (
-        <Text style={styles.metaText}>🗓️ {formatDateDDMMYYYY_HHMM(item.match_date, "·")}</Text>
-      ) : (
-        <Text style={styles.metaMuted}>🗓️ Data pendent</Text>
-      )}
-      {item.slot?.field_code ? (
-        <Text style={styles.metaText}> · 🏟️ {item.slot.field_code}</Text>
-      ) : null}
-    </View>
+                <View style={styles.matchMetaRow}>
+                  <View style={styles.metaRow}>
+                    {item.match_date ? (
+                      <Text style={styles.metaText}>
+                        🗓️ {formatDateDDMMYYYY_HHMM(item.match_date, "·")}
+                      </Text>
+                    ) : (
+                      <Text style={styles.metaMuted}>
+                        🗓️ {t("publicMatches.pendingDate")}
+                      </Text>
+                    )}
 
-    <View
-  style={[
-    styles.badge,
-    isAjornat
-      ? styles.pillAjornat
-      : isLive
-      ? styles.pillLive
-      : item.is_finished
-      ? styles.pillFinished
-      : styles.pillPending,
-  ]}
->
-  <Text
-    style={[
-      styles.badgeText,
-      isAjornat ? styles.badgeTextAjornat : null,
-      isLive ? styles.badgeTextLive : null,
-    ]}
-  >
-    {isAjornat ? "AJORNAT" : item.is_finished ? "FINAL" : item.started_at ? "EN JOC" : "PENDENT"}
-  </Text>
-</View>
-  </View>
+                    {item.slot?.field_code ? (
+                      <Text style={styles.metaText}> · 🏟️ {item.slot.field_code}</Text>
+                    ) : null}
+                  </View>
 
-  <View style={styles.matchBottomRow}>
-    {!!item.phase?.name ? (
-      <Text style={styles.phaseText} numberOfLines={1}>
-        {item.phase.name}
-      </Text>
-    ) : (
-      <View style={{ flex: 1 }} />
-    )}
+                  <View
+                    style={[
+                      styles.badge,
+                      isAjornat
+                        ? styles.pillAjornat
+                        : isLive
+                          ? styles.pillLive
+                          : item.is_finished
+                            ? styles.pillFinished
+                            : styles.pillPending,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.badgeText,
+                        isAjornat ? styles.badgeTextAjornat : null,
+                        isLive ? styles.badgeTextLive : null,
+                      ]}
+                    >
+                      {isAjornat
+                        ? t("publicMatches.postponedStatus")
+                        : item.is_finished
+                          ? t("publicMatches.finalStatus")
+                          : item.started_at
+                            ? t("publicMatches.liveStatus")
+                            : t("publicMatches.pendingStatus")}
+                    </Text>
+                  </View>
+                </View>
 
-    <Text
-  style={[
-    styles.scoreText,
-    isAjornat
-      ? styles.scoreAjornat
-      : isLive
-      ? styles.scoreLive
-      : item.is_finished
-      ? styles.scoreFinished
-      : styles.scorePending,
-  ]}
->
-  {score}
-</Text>
-  </View>
-</View>
+                <View style={styles.matchBottomRow}>
+                  {!!item.phase?.name ? (
+                    <Text style={styles.phaseText} numberOfLines={1}>
+                      {item.phase.name}
+                    </Text>
+                  ) : (
+                    <View style={{ flex: 1 }} />
+                  )}
 
-{(isAjornat || (!item.is_finished && !item.started_at)) && (
-  <View style={styles.bottomRow}>
-    <Text style={styles.pendingHint}>
-      {isAjornat
-        ? "Partit ajornat"
-        : "Partit pendent · Toca per afegir-lo al calendari"}
-    </Text>
+                  <Text
+                    style={[
+                      styles.scoreText,
+                      isAjornat
+                        ? styles.scoreAjornat
+                        : isLive
+                          ? styles.scoreLive
+                          : item.is_finished
+                            ? styles.scoreFinished
+                            : styles.scorePending,
+                    ]}
+                  >
+                    {score}
+                  </Text>
+                </View>
+              </View>
 
-    {/*<Text style={styles.matchIdBottom}>#{item.id}</Text>*/}
-  </View>
-)}
+              {(isAjornat || (!item.is_finished && !item.started_at)) && (
+                <View style={styles.bottomRow}>
+                  <Text style={styles.pendingHint}>
+                    {isAjornat
+                      ? t("publicMatches.postponedMatch")
+                      : t("publicMatches.pendingCalendarHint")}
+                  </Text>
+                </View>
+              )}
 
-{!item.is_finished && !!item.started_at && (
-  <Text style={styles.pendingHint}>Partit en joc: resum en directe (marcador provisional)</Text>
-)}
+              {!item.is_finished && !!item.started_at && (
+                <Text style={styles.pendingHint}>{t("publicMatches.liveHint")}</Text>
+              )}
 
               {item.is_finished && (
-                <Text style={styles.openHint}>{Platform.OS === "ios" ? "Toca per veure el resum" : "Prem per veure el resum"}</Text>
+                <Text style={styles.openHint}>
+                  {Platform.OS === "ios"
+                    ? t("publicMatches.tapSummaryIos")
+                    : t("publicMatches.tapSummaryAndroid")}
+                </Text>
               )}
             </Pressable>
           );
@@ -1040,337 +1128,311 @@ async function clearSavedCalendarPreference() {
 
 function getStyles(colors: AppColors, isDark = false) {
   return StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  loadingWrap: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  summaryCard: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOpacity: 0.06,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 6 },
-      },
-      android: { elevation: 2 },
-    }),
-  },
-  summaryRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  summaryPill: {
-    flex: 1,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    backgroundColor: colors.cardAlt,
-  },
-  pillFinished: {
-    backgroundColor: isDark ? "#122A1C" : "#F2FFF7",
-    borderColor: isDark ? "#22543D" : "#D7F5E3",
-  },
-  pillPending: {
-    backgroundColor: isDark ? "#2C1E03" : "#FFF9F2",
-    borderColor: isDark ? "#7B4F01" : "#F4E3C9",
-  },
-  pillLive: {
-    backgroundColor: isDark ? "#071529" : "#EFF6FF",
-    borderColor: isDark ? "#1E3A8A" : "#3B82F6",
-  },
-  pillAjornat: {
-    backgroundColor: isDark ? "#2C1E1E" : "#FEF2F2",
-    borderColor: isDark ? "#7B4F4F" : "#FCA5A5",
-  },
-  summaryPillLabel: {
-    color: isDark ? colors.text : colors.muted,
-    fontSize: 12,
-    fontWeight: "700",
-  },
-  summaryPillValue: {
-    marginTop: 2,
-    fontSize: 18,
-    fontWeight: "900",
-    color: colors.text,
-  },
-  summarySub: {
-    marginTop: 10,
-    color: colors.muted,
-    fontWeight: "700",
-  },
-bottomRow: {
-  flexDirection: "row",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginTop: 8,
-},
-
-matchIdBottom: {
-  fontSize: 11,
-  fontWeight: "700",
-  color: colors.muted,
-},
-  filtersCard: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 12,
-  },
-  filtersHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  filtersTitle: {
-    fontWeight: "900",
-    fontSize: 16,
-    color: colors.text,
-  },
-  filtersChevron: {
-    color: colors.muted,
-    fontWeight: "900",
-    fontSize: 14,
-  },
-  sectionLabel: {
-    fontWeight: "800",
-    color: colors.text,
-    marginBottom: 8,
-  },
-  chipsWrap: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 8,
-  },
-  chip: {
-    paddingVertical: 9,
-    paddingHorizontal: 12,
-    borderRadius: 999,
-    borderWidth: 1,
-  },
-  chipActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
-  },
-  chipInactive: {
-    backgroundColor: colors.card,
-    borderColor: colors.border,
-  },
-  chipText: {
-    fontWeight: "800",
-  },
-  chipTextActive: {
-    color: colors.primaryText,
-  },
-  chipTextInactive: {
-    color: colors.text,
-  },
-matchCardAjornat: {
-  borderLeftWidth: 6,
-  borderLeftColor: "#DC2626",
-  //backgroundColor: "#FEF2F2",
-},
-badgeAjornat: {
-  backgroundColor: "#FEE2E2",
-  borderColor: "#FCA5A5",
-},
-badgeTextAjornat: {
-  color: "#B91C1C",
-},
-scoreAjornat: {
-  color: "#B91C1C",
-},
-  pickerButton: {
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    backgroundColor: colors.cardAlt,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  pickerButtonText: {
-    fontWeight: "800",
-    color: colors.text,
-    flex: 1,
-    marginRight: 10,
-  },
-  pickerPanel: {
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: 14,
-    backgroundColor: colors.card,
-    padding: 10,
-    maxHeight: 220,
-  },
-
-  matchCard: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOpacity: 0.05,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 6 },
-      },
-      android: { elevation: 2 },
-    }),
-  },
-  matchCardFinished: {
-    borderLeftWidth: 6,
-    borderLeftColor: "#10B981", // emerald
-  },
-  matchCardLive: {
-    borderLeftWidth: 6,
-    borderLeftColor: "#3B82F6", // blue
-    backgroundColor: isDark ? "#071529" : "#EFF6FF",
-  },
-  matchCardPending: {
-    borderLeftWidth: 6,
-    borderLeftColor: "#F59E0B", // amber
-  },
-  matchTopRow: {
-  gap: 8,
-},
-  matchTitle: {
-  fontSize: 14,
-  fontWeight: "900",
-  color: colors.text,
-},
-  vs: {
-    color: colors.muted,
-    fontWeight: "800",
-  },
-  metaRow: {
-  flexDirection: "row",
-  flexWrap: "wrap",
-  flex: 1,
-  marginTop: 0,
-},
-matchMetaRow: {
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 12,
-},
-matchBottomRow: {
-  flexDirection: "row",
-  alignItems: "flex-start",
-  justifyContent: "space-between",
-  gap: 12,
-},
-  metaText: {
-    color: colors.muted,
-    fontWeight: "700",
-  },
-  metaMuted: {
-    color: colors.muted,
-    fontWeight: "700",
-  },
-  phaseText: {
-  flex: 1,
-  color: colors.muted,
-  fontWeight: "800",
-},
-  badge: {
-    paddingVertical: 6,
-    paddingHorizontal: 10,
-    borderRadius: 999,
-    borderWidth: 1,
-    alignSelf: "flex-end",
-  },
-  badgeFinished: {
-    backgroundColor: "#ECFDF5",
-    borderColor: "#A7F3D0",
-  },
-  badgePending: {
-    backgroundColor: "#FFFBEB",
-    borderColor: "#FDE68A",
-  },
-
-  badgeLive: {
-    backgroundColor: "#DBEAFE",
-    borderColor: "#3B82F6",
-  },
-  badgeText: {
-    fontWeight: "900",
-    fontSize: 12,
-    color: colors.text,
-    letterSpacing: 0.3,
-  },
-
-  badgeTextLive: {
-    color: colors.text,
-  },
-  scoreText: {
-  fontWeight: "900",
-  fontSize: 20,
-  textAlign: "right",
-},
-  scoreFinished: {
-    color: "#10B981",
-  },
-  scorePending: {
-    color: "#F59E0B",
-  },
-
-  scoreLive: {
-    color: "#2563EB",
-  },
-  pendingHint: {
-    marginTop: 10,
-    color: colors.muted,
-    fontWeight: "700",
-    fontSize:13,
-  },
-  openHint: {
-    marginTop: 10,
-    color: colors.muted,
-    fontWeight: "800",
-  },
-
-  emptyWrap: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 70,
-    paddingHorizontal: 22,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: "900",
-    color: colors.text,
-  },
-  emptySub: {
-    marginTop: 8,
-    textAlign: "center",
-    fontSize: 14,
-    color: colors.muted,
-    fontWeight: "700",
-  },
+    screen: {
+      flex: 1,
+      backgroundColor: colors.bg,
+      paddingHorizontal: 16,
+      paddingTop: 8,
+    },
+    loadingWrap: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      backgroundColor: colors.bg,
+    },
+    summaryCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: 12,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOpacity: 0.06,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 6 },
+        },
+        android: { elevation: 2 },
+      }),
+    },
+    summaryRow: {
+      flexDirection: "row",
+      gap: 10,
+    },
+    summaryPill: {
+      flex: 1,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingVertical: 10,
+      paddingHorizontal: 10,
+      backgroundColor: colors.cardAlt,
+    },
+    pillFinished: {
+      backgroundColor: isDark ? "#122A1C" : "#F2FFF7",
+      borderColor: isDark ? "#22543D" : "#D7F5E3",
+    },
+    pillPending: {
+      backgroundColor: isDark ? "#2C1E03" : "#FFF9F2",
+      borderColor: isDark ? "#7B4F01" : "#F4E3C9",
+    },
+    pillLive: {
+      backgroundColor: isDark ? "#071529" : "#EFF6FF",
+      borderColor: isDark ? "#1E3A8A" : "#3B82F6",
+    },
+    pillAjornat: {
+      backgroundColor: isDark ? "#2C1E1E" : "#FEF2F2",
+      borderColor: isDark ? "#7B4F4F" : "#FCA5A5",
+    },
+    summaryPillLabel: {
+      color: isDark ? colors.text : colors.muted,
+      fontSize: 12,
+      fontWeight: "700",
+    },
+    summaryPillValue: {
+      marginTop: 2,
+      fontSize: 18,
+      fontWeight: "900",
+      color: colors.text,
+    },
+    summarySub: {
+      marginTop: 10,
+      color: colors.muted,
+      fontWeight: "700",
+    },
+    bottomRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginTop: 8,
+    },
+    filtersCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: 12,
+    },
+    filtersHeader: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    filtersTitle: {
+      fontWeight: "900",
+      fontSize: 16,
+      color: colors.text,
+    },
+    filtersChevron: {
+      color: colors.muted,
+      fontWeight: "900",
+      fontSize: 14,
+    },
+    sectionLabel: {
+      fontWeight: "800",
+      color: colors.text,
+      marginBottom: 8,
+    },
+    chipsWrap: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: 8,
+    },
+    chip: {
+      paddingVertical: 9,
+      paddingHorizontal: 12,
+      borderRadius: 999,
+      borderWidth: 1,
+    },
+    chipActive: {
+      backgroundColor: colors.primary,
+      borderColor: colors.primary,
+    },
+    chipInactive: {
+      backgroundColor: colors.card,
+      borderColor: colors.border,
+    },
+    chipText: {
+      fontWeight: "800",
+    },
+    chipTextActive: {
+      color: colors.primaryText,
+    },
+    chipTextInactive: {
+      color: colors.text,
+    },
+    matchCardAjornat: {
+      borderLeftWidth: 6,
+      borderLeftColor: "#DC2626",
+    },
+    badgeTextAjornat: {
+      color: "#B91C1C",
+    },
+    scoreAjornat: {
+      color: "#B91C1C",
+    },
+    pickerButton: {
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 14,
+      paddingVertical: 12,
+      paddingHorizontal: 12,
+      backgroundColor: colors.cardAlt,
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+    },
+    pickerButtonText: {
+      fontWeight: "800",
+      color: colors.text,
+      flex: 1,
+      marginRight: 10,
+    },
+    pickerPanel: {
+      marginTop: 10,
+      borderWidth: 1,
+      borderColor: colors.border,
+      borderRadius: 14,
+      backgroundColor: colors.card,
+      padding: 10,
+      maxHeight: 220,
+    },
+    matchCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: 12,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOpacity: 0.05,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 6 },
+        },
+        android: { elevation: 2 },
+      }),
+    },
+    matchCardFinished: {
+      borderLeftWidth: 6,
+      borderLeftColor: "#10B981",
+    },
+    matchCardLive: {
+      borderLeftWidth: 6,
+      borderLeftColor: "#3B82F6",
+      backgroundColor: isDark ? "#071529" : "#EFF6FF",
+    },
+    matchCardPending: {
+      borderLeftWidth: 6,
+      borderLeftColor: "#F59E0B",
+    },
+    matchTopRow: {
+      gap: 8,
+    },
+    matchTitle: {
+      fontSize: 14,
+      fontWeight: "900",
+      color: colors.text,
+    },
+    vs: {
+      color: colors.muted,
+      fontWeight: "800",
+    },
+    metaRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      flex: 1,
+      marginTop: 0,
+    },
+    matchMetaRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+    },
+    matchBottomRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: 12,
+    },
+    metaText: {
+      color: colors.muted,
+      fontWeight: "700",
+      fontSize: 12,
+    },
+    metaMuted: {
+      color: colors.muted,
+      fontWeight: "700",
+      fontSize: 12,
+    },
+    phaseText: {
+      flex: 1,
+      color: colors.muted,
+      fontWeight: "800",
+    },
+    badge: {
+      paddingVertical: 6,
+      paddingHorizontal: 10,
+      borderRadius: 999,
+      borderWidth: 1,
+      alignSelf: "flex-end",
+    },
+    badgeText: {
+      fontWeight: "900",
+      fontSize: 12,
+      color: colors.text,
+      letterSpacing: 0.3,
+    },
+    badgeTextLive: {
+      color: colors.text,
+    },
+    scoreText: {
+      fontWeight: "900",
+      fontSize: 20,
+      textAlign: "right",
+    },
+    scoreFinished: {
+      color: "#10B981",
+    },
+    scorePending: {
+      color: "#F59E0B",
+    },
+    scoreLive: {
+      color: "#2563EB",
+    },
+    pendingHint: {
+      marginTop: 10,
+      color: colors.muted,
+      fontWeight: "700",
+      fontSize: 13,
+    },
+    openHint: {
+      marginTop: 10,
+      color: colors.muted,
+      fontWeight: "800",
+    },
+    emptyWrap: {
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 70,
+      paddingHorizontal: 22,
+    },
+    emptyTitle: {
+      fontSize: 18,
+      fontWeight: "900",
+      color: colors.text,
+    },
+    emptySub: {
+      marginTop: 8,
+      textAlign: "center",
+      fontSize: 14,
+      color: colors.muted,
+      fontWeight: "700",
+    },
   });
 }

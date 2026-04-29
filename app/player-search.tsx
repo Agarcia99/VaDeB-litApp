@@ -13,6 +13,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { supabase } from "../src/supabase";
 import { BackButton } from "../components/HeaderButtons";
 import { useAppTheme } from "../src/theme";
+import { useLanguage } from "../src/i18n/LanguageContext";
 
 type PlayerSearchRow = {
   player_id: number;
@@ -26,6 +27,8 @@ type PlayerSearchRow = {
 export default function PlayerSearchScreen() {
   const router = useRouter();
   const { colors } = useAppTheme();
+  const { t } = useLanguage();
+
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<PlayerSearchRow[]>([]);
@@ -38,10 +41,11 @@ export default function PlayerSearchScreen() {
       .trim();
 
   useEffect(() => {
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       loadPlayers(query);
     }, 250);
-    return () => clearTimeout(t);
+
+    return () => clearTimeout(timer);
   }, [query]);
 
   useEffect(() => {
@@ -70,26 +74,48 @@ export default function PlayerSearchScreen() {
       .order("player_name", { ascending: true });
 
     const q = norm(qRaw);
+
     if (q) {
       const like = `%${q}%`;
-      req = req.or(`player_name.ilike.${like},team_name.ilike.${like},team_short_name.ilike.${like},external_code.ilike.${like}`);
+      req = req.or(
+        `player_name.ilike.${like},team_name.ilike.${like},team_short_name.ilike.${like},external_code.ilike.${like}`
+      );
     }
 
     const { data } = await req;
+
     setRows((data as any) ?? []);
     setLoading(false);
   }
 
   return (
-    <SafeAreaView edges={["left", "right", "bottom"]} style={{ flex: 1, backgroundColor: colors.bg, padding: 16 }}>
+    <SafeAreaView
+      edges={["left", "right", "bottom"]}
+      style={{ flex: 1, backgroundColor: colors.bg, padding: 16 }}
+    >
       <Stack.Screen options={{ headerShown: false }} />
 
-      <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginTop: 5 }}>
+      <View
+        style={{
+          flexDirection: "row",
+          justifyContent: "space-between",
+          alignItems: "center",
+          marginTop: 5,
+        }}
+      >
         <BackButton onPress={() => router.back()} />
       </View>
 
-      <Text style={{ fontSize: 22, fontWeight: "900", textAlign: "center", color: colors.text, marginTop: 14 }}>
-        Cercar jugador
+      <Text
+        style={{
+          fontSize: 22,
+          fontWeight: "900",
+          textAlign: "center",
+          color: colors.text,
+          marginTop: 14,
+        }}
+      >
+        {t("rankings.searchPlayer")}
       </Text>
 
       <View
@@ -114,8 +140,9 @@ export default function PlayerSearchScreen() {
         }}
       >
         <Text style={{ fontSize: 13, fontWeight: "800", color: colors.muted }}>
-          Busca per nom, equip o codi
+          {t("playerSearch.searchHint")}
         </Text>
+
         <TextInput
           value={query}
           onChangeText={setQuery}
@@ -148,14 +175,23 @@ export default function PlayerSearchScreen() {
           contentContainerStyle={{ paddingBottom: 24 }}
           ListEmptyComponent={
             <View style={{ paddingVertical: 48, alignItems: "center" }}>
-              <Text style={{ fontWeight: "900", fontSize: 18, color: colors.text }}>Sense jugadors</Text>
+              <Text style={{ fontWeight: "900", fontSize: 18, color: colors.text }}>
+                {t("playerSearch.noPlayers")}
+              </Text>
+
               <Text style={{ color: colors.muted, fontWeight: "700", marginTop: 8 }}>
-                No hi ha coincidències al campionat actiu.
+                {t("playerSearch.noMatchesActiveChampionship")}
               </Text>
             </View>
           }
           renderItem={({ item }) => {
-            const subtitle = [item.team_name || item.team_short_name || null, item.external_code || null].filter(Boolean).join(" · ");
+            const subtitle = [
+              item.team_name || item.team_short_name || null,
+              item.external_code || null,
+            ]
+              .filter(Boolean)
+              .join(" · ");
+
             return (
               <Pressable
                 onPress={() =>
@@ -174,9 +210,14 @@ export default function PlayerSearchScreen() {
                   opacity: pressed ? 0.9 : 1,
                 })}
               >
-                <Text style={{ fontWeight: "900", color: colors.text, fontSize: 16 }}>{item.player_name}</Text>
+                <Text style={{ fontWeight: "900", color: colors.text, fontSize: 16 }}>
+                  {item.player_name}
+                </Text>
+
                 {subtitle ? (
-                  <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "700" }}>{subtitle}</Text>
+                  <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "700" }}>
+                    {subtitle}
+                  </Text>
                 ) : null}
               </Pressable>
             );

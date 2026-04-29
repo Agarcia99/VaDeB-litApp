@@ -4,8 +4,9 @@ import { View, Text, ScrollView, StyleSheet, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { supabase } from "../src/supabase";
-import { BackButton, RefreshButton } from "../components/HeaderButtons";
+import { BackButton } from "../components/HeaderButtons";
 import { useAppTheme, AppColors } from "../src/theme";
+import { useLanguage } from "../src/i18n/LanguageContext";
 
 type TeamRef = { id: number; name?: string | null };
 
@@ -21,11 +22,11 @@ type MatchRow = {
   team_b?: TeamRef | null;
 };
 
-const PHASE_LABEL: Record<number, string> = {
-  2: "Vuitens",
-  3: "Quarts",
-  4: "Semis",
-  5: "Final",
+const PHASE_LABEL_KEY: Record<number, string> = {
+  2: "bracket.phase2",
+  3: "bracket.phase3",
+  4: "bracket.phase4",
+  5: "bracket.phase5",
 };
 
 const PHASES_ORDER = [2, 3, 4, 5] as const;
@@ -36,52 +37,48 @@ const COL_W = 300;
 
 function getWinnerSide(m: MatchRow): "A" | "B" | null {
   if (!m?.is_finished) return null;
+
   const a = Number(m.score_team_a ?? 0);
   const b = Number(m.score_team_b ?? 0);
+
   if (a === b) return null;
+
   return a > b ? "A" : "B";
 }
 
 function winnerTeam(m?: MatchRow | null): TeamRef | null {
   if (!m) return null;
+
   const w = getWinnerSide(m);
+
   if (w === "A") return (m.team_a ?? null) as any;
   if (w === "B") return (m.team_b ?? null) as any;
+
   return null;
 }
 
-function matchKeyTeams(m?: MatchRow | null): number[] {
-  if (!m) return [];
-  const ids: number[] = [];
-  if (m.team_a_id != null) ids.push(m.team_a_id);
-  if (m.team_b_id != null) ids.push(m.team_b_id);
-  return ids;
-}
-
-
-
 function buildTeamToMatchMap(matches: MatchRow[]) {
   const map = new Map<number, MatchRow>();
-  for (const m of matches) {
-    if (m.team_a_id != null) map.set(m.team_a_id, m);
-    if (m.team_b_id != null) map.set(m.team_b_id, m);
+
+  for (const match of matches) {
+    if (match.team_a_id != null) map.set(match.team_a_id, match);
+    if (match.team_b_id != null) map.set(match.team_b_id, match);
   }
+
   return map;
 }
-
 
 type Slot = {
   index: number;
   top: number;
   match: MatchRow | null;
-  // Derived display names when match teams aren't set yet
   derivedA?: string;
   derivedB?: string;
 };
 
 type RoundCol = {
   phaseId: number;
-  title: string;
+  titleKey: string;
   slots: Slot[];
 };
 
@@ -89,22 +86,18 @@ function buildBracket(matchesByPhase: Record<number, MatchRow[]>): RoundCol[] {
   const basePhase = PHASES_ORDER.find((p) => (matchesByPhase[p]?.length ?? 0) > 0);
   if (!basePhase) return [];
 
-  // Phases present from basePhase upwards
   const phaseStartIndex = PHASES_ORDER.indexOf(basePhase);
   const phases = PHASES_ORDER.slice(phaseStartIndex);
 
-  // Choose the highest (deepest) phase that already exists (most recently created round),
-  // so when later rounds change rivals, earlier rounds can be reordered to stay consistent.
   const deepestPhase =
     [...phases].reverse().find((p) => (matchesByPhase[p]?.length ?? 0) > 0) ?? basePhase;
 
   const desiredOrder: Record<number, MatchRow[]> = {};
 
-  // Top round: stable order by id
-  desiredOrder[deepestPhase] = [...(matchesByPhase[deepestPhase] ?? [])].sort((a, b) => a.id - b.id);
+  desiredOrder[deepestPhase] = [...(matchesByPhase[deepestPhase] ?? [])].sort(
+    (a, b) => a.id - b.id
+  );
 
-  // Propagate backwards (deepest -> base): reorder previous round so the two matches that contain the
-  // parent rivals appear together under that parent match.
   for (let idx = phases.indexOf(deepestPhase) - 1; idx >= 0; idx--) {
     const prevPhase = phases[idx];
     const curPhase = phases[idx + 1];
@@ -128,100 +121,107 @@ function buildBracket(matchesByPhase: Record<number, MatchRow[]>): RoundCol[] {
         picked.push(mA);
         used.add(mA.id);
       }
+
       if (mB && !used.has(mB.id)) {
         picked.push(mB);
         used.add(mB.id);
       }
     }
 
-    // Append any remaining matches (by id) to keep things stable even with null/byes
-    for (const m of prevMatches) {
-      if (!used.has(m.id)) picked.push(m);
+    for (const match of prevMatches) {
+      if (!used.has(match.id)) picked.push(match);
     }
 
     desiredOrder[prevPhase] = picked;
   }
 
   const baseMatches =
-    desiredOrder[basePhase] ?? [...(matchesByPhase[basePhase] ?? [])].sort((a, b) => a.id - b.id);
+    desiredOrder[basePhase] ??
+    [...(matchesByPhase[basePhase] ?? [])].sort((a, b) => a.id - b.id);
 
   const baseCount = baseMatches.length;
 
-  // Helper to compute slot top positions
   const topsByRound: number[][] = [];
   topsByRound[0] = Array.from({ length: baseCount }, (_, i) => i * (CARD_H + GAP));
 
-  // Build expected slot counts per phase starting at basePhase
-  const roundCounts = phases.map((_, idx) => Math.max(1, Math.ceil(baseCount / Math.pow(2, idx))));
+  const roundCounts = phases.map((_, idx) =>
+    Math.max(1, Math.ceil(baseCount / Math.pow(2, idx)))
+  );
 
-  // For each next round, compute positions centered between children
-  for (let r = 1; r < roundCounts.length; r++) {
-    const count = roundCounts[r];
-    const prev = topsByRound[r - 1];
+  for (let round = 1; round < roundCounts.length; round++) {
+    const count = roundCounts[round];
+    const prev = topsByRound[round - 1];
     const next: number[] = [];
+
     for (let i = 0; i < count; i++) {
       const c1 = prev[Math.min(prev.length - 1, 2 * i)];
       const c2 = prev[Math.min(prev.length - 1, 2 * i + 1)];
       next.push((c1 + c2) / 2);
     }
-    topsByRound[r] = next;
+
+    topsByRound[round] = next;
   }
 
   const assigned: RoundCol[] = [];
 
-  // Round 0 slots
   assigned.push({
     phaseId: basePhase,
-    title: PHASE_LABEL[basePhase] ?? `Fase ${basePhase}`,
-    slots: baseMatches.map((m, i) => ({ index: i, top: topsByRound[0][i], match: m })),
+    titleKey: PHASE_LABEL_KEY[basePhase] ?? "bracket.phaseFallback",
+    slots: baseMatches.map((match, i) => ({
+      index: i,
+      top: topsByRound[0][i],
+      match,
+    })),
   });
 
-  // Build later rounds
-  for (let r = 1; r < phases.length; r++) {
-    const phaseId = phases[r];
-    const title = PHASE_LABEL[phaseId] ?? `Fase ${phaseId}`;
-    const expectedCount = roundCounts[r];
+  for (let round = 1; round < phases.length; round++) {
+    const phaseId = phases[round];
+    const expectedCount = roundCounts[round];
 
-    const prevSlots = assigned[r - 1].slots;
+    const prevSlots = assigned[round - 1].slots;
 
-    // Use the computed order if available; otherwise stable by id
-    const candidates = desiredOrder[phaseId] ?? [...(matchesByPhase[phaseId] ?? [])].sort((a, b) => a.id - b.id);
+    const candidates =
+      desiredOrder[phaseId] ??
+      [...(matchesByPhase[phaseId] ?? [])].sort((a, b) => a.id - b.id);
 
     const slots: Slot[] = [];
 
     for (let i = 0; i < expectedCount; i++) {
       const best = candidates[i] ?? null;
 
-      // Derived labels for placeholders: winners from child matches
       const child1 = prevSlots[Math.min(prevSlots.length - 1, 2 * i)]?.match;
       const child2 = prevSlots[Math.min(prevSlots.length - 1, 2 * i + 1)]?.match;
 
       const w1 = winnerTeam(child1);
       const w2 = winnerTeam(child2);
 
-      const derivedA = w1?.name ? w1.name : child1 ? `Pendent` : "Pendent";
-      const derivedB = w2?.name ? w2.name : child2 ? `Pendent` : "Pendent";
+      const derivedA = w1?.name ? w1.name : child1 ? "PENDING_TRANSLATION" : "PENDING_TRANSLATION";
+      const derivedB = w2?.name ? w2.name : child2 ? "PENDING_TRANSLATION" : "PENDING_TRANSLATION";
 
       slots.push({
         index: i,
-        top: topsByRound[r][i] ?? i * (CARD_H + GAP),
+        top: topsByRound[round][i] ?? i * (CARD_H + GAP),
         match: best,
         derivedA,
         derivedB,
       });
     }
 
-    assigned.push({ phaseId, title, slots });
+    assigned.push({
+      phaseId,
+      titleKey: PHASE_LABEL_KEY[phaseId] ?? "bracket.phaseFallback",
+      slots,
+    });
   }
 
   return assigned;
 }
 
-
-
 export default function PublicBracket() {
   const router = useRouter();
   const { colors } = useAppTheme();
+  const { t } = useLanguage();
+
   const [loading, setLoading] = useState(true);
   const [matches, setMatches] = useState<MatchRow[]>([]);
 
@@ -277,16 +277,21 @@ export default function PublicBracket() {
 
   const matchesByPhase = useMemo(() => {
     const map: Record<number, MatchRow[]> = {};
-    for (const p of PHASES_ORDER) map[p] = [];
-    for (const m of matches) {
-      const pid = Number(m.phase_id);
-      if (!map[pid]) map[pid] = [];
-      map[pid].push(m);
+
+    for (const phase of PHASES_ORDER) {
+      map[phase] = [];
     }
-    // ensure stable ordering
-    for (const pid of Object.keys(map)) {
-      map[Number(pid)] = map[Number(pid)].sort((a, b) => a.id - b.id);
+
+    for (const match of matches) {
+      const phaseId = Number(match.phase_id);
+      if (!map[phaseId]) map[phaseId] = [];
+      map[phaseId].push(match);
     }
+
+    for (const phaseId of Object.keys(map)) {
+      map[Number(phaseId)] = map[Number(phaseId)].sort((a, b) => a.id - b.id);
+    }
+
     return map;
   }, [matches]);
 
@@ -294,41 +299,57 @@ export default function PublicBracket() {
 
   const contentHeight = useMemo(() => {
     const basePhase = bracket[0]?.phaseId;
-    const baseCount = basePhase ? (matchesByPhase[basePhase]?.length ?? 0) : 0;
-    // Ensure cards never overlap and leave a clean 20px margin between matches
-    // and an extra 20px at the bottom so the last "Veure partit" button is always visible.
-    const h = baseCount <= 0 ? 240 : baseCount * CARD_H + (baseCount - 1) * GAP + 20;
-    return Math.max(240, h);
+    const baseCount = basePhase ? matchesByPhase[basePhase]?.length ?? 0 : 0;
+    const height = baseCount <= 0 ? 240 : baseCount * CARD_H + (baseCount - 1) * GAP + 20;
+
+    return Math.max(240, height);
   }, [bracket, matchesByPhase]);
 
-  const hasAny = useMemo(() => bracket.length > 0 && bracket.some((c) => c.slots.some((s) => s.match != null)), [bracket]);
+  const hasAny = useMemo(
+    () => bracket.length > 0 && bracket.some((col) => col.slots.some((slot) => slot.match != null)),
+    [bracket]
+  );
+
   const styles = useMemo(() => getStyles(colors), [colors]);
 
   return (
     <SafeAreaView edges={["left", "right", "bottom"]} style={styles.container}>
-<BackButton
-          onPress={() => router.replace("/team-rankings")}
-          style={{ marginTop:5 }}
-        />
+      <BackButton
+        onPress={() => router.replace("/team-rankings")}
+        style={{ marginTop: 5 }}
+      />
 
-      <Text style={styles.title}>Eliminatòries</Text>
+      <Text style={styles.title}>{t("bracket.title")}</Text>
 
       {loading ? (
-        <Text style={styles.loading}>Carregant eliminatòries...</Text>
+        <Text style={styles.loading}>{t("bracket.loading")}</Text>
       ) : !hasAny ? (
         <View style={styles.emptyWrap}>
-          <Text style={styles.emptyTitle}>Encara no s&apos;han creat eliminatòries</Text>
-          <Text style={styles.emptyText}>
-            Quan l&apos;admin generi vuitens/quarts/semis/final, aquí es veuran els encreuaments i resultats.
-          </Text>
+          <Text style={styles.emptyTitle}>{t("bracket.emptyTitle")}</Text>
+          <Text style={styles.emptyText}>{t("bracket.emptyText")}</Text>
         </View>
       ) : (
-        <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingTop: 14, paddingBottom: 20 }}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingTop: 10, paddingBottom: 40 }}>
+        <ScrollView
+          style={{ flex: 1 }}
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={{ paddingTop: 14, paddingBottom: 20 }}
+        >
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingTop: 10, paddingBottom: 40 }}
+          >
             {bracket.map((col, colIdx) => (
-              <View key={String(col.phaseId)} style={[styles.column, { height: contentHeight, width: COL_W }]}>
+              <View
+                key={String(col.phaseId)}
+                style={[styles.column, { height: contentHeight, width: COL_W }]}
+              >
                 <View style={styles.phasePill}>
-                  <Text style={styles.phaseTitle}>{col.title}</Text>
+                  <Text style={styles.phaseTitle}>
+                    {col.titleKey === "bracket.phaseFallback"
+                      ? t("bracket.phaseFallback", { phase: col.phaseId })
+                      : t(col.titleKey)}
+                  </Text>
                 </View>
 
                 <View style={{ flex: 1, position: "relative" }}>
@@ -337,9 +358,22 @@ export default function PublicBracket() {
                       key={`${col.phaseId}-${slot.index}`}
                       top={slot.top}
                       match={slot.match}
-                      derivedA={slot.derivedA}
-                      derivedB={slot.derivedB}
-                      onOpen={(id) => router.push({ pathname: "/match-summary", params: { id: String(id) } })}
+                      derivedA={
+                        slot.derivedA === "PENDING_TRANSLATION"
+                          ? t("bracket.pending")
+                          : slot.derivedA
+                      }
+                      derivedB={
+                        slot.derivedB === "PENDING_TRANSLATION"
+                          ? t("bracket.pending")
+                          : slot.derivedB
+                      }
+                      onOpen={(id) =>
+                        router.push({
+                          pathname: "/match-summary",
+                          params: { id: String(id) },
+                        })
+                      }
                       isLastCol={colIdx === bracket.length - 1}
                       styles={styles}
                     />
@@ -371,12 +405,14 @@ function BracketMatchCard({
   isLastCol: boolean;
   styles: ReturnType<typeof getStyles>;
 }) {
-  const w = match ? getWinnerSide(match) : null;
-  const aWin = w === "A";
-  const bWin = w === "B";
+  const { t } = useLanguage();
 
-  const aName = match?.team_a?.name ?? derivedA ?? "TBD";
-  const bName = match?.team_b?.name ?? derivedB ?? "TBD";
+  const winnerSide = match ? getWinnerSide(match) : null;
+  const aWin = winnerSide === "A";
+  const bWin = winnerSide === "B";
+
+  const aName = match?.team_a?.name ?? derivedA ?? t("bracket.tbd");
+  const bName = match?.team_b?.name ?? derivedB ?? t("bracket.tbd");
 
   return (
     <View style={[styles.card, { position: "absolute", top }]}>
@@ -384,28 +420,40 @@ function BracketMatchCard({
         <Text numberOfLines={1} style={[styles.team, aWin ? styles.winText : null]}>
           {aName}
         </Text>
-        <Text style={[styles.score, aWin ? styles.winText : null]}>{match ? match.score_team_a : "-"}</Text>
+        <Text style={[styles.score, aWin ? styles.winText : null]}>
+          {match ? match.score_team_a : "-"}
+        </Text>
       </View>
 
       <View style={[styles.teamRow, bWin ? styles.winRow : null]}>
         <Text numberOfLines={1} style={[styles.team, bWin ? styles.winText : null]}>
           {bName}
         </Text>
-        <Text style={[styles.score, bWin ? styles.winText : null]}>{match ? match.score_team_b : "-"}</Text>
+        <Text style={[styles.score, bWin ? styles.winText : null]}>
+          {match ? match.score_team_b : "-"}
+        </Text>
       </View>
 
       <View style={styles.cardFooter}>
         <Text style={styles.status}>
-          {!match ? "No jugat" : match.is_finished ? (w ? "Finalitzat" : "Empat") : "No jugat"}
+          {!match
+            ? t("bracket.notPlayed")
+            : match.is_finished
+            ? winnerSide
+              ? t("bracket.finished")
+              : t("bracket.draw")
+            : t("bracket.notPlayed")}
         </Text>
 
         {match ? (
           <Pressable onPress={() => onOpen(match.id)} style={styles.openBtn}>
-            <Text style={styles.openBtnText}>Veure partit</Text>
+            <Text style={styles.openBtnText}>{t("bracket.viewMatch")}</Text>
           </Pressable>
         ) : (
           <View style={[styles.openBtn, styles.openBtnDisabled]}>
-            <Text style={styles.openBtnTextDisabled}>{isLastCol ? "Esperant" : "Esperant"}</Text>
+            <Text style={styles.openBtnTextDisabled}>
+              {isLastCol ? t("bracket.waiting") : t("bracket.waiting")}
+            </Text>
           </View>
         )}
       </View>

@@ -12,6 +12,7 @@ import { supabase } from "../src/supabase";
 import { BackButton } from "../components/HeaderButtons";
 import { formatDateDDMMYYYY_HHMM } from "../src/utils/format";
 import { useAppTheme } from "../src/theme";
+import { useLanguage } from "../src/i18n/LanguageContext";
 
 type SummaryRow = {
   championship_id: number;
@@ -58,8 +59,17 @@ type MatchRow = {
   defender_bonus_canas: number;
 };
 
-function StatChip({ label, value, tone }: { label: string; value: string | number; tone?: "green" | "red" | "blue" | "gray" | "purple" }) {
+function StatChip({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string | number;
+  tone?: "green" | "red" | "blue" | "gray" | "purple";
+}) {
   const { isDark } = useAppTheme();
+
   const theme = isDark
     ? tone === "green"
       ? { bg: "rgba(34, 197, 94, 0.15)", fg: "#4ade80" }
@@ -71,14 +81,14 @@ function StatChip({ label, value, tone }: { label: string; value: string | numbe
       ? { bg: "rgba(139, 92, 246, 0.15)", fg: "#a78bfa" }
       : { bg: "rgba(148, 163, 184, 0.12)", fg: "#94a3b8" }
     : tone === "green"
-      ? { bg: "#DCFCE7", fg: "#166534" }
-      : tone === "red"
-      ? { bg: "#FEE2E2", fg: "#991B1B" }
-      : tone === "blue"
-      ? { bg: "#DBEAFE", fg: "#1D4ED8" }
-      : tone === "purple"
-      ? { bg: "#EDE9FE", fg: "#6D28D9" }
-      : { bg: "#F3F4F6", fg: "#374151" };
+    ? { bg: "#DCFCE7", fg: "#166534" }
+    : tone === "red"
+    ? { bg: "#FEE2E2", fg: "#991B1B" }
+    : tone === "blue"
+    ? { bg: "#DBEAFE", fg: "#1D4ED8" }
+    : tone === "purple"
+    ? { bg: "#EDE9FE", fg: "#6D28D9" }
+    : { bg: "#F3F4F6", fg: "#374151" };
 
   return (
     <View
@@ -99,6 +109,7 @@ function StatChip({ label, value, tone }: { label: string; value: string | numbe
 export default function PlayerDetailScreen() {
   const router = useRouter();
   const { colors, isDark } = useAppTheme();
+  const { t } = useLanguage();
   const params = useLocalSearchParams<{ playerId?: string }>();
   const playerId = Number(params.playerId);
 
@@ -109,6 +120,7 @@ export default function PlayerDetailScreen() {
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerId]);
 
   async function load() {
@@ -153,13 +165,20 @@ export default function PlayerDetailScreen() {
 
   const averages = useMemo(() => {
     const played = summary?.matches_played ?? 0;
-    const avgCanes = played > 0 ? Math.round(((summary?.total_canes ?? 0) / played) * 10) / 10 : 0;
+    const avgCanes =
+      played > 0
+        ? Math.round(((summary?.total_canes ?? 0) / played) * 10) / 10
+        : 0;
+
     return { avgCanes };
   }, [summary]);
 
   if (loading) {
     return (
-      <SafeAreaView edges={["left", "right", "bottom"]} style={{ flex: 1, backgroundColor: colors.bg, padding: 16 }}>
+      <SafeAreaView
+        edges={["left", "right", "bottom"]}
+        style={{ flex: 1, backgroundColor: colors.bg, padding: 16 }}
+      >
         <Stack.Screen options={{ headerShown: false }} />
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
           <ActivityIndicator size="large" color={colors.primary} />
@@ -170,20 +189,33 @@ export default function PlayerDetailScreen() {
 
   if (!summary) {
     return (
-      <SafeAreaView edges={["left", "right", "bottom"]} style={{ flex: 1, backgroundColor: colors.bg, padding: 16 }}>
+      <SafeAreaView
+        edges={["left", "right", "bottom"]}
+        style={{ flex: 1, backgroundColor: colors.bg, padding: 16 }}
+      >
         <Stack.Screen options={{ headerShown: false }} />
         <BackButton onPress={() => router.back()} />
+
         <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-          <Text style={{ fontWeight: "900", fontSize: 20, color: colors.text }}>Jugador no trobat</Text>
+          <Text style={{ fontWeight: "900", fontSize: 20, color: colors.text }}>
+            {t("playerDetail.notFound")}
+          </Text>
         </View>
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView edges={["left", "right", "bottom"]} style={{ flex: 1, backgroundColor: colors.bg }}>
+    <SafeAreaView
+      edges={["left", "right", "bottom"]}
+      style={{ flex: 1, backgroundColor: colors.bg }}
+    >
       <Stack.Screen options={{ headerShown: false }} />
-      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
+
+      <ScrollView
+        contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+        showsVerticalScrollIndicator={false}
+      >
         <BackButton onPress={() => router.back()} />
 
         <View
@@ -196,37 +228,174 @@ export default function PlayerDetailScreen() {
             borderColor: colors.border,
           }}
         >
-          <Text style={{ fontSize: 24, fontWeight: "900", color: colors.text, textAlign: "center" }}>
+          <Text
+            style={{
+              fontSize: 24,
+              fontWeight: "900",
+              color: colors.text,
+              textAlign: "center",
+            }}
+          >
             {summary.player_name}
           </Text>
-          <Text style={{ marginTop: 6, color: colors.muted, fontWeight: "800", textAlign: "center" }}>
-            {summary.team_name || summary.team_short_name }
-            {summary.is_captain ? " · Capità" : ""}
+
+          <Text
+            style={{
+              marginTop: 6,
+              color: colors.muted,
+              fontWeight: "800",
+              textAlign: "center",
+            }}
+          >
+            {summary.team_name || summary.team_short_name}
+            {summary.is_captain ? ` · ${t("playerDetail.captain")}` : ""}
           </Text>
 
           <View style={{ flexDirection: "row", gap: 10, marginTop: 16 }}>
-            <View style={{ flex: 1, backgroundColor: colors.cardAlt, borderRadius: 14, padding: 12, alignItems: "center" }}>
-              <Text style={{ color: colors.muted, fontWeight: "800", fontSize: 12 }}>Partits</Text>
-              <Text style={{ marginTop: 4, fontWeight: "900", fontSize: 20, color: colors.text }}>{summary.matches_played}/{summary.team_matches}</Text>
+            <View
+              style={{
+                flex: 1,
+                backgroundColor: colors.cardAlt,
+                borderRadius: 14,
+                padding: 12,
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: colors.muted, fontWeight: "800", fontSize: 12 }}>
+                {t("playerDetail.matches")}
+              </Text>
+              <Text
+                style={{
+                  marginTop: 4,
+                  fontWeight: "900",
+                  fontSize: 20,
+                  color: colors.text,
+                }}
+              >
+                {summary.matches_played}/{summary.team_matches}
+              </Text>
             </View>
-            <View style={{ flex: 1, backgroundColor: isDark ? "rgba(34, 197, 94, 0.12)" : "#F0FDF4", borderRadius: 14, padding: 12, alignItems: "center" }}>
-              <Text style={{ color: isDark ? "#4ade80" : "#166534", fontWeight: "800", fontSize: 12 }}>Canes</Text>
-              <Text style={{ marginTop: 4, fontWeight: "900", fontSize: 20, color: colors.text }}>{summary.total_canes}</Text>
+
+            <View
+              style={{
+                flex: 1,
+                backgroundColor: isDark ? "rgba(34, 197, 94, 0.12)" : "#F0FDF4",
+                borderRadius: 14,
+                padding: 12,
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{
+                  color: isDark ? "#4ade80" : "#166534",
+                  fontWeight: "800",
+                  fontSize: 12,
+                }}
+              >
+                {t("playerDetail.canes")}
+              </Text>
+              <Text
+                style={{
+                  marginTop: 4,
+                  fontWeight: "900",
+                  fontSize: 20,
+                  color: colors.text,
+                }}
+              >
+                {summary.total_canes}
+              </Text>
             </View>
-            <View style={{ flex: 1, backgroundColor: isDark ? "rgba(59, 130, 246, 0.12)" : "#EFF6FF", borderRadius: 14, padding: 12, alignItems: "center" }}>
-              <Text style={{ color: isDark ? "#60a5fa" : "#1D4ED8", fontWeight: "800", fontSize: 12 }}>Recollides</Text>
-              <Text style={{ marginTop: 4, fontWeight: "900", fontSize: 20, color: colors.text }}>{summary.total_air_catches}</Text>
+
+            <View
+              style={{
+                flex: 1,
+                backgroundColor: isDark ? "rgba(59, 130, 246, 0.12)" : "#EFF6FF",
+                borderRadius: 14,
+                padding: 12,
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{
+                  color: isDark ? "#60a5fa" : "#1D4ED8",
+                  fontWeight: "800",
+                  fontSize: 12,
+                }}
+              >
+                {t("playerDetail.escapsades")}
+              </Text>
+              <Text
+                style={{
+                  marginTop: 4,
+                  fontWeight: "900",
+                  fontSize: 20,
+                  color: colors.text,
+                }}
+              >
+                {summary.total_air_catches}
+              </Text>
             </View>
           </View>
 
           <View style={{ flexDirection: "row", gap: 10, marginTop: 10 }}>
-            <View style={{ flex: 1, backgroundColor: isDark ? "rgba(239, 68, 68, 0.12)" : "#FEF2F2", borderRadius: 14, padding: 12, alignItems: "center" }}>
-              <Text style={{ color: isDark ? "#f87171" : "#991B1B", fontWeight: "800", fontSize: 12 }}>Matacanes</Text>
-              <Text style={{ marginTop: 4, fontWeight: "900", fontSize: 20, color: colors.text }}>{summary.total_matacanes}</Text>
+            <View
+              style={{
+                flex: 1,
+                backgroundColor: isDark ? "rgba(239, 68, 68, 0.12)" : "#FEF2F2",
+                borderRadius: 14,
+                padding: 12,
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{
+                  color: isDark ? "#f87171" : "#991B1B",
+                  fontWeight: "800",
+                  fontSize: 12,
+                }}
+              >
+                {t("playerDetail.matacanes")}
+              </Text>
+              <Text
+                style={{
+                  marginTop: 4,
+                  fontWeight: "900",
+                  fontSize: 20,
+                  color: colors.text,
+                }}
+              >
+                {summary.total_matacanes}
+              </Text>
             </View>
-            <View style={{ flex: 1, backgroundColor: isDark ? "rgba(139, 92, 246, 0.12)" : "#F5F3FF", borderRadius: 14, padding: 12, alignItems: "center" }}>
-              <Text style={{ color: isDark ? "#a78bfa" : "#6D28D9", fontWeight: "800", fontSize: 12 }}>Mitjana canes</Text>
-              <Text style={{ marginTop: 4, fontWeight: "900", fontSize: 20, color: colors.text }}>{averages.avgCanes}</Text>
+
+            <View
+              style={{
+                flex: 1,
+                backgroundColor: isDark ? "rgba(139, 92, 246, 0.12)" : "#F5F3FF",
+                borderRadius: 14,
+                padding: 12,
+                alignItems: "center",
+              }}
+            >
+              <Text
+                style={{
+                  color: isDark ? "#a78bfa" : "#6D28D9",
+                  fontWeight: "800",
+                  fontSize: 12,
+                }}
+              >
+                {t("playerDetail.averageCanes")}
+              </Text>
+              <Text
+                style={{
+                  marginTop: 4,
+                  fontWeight: "900",
+                  fontSize: 20,
+                  color: colors.text,
+                }}
+              >
+                {averages.avgCanes}
+              </Text>
             </View>
           </View>
         </View>
@@ -244,7 +413,14 @@ export default function PlayerDetailScreen() {
               alignItems: "center",
             }}
           >
-            <Text style={{ color: tab === "matches" ? colors.primaryText : colors.text, fontWeight: "900" }}>Partits</Text>
+            <Text
+              style={{
+                color: tab === "matches" ? colors.primaryText : colors.text,
+                fontWeight: "900",
+              }}
+            >
+              {t("playerDetail.matches")}
+            </Text>
           </Pressable>
 
           <Pressable
@@ -259,25 +435,31 @@ export default function PlayerDetailScreen() {
               alignItems: "center",
             }}
           >
-            <Text style={{ color: tab === "stats" ? colors.primaryText : colors.text, fontWeight: "900" }}>Stats</Text>
+            <Text
+              style={{
+                color: tab === "stats" ? colors.primaryText : colors.text,
+                fontWeight: "900",
+              }}
+            >
+              {t("playerDetail.stats")}
+            </Text>
           </Pressable>
         </View>
 
         {tab === "matches" ? (
           <View style={{ marginTop: 16 }}>
             {matches.map((item) => {
-              const result =
-                item.is_finished
-                  ? item.team_score > item.opponent_score
-                    ? "V"
-                    : item.team_score < item.opponent_score
-                    ? "D"
-                    : "E"
-                  : item.display_status === "AJORNAT"
-                  ? "AJ"
-                  : item.started_at
-                  ? "LIVE"
-                  : "PEN";
+              const result = item.is_finished
+                ? item.team_score > item.opponent_score
+                  ? "V"
+                  : item.team_score < item.opponent_score
+                  ? "D"
+                  : "E"
+                : item.display_status === "AJORNAT"
+                ? "AJ"
+                : item.started_at
+                ? "LIVE"
+                : "PEN";
 
               const resultTone =
                 result === "V"
@@ -302,21 +484,41 @@ export default function PlayerDetailScreen() {
                     marginBottom: 12,
                   }}
                 >
-                  <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "flex-start",
+                      gap: 12,
+                    }}
+                  >
                     <View style={{ flex: 1 }}>
                       <Text style={{ fontWeight: "900", color: colors.text, fontSize: 13 }}>
-                        vs {item.opponent_team_name || item.opponent_team_short_name || "Rival"}
+                        {t("publicMatches.vs")}{" "}
+                        {item.opponent_team_name ||
+                          item.opponent_team_short_name ||
+                          t("playerDetail.opponentFallback")}
                       </Text>
+
                       <Text style={{ marginTop: 4, color: colors.muted, fontWeight: "700" }}>
-                        {formatDateDDMMYYYY_HHMM(item.match_date, "·") || "Data pendent"}
+                        {formatDateDDMMYYYY_HHMM(item.match_date, "·") ||
+                          t("publicMatches.pendingDate")}
                       </Text>
+
                       {item.phase_name ? (
-                        <Text style={{ marginTop: 2, color: colors.muted, fontWeight: "700" }}>{item.phase_name}</Text>
+                        <Text style={{ marginTop: 2, color: colors.muted, fontWeight: "700" }}>
+                          {item.phase_name}
+                        </Text>
                       ) : null}
                     </View>
 
                     <View style={{ alignItems: "flex-end" }}>
-                      <StatChip label="Resultat" value={result} tone={resultTone} />
+                      <StatChip
+                        label={t("playerDetail.result")}
+                        value={result}
+                        tone={resultTone}
+                      />
+
                       <Text style={{ marginTop: 8, fontWeight: "900", color: colors.text }}>
                         {item.team_score} - {item.opponent_score}
                       </Text>
@@ -324,12 +526,41 @@ export default function PlayerDetailScreen() {
                   </View>
 
                   <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 12 }}>
-                    <StatChip label="Participació" value={item.did_play ? "Va jugar" : "No va jugar"} tone={item.did_play ? "green" : "gray"} />
-                    <StatChip label="Canes" value={item.total_canes} tone="green" />
-                    <StatChip label="Matacanes" value={item.total_matacanes} tone="red" />
-                    <StatChip label="Recollides" value={item.total_air_catches} tone="blue" />
-                    <StatChip label="Eliminat" value={item.eliminated_any ? "Sí" : "No"} tone={item.eliminated_any ? "red" : "gray"} />
-                    <StatChip label="Rondes eliminat" value={item.eliminated_rounds} tone="red" />
+                    <StatChip
+                      label={t("playerDetail.participation")}
+                      value={item.did_play ? t("playerDetail.played") : t("playerDetail.notPlayed")}
+                      tone={item.did_play ? "green" : "gray"}
+                    />
+
+                    <StatChip
+                      label={t("playerDetail.canes")}
+                      value={item.total_canes}
+                      tone="green"
+                    />
+
+                    <StatChip
+                      label={t("playerDetail.matacanes")}
+                      value={item.total_matacanes}
+                      tone="red"
+                    />
+
+                    <StatChip
+                      label={t("playerDetail.escapsades")}
+                      value={item.total_air_catches}
+                      tone="blue"
+                    />
+
+                    <StatChip
+                      label={t("playerDetail.eliminated")}
+                      value={item.eliminated_any ? t("playerDetail.yes") : t("playerDetail.no")}
+                      tone={item.eliminated_any ? "red" : "gray"}
+                    />
+
+                    <StatChip
+                      label={t("playerDetail.eliminatedRounds")}
+                      value={item.eliminated_rounds}
+                      tone="red"
+                    />
                   </View>
                 </View>
               );
@@ -337,20 +568,78 @@ export default function PlayerDetailScreen() {
           </View>
         ) : (
           <View style={{ marginTop: 16, gap: 12 }}>
-            <View style={{ backgroundColor: colors.card, borderRadius: 16, borderWidth: 1, borderColor: colors.border, padding: 14 }}>
-              <Text style={{ fontWeight: "900", color: colors.text, fontSize: 17, marginBottom: 10 }}>Resum general</Text>
+            <View
+              style={{
+                backgroundColor: colors.card,
+                borderRadius: 16,
+                borderWidth: 1,
+                borderColor: colors.border,
+                padding: 14,
+              }}
+            >
+              <Text
+                style={{
+                  fontWeight: "900",
+                  color: colors.text,
+                  fontSize: 17,
+                  marginBottom: 10,
+                }}
+              >
+                {t("playerDetail.generalSummary")}
+              </Text>
 
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                <StatChip label="Partits equip" value={summary.team_matches} />
-                <StatChip label="Jugats" value={summary.matches_played} tone="green" />
-                <StatChip label="No jugats" value={summary.matches_missed} />
-                <StatChip label="Canes" value={summary.total_canes} tone="green" />
-                <StatChip label="Matacanes" value={summary.total_matacanes} tone="red" />
-                <StatChip label="Recollides" value={summary.total_air_catches} tone="blue" />
-                <StatChip label="Elim. partits" value={summary.matches_with_elimination} tone="red" />
-                <StatChip label="Elim. rondes" value={summary.eliminated_rounds} tone="red" />
-                <StatChip label="Bonus equip" value={summary.total_team_bonus_canas} tone="purple" />
-                <StatChip label="Bonus defensa" value={summary.total_defender_bonus_canas} tone="purple" />
+                <StatChip label={t("playerDetail.teamMatches")} value={summary.team_matches} />
+
+                <StatChip
+                  label={t("playerDetail.played")}
+                  value={summary.matches_played}
+                  tone="green"
+                />
+
+                <StatChip label={t("playerDetail.missed")} value={summary.matches_missed} />
+
+                <StatChip
+                  label={t("playerDetail.canes")}
+                  value={summary.total_canes}
+                  tone="green"
+                />
+
+                <StatChip
+                  label={t("playerDetail.matacanes")}
+                  value={summary.total_matacanes}
+                  tone="red"
+                />
+
+                <StatChip
+                  label={t("playerDetail.escapsades")}
+                  value={summary.total_air_catches}
+                  tone="blue"
+                />
+
+                <StatChip
+                  label={t("playerDetail.eliminatedMatches")}
+                  value={summary.matches_with_elimination}
+                  tone="red"
+                />
+
+                <StatChip
+                  label={t("playerDetail.eliminatedRoundsShort")}
+                  value={summary.eliminated_rounds}
+                  tone="red"
+                />
+
+                <StatChip
+                  label={t("playerDetail.teamBonus")}
+                  value={summary.total_team_bonus_canas}
+                  tone="purple"
+                />
+
+                <StatChip
+                  label={t("playerDetail.defenderBonus")}
+                  value={summary.total_defender_bonus_canas}
+                  tone="purple"
+                />
               </View>
             </View>
           </View>

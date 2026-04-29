@@ -42,6 +42,8 @@ export type AppColors = {
   cardred: string;
   /** Fons blau per informació */
   cardblue: string;
+  /** Fons per destacar el ranking */
+  ranking: string;
 };
 
 const light: AppColors = {
@@ -64,6 +66,7 @@ const light: AppColors = {
   warn: "#92400E",
   warnBg: "#FEF3C7",
   timerRunningBg: "#E0E7FF",
+  ranking: "#EEF2FF",
 };
 
 const dark: AppColors = {
@@ -86,6 +89,7 @@ const dark: AppColors = {
   warn: "#E3B341",
   warnBg: "#2D2200",
   timerRunningBg: "#3D1E6D",
+  ranking: "#21262D",
 };
 
 type ThemeCtx = {

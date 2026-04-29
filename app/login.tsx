@@ -2,93 +2,101 @@ import { useState } from "react";
 import { View, Text, TextInput, Pressable, Alert } from "react-native";
 import { supabase } from "../src/supabase";
 import { Stack, useRouter } from "expo-router";
-import { BackButton, RefreshButton } from "../components/HeaderButtons";
+import { BackButton } from "../components/HeaderButtons";
 import { useAppTheme } from "../src/theme";
+import { useLanguage } from "../src/i18n/LanguageContext";
 
 export default function Login() {
   const router = useRouter();
   const { colors } = useAppTheme();
+  const { t } = useLanguage();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
-  setLoading(true);
+    setLoading(true);
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-  if (error) {
+    if (error) {
+      setLoading(false);
+      Alert.alert(t("common.error"), error.message);
+      return;
+    }
+
+    const userId = data.user?.id;
+
+    if (!userId) {
+      setLoading(false);
+      Alert.alert(t("common.error"), t("login.userValidationError"));
+      return;
+    }
+
+    const { data: refereeUser, error: ruError } = await supabase
+      .from("referee_user")
+      .select("referee_id, is_active")
+      .eq("user_id", userId)
+      .maybeSingle();
+
     setLoading(false);
-    Alert.alert("Error", error.message);
-    return;
+
+    if (ruError) {
+      await supabase.auth.signOut();
+      Alert.alert(t("common.error"), t("login.accessCheckError"));
+      return;
+    }
+
+    if (!refereeUser) {
+      await supabase.auth.signOut();
+      Alert.alert(t("login.accessDeniedTitle"), t("login.noRefereeLinked"));
+      return;
+    }
+
+    if (!refereeUser.is_active) {
+      await supabase.auth.signOut();
+      Alert.alert(t("login.userDisabledTitle"), t("login.userDisabledMessage"));
+      return;
+    }
+
+    router.replace("/matches");
   }
-
-  const userId = data.user?.id;
-
-  if (!userId) {
-    setLoading(false);
-    Alert.alert("Error", "No s'ha pogut validar l'usuari.");
-    return;
-  }
-
-  // 🔍 Comprobamos si tiene árbitro y si está activo
-  const { data: refereeUser, error: ruError } = await supabase
-    .from("referee_user")
-    .select("referee_id, is_active")
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  setLoading(false);
-
-  if (ruError) {
-    await supabase.auth.signOut();
-    Alert.alert("Error", "No s'ha pogut comprovar l'accés.");
-    return;
-  }
-
-  if (!refereeUser) {
-    await supabase.auth.signOut();
-    Alert.alert("Accés denegat", "Aquest usuari no està vinculat a cap àrbitre.");
-    return;
-  }
-
-  if (!refereeUser.is_active) {
-    await supabase.auth.signOut();
-    Alert.alert("Usuari desactivat", "Aquest usuari està desactivat.");
-    return;
-  }
-
-  // ✅ TODO OK → entra
-  router.replace("/matches");
-}
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.bg }}>
       <Stack.Screen options={{ headerTitle: "" }} />
 
-      {/* Botó just sota el header */}
       <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
         <BackButton
           onPress={() => router.replace("/public-menu")}
-          style={{ marginTop:5 }}
+          style={{ marginTop: 5 }}
         />
       </View>
 
-      {/* Login com abans */}
       <View style={{ flex: 1, padding: 24 }}>
-        <Text style={{ fontSize: 28, fontWeight: "bold", marginBottom: 24, textAlign: "center", color: colors.text }}>
-          Àrbitres
+        <Text
+          style={{
+            fontSize: 28,
+            fontWeight: "bold",
+            marginBottom: 24,
+            textAlign: "center",
+            color: colors.text,
+          }}
+        >
+          {t("login.title")}
         </Text>
 
-        <Text style={{ color: colors.text }}>Email</Text>
+        <Text style={{ color: colors.text }}>{t("login.email")}</Text>
         <TextInput
           value={email}
           onChangeText={setEmail}
           autoCapitalize="none"
           keyboardType="email-address"
+          placeholder={t("login.emailPlaceholder")}
           placeholderTextColor={colors.muted}
           style={{
             borderWidth: 1,
@@ -101,11 +109,12 @@ export default function Login() {
           }}
         />
 
-        <Text style={{ color: colors.text }}>Password</Text>
+        <Text style={{ color: colors.text }}>{t("login.password")}</Text>
         <TextInput
           value={password}
           onChangeText={setPassword}
           secureTextEntry
+          placeholder={t("login.passwordPlaceholder")}
           placeholderTextColor={colors.muted}
           style={{
             borderWidth: 1,
@@ -128,7 +137,7 @@ export default function Login() {
           }}
         >
           <Text style={{ color: colors.primaryText, fontWeight: "bold" }}>
-            {loading ? "Entrant..." : "Entrar"}
+            {loading ? t("login.loading") : t("login.loginButton")}
           </Text>
         </Pressable>
       </View>

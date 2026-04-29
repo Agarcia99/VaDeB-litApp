@@ -207,7 +207,7 @@ const cannotPostpone = !!matchRow && (matchRow.is_finished || !!matchRow.started
           {loading ? (
             <ActivityIndicator color={colors.primaryText} />
           ) : (
-            <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Carregar partit</Text>
+            <Text style={{ color: colors.text, fontWeight: "900" }}>Carregar partit</Text>
           )}
         </Pressable>
       </View>

@@ -16,6 +16,7 @@ import { useRouter, Stack } from "expo-router";
 import { supabase } from "../src/supabase";
 import { BackButton, RefreshButton } from "../components/HeaderButtons";
 import { useAppTheme, AppColors } from "../src/theme";
+import { useLanguage } from "../src/i18n/LanguageContext";
 
 type TeamMini = {
   id: number;
@@ -27,7 +28,7 @@ type MatchRow = {
   id: number;
   match_date: string | null;
   started_at: string | null;
-  display_status:string | null;
+  display_status: string | null;
   is_finished: boolean;
   score_team_a: number;
   score_team_b: number;
@@ -116,6 +117,7 @@ function labelWeekRange(start: Date, end: Date) {
 export default function PublicWeekMatches() {
   const router = useRouter();
   const { colors, isDark } = useAppTheme();
+  const { t } = useLanguage();
   const styles = useMemo(() => getStyles(colors, isDark), [colors, isDark]);
 
   const [loading, setLoading] = useState(true);
@@ -126,12 +128,12 @@ export default function PublicWeekMatches() {
   const weekEnd = useMemo(() => endOfWeekSunday(new Date()), []);
 
   const summary = useMemo(() => {
-  const ajornats = matches.filter((m) => m.display_status === "AJORNAT").length;
-  const finished = matches.filter((m) => m.is_finished).length;
-  const live = matches.filter((m) => !!m.started_at && !m.is_finished && m.display_status !== "AJORNAT").length;
-  const pending = matches.length - finished - live - ajornats;
-  return { total: matches.length, finished, live, pending, ajornats };
-}, [matches]);
+    const ajornats = matches.filter((m) => m.display_status === "AJORNAT").length;
+    const finished = matches.filter((m) => m.is_finished).length;
+    const live = matches.filter((m) => !!m.started_at && !m.is_finished && m.display_status !== "AJORNAT").length;
+    const pending = matches.length - finished - live - ajornats;
+    return { total: matches.length, finished, live, pending, ajornats };
+  }, [matches, t]);
 
   const load = useCallback(
     async (isRefresh = false) => {
@@ -147,7 +149,7 @@ export default function PublicWeekMatches() {
         .maybeSingle();
 
       if (chErr) {
-        Alert.alert("Error", chErr.message);
+        Alert.alert(t("common.error"), chErr.message);
         setLoading(false);
         setRefreshing(false);
         return;
@@ -174,7 +176,7 @@ export default function PublicWeekMatches() {
         .order("match_date", { ascending: true });
 
       if (error) {
-        Alert.alert("Error", error.message);
+        Alert.alert(t("common.error"), error.message);
         setLoading(false);
         setRefreshing(false);
         return;
@@ -185,7 +187,7 @@ export default function PublicWeekMatches() {
       setLoading(false);
       setRefreshing(false);
     },
-    [weekStart, weekEnd]
+    [weekStart, weekEnd, t]
   );
 
   useFocusEffect(
@@ -200,7 +202,7 @@ export default function PublicWeekMatches() {
         <Stack.Screen options={{ headerShown: false }} />
         <View style={styles.loadingWrap}>
           <ActivityIndicator size="large" />
-          <Text style={{ marginTop: 10, color: colors.muted, fontWeight: "700" }}>Carregant…</Text>
+          <Text style={{ marginTop: 10, color: colors.muted, fontWeight: "700" }}>{t("common.loading")}</Text>
         </View>
       </SafeAreaView>
     );
@@ -212,20 +214,20 @@ export default function PublicWeekMatches() {
 
       {/* Top bar: same feel as match-summary */}
       <View style={styles.topBarRow}>
-<BackButton
+        <BackButton
           onPress={() => router.back()}
-          style={{ marginTop:5 }}
+          style={{ marginTop: 5 }}
         />
 
-<RefreshButton
+        <RefreshButton
           onPress={() => load(true)}
-          style={{ alignSelf: "flex-end",marginTop:5 }}
+          style={{ alignSelf: "flex-end", marginTop: 5 }}
         />
       </View>
 
       {/* Title under buttons */}
       <View style={styles.titleWrap}>
-        <Text style={styles.title}>Partits d’aquesta setmana</Text>
+        <Text style={styles.title}>{t("publicMatches.weekMatchesTitle")}</Text>
         <Text style={styles.weekRange}>{labelWeekRange(weekStart, weekEnd)}</Text>
       </View>
 
@@ -234,15 +236,15 @@ export default function PublicWeekMatches() {
         <View style={styles.summaryRow}>
           <View style={[styles.summaryPill, styles.pillPending]}>
             <Text style={styles.pillValue}>{summary.pending}</Text>
-            <Text style={styles.pillLabel}>Pendents</Text>
+            <Text style={styles.pillLabel}>{t("publicMatches.pending")}</Text>
           </View>
-<View style={[styles.summaryPill, styles.pillLive]}>
+          <View style={[styles.summaryPill, styles.pillLive]}>
             <Text style={styles.pillValue}>{summary.live}</Text>
-            <Text style={styles.pillLabel}>En joc</Text>
+            <Text style={styles.pillLabel}>{t("publicMatches.live")}</Text>
           </View>
           <View style={[styles.summaryPill, styles.pillFinished]}>
             <Text style={styles.pillValue}>{summary.finished}</Text>
-            <Text style={styles.pillLabel}>Finalitzats</Text>
+            <Text style={styles.pillLabel}>{t("publicMatches.finished")}</Text>
           </View>
         </View>
       </View>
@@ -254,13 +256,13 @@ export default function PublicWeekMatches() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
-            <Text style={styles.emptyTitle}>Sense partits</Text>
-            <Text style={styles.emptySub}>No hi ha partits aquesta setmana.</Text>
+            <Text style={styles.emptyTitle}>{t("publicMatches.noMatches")}</Text>
+            <Text style={styles.emptySub}>{t("publicMatches.noMatchesThisWeek")}</Text>
           </View>
         }
         renderItem={({ item }) => {
-          const aName = trimCharField(item.team_a?.name) || item.team_a?.short_name || "Equip A";
-          const bName = trimCharField(item.team_b?.name) || item.team_b?.short_name || "Equip B";
+          const aName = trimCharField(item.team_a?.name) || item.team_a?.short_name || t("publicMatches.teamA");
+          const bName = trimCharField(item.team_b?.name) || item.team_b?.short_name || t("publicMatches.teamB");
 
           const isAjornat = item.display_status === "AJORNAT";
           const isLive = !!item.started_at && !item.is_finished && !isAjornat;
@@ -273,106 +275,110 @@ export default function PublicWeekMatches() {
                 if (!canOpenSummary) return;
                 router.push({ pathname: "/match-summary", params: { id: item.id } });
               }}
-              onLongPress={() => Alert.alert("ID del partit", String(item.id))}
+              onLongPress={() => Alert.alert(t("publicMatches.matchIdTitle"), String(item.id))}
               delayLongPress={350}
-             style={({ pressed }) => [
-              styles.matchCard,
-              isAjornat
-                ? styles.matchCardAjornat
-                : isLive
-                ? styles.matchCardLive
-                : item.is_finished
-                ? styles.matchCardFinished
-                : styles.matchCardPending,
+              style={({ pressed }) => [
+                styles.matchCard,
+                isAjornat
+                  ? styles.matchCardAjornat
+                  : isLive
+                    ? styles.matchCardLive
+                    : item.is_finished
+                      ? styles.matchCardFinished
+                      : styles.matchCardPending,
                 pressed && canOpenSummary ? { transform: [{ scale: 0.99 }], opacity: 0.95 } : null,
               ]}
             >
               <View style={styles.matchTopRow}>
-  <Text style={styles.matchTitle} numberOfLines={1}>
-    {aName} <Text style={styles.vs}>vs</Text> {bName}
-  </Text>
-  
+                <Text style={styles.matchTitle} numberOfLines={1}>
+                  {aName} <Text style={styles.vs}>{t("publicMatches.vs")}</Text> {bName}
+                </Text>
 
-  <View style={styles.matchMetaRow}>
-    <View style={styles.metaRow}>
-      {item.match_date ? (
-        <Text style={styles.metaText}>🗓️ {formatDateDDMMYYYY_HHMM(item.match_date)}</Text>
-      ) : (
-        <Text style={styles.metaMuted}>🗓️ Data pendent</Text>
-      )}
-      {item.slot?.field_code ? (
-        <Text style={styles.metaText}> · 🏟️ {item.slot.field_code}</Text>
-      ) : null}
-    </View>
 
-    <View
-  style={[
-    styles.badge,
-    isAjornat
-      ? styles.pillAjornat
-      : isLive
-      ? styles.pillLive
-      : item.is_finished
-      ? styles.pillFinished
-      : styles.pillPending,
-  ]}
->
-  <Text
-    style={[
-      styles.badgeText,
-      isAjornat ? styles.badgeTextAjornat : null,
-      isLive ? styles.badgeTextLive : null,
-    ]}
-  >
-    {isAjornat ? "AJORNAT" : item.is_finished ? "FINAL" : item.started_at ? "EN JOC" : "PENDENT"}
-  </Text>
-</View>
-  </View>
+                <View style={styles.matchMetaRow}>
+                  <View style={styles.metaRow}>
+                    {item.match_date ? (
+                      <Text style={styles.metaText}>🗓️ {formatDateDDMMYYYY_HHMM(item.match_date)}</Text>
+                    ) : (
+                      <Text style={styles.metaMuted}>🗓️ {t("publicMatches.pendingDate")}</Text>
+                    )}
+                    {item.slot?.field_code ? (
+                      <Text style={styles.metaText}> · 🏟️ {item.slot.field_code}</Text>
+                    ) : null}
+                  </View>
 
-  <View style={styles.matchBottomRow}>
-    {!!item.phase?.name ? (
-      <Text style={styles.phaseText} numberOfLines={1}>
-        {item.phase.name}
-      </Text>
-    ) : (
-      <View style={{ flex: 1 }} />
-    )}
+                  <View
+                    style={[
+                      styles.badge,
+                      isAjornat
+                        ? styles.pillAjornat
+                        : isLive
+                          ? styles.pillLive
+                          : item.is_finished
+                            ? styles.pillFinished
+                            : styles.pillPending,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.badgeText,
+                        isAjornat ? styles.badgeTextAjornat : null,
+                        isLive ? styles.badgeTextLive : null,
+                      ]}
+                    >
+                      {isAjornat ? t("publicMatches.postponedStatus") : item.is_finished ? t("publicMatches.finalStatus") : item.started_at ? t("publicMatches.liveStatus") : t("publicMatches.pendingStatus")}
+                    </Text>
+                  </View>
+                </View>
 
-   <Text
-  style={[
-    styles.scoreText,
-    isAjornat
-      ? styles.scoreAjornat
-      : isLive
-      ? styles.scoreLive
-      : item.is_finished
-      ? styles.scoreFinished
-      : styles.scorePending,
-  ]}
->
-  {score}
-</Text>
-  </View>
-</View>
+                <View style={styles.matchBottomRow}>
+                  {!!item.phase?.name ? (
+                    <Text style={styles.phaseText} numberOfLines={1}>
+                      {item.phase.name}
+                    </Text>
+                  ) : (
+                    <View style={{ flex: 1 }} />
+                  )}
 
-{(isAjornat || (!item.is_finished && !item.started_at)) && (
-  <View style={styles.bottomRow}>
-    <Text style={styles.pendingHint}>
-      {isAjornat
-        ? "Partit ajornat"
-        : "Encara no hi ha resum (partit no iniciat)"}
-    </Text>
+                  <Text
+                    style={[
+                      styles.scoreText,
+                      isAjornat
+                        ? styles.scoreAjornat
+                        : isLive
+                          ? styles.scoreLive
+                          : item.is_finished
+                            ? styles.scoreFinished
+                            : styles.scorePending,
+                    ]}
+                  >
+                    {score}
+                  </Text>
+                </View>
+              </View>
 
-    {/*<Text style={styles.matchIdBottom}>#{item.id}</Text>*/}
-  </View>
-)}
+              {(isAjornat || (!item.is_finished && !item.started_at)) && (
+                <View style={styles.bottomRow}>
+                  <Text style={styles.pendingHint}>
+                    {isAjornat
+                      ? t("publicMatches.postponedMatch")
+                      : t("publicMatches.notStartedSummaryHint")}
+                  </Text>
 
-{!item.is_finished && !!item.started_at && (
-  <Text style={styles.pendingHint}>Partit en joc: resum en directe (marcador provisional)</Text>
-)}
+                  {/*<Text style={styles.matchIdBottom}>#{item.id}</Text>*/}
+                </View>
+              )}
+
+              {!item.is_finished && !!item.started_at && (
+                <Text style={styles.pendingHint}>{t("publicMatches.liveHint")}</Text>
+              )}
 
               {item.is_finished && (
-                <Text style={styles.openHint}>{Platform.OS === "ios" ? "Toca per veure el resum" : "Prem per veure el resum"}</Text>
+                <Text style={styles.openHint}>
+                  {Platform.OS === "ios"
+                    ? t("publicMatches.tapSummaryIos")
+                    : t("publicMatches.tapSummaryAndroid")}
+                </Text>
               )}
             </Pressable>
           );
@@ -384,296 +390,296 @@ export default function PublicWeekMatches() {
 
 function getStyles(colors: AppColors, isDark = false) {
   return StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.bg,
-    paddingHorizontal: 16,
-    paddingTop: 8,
-  },
-  loadingWrap: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-matchCardAjornat: {
-  borderLeftWidth: 6,
-  borderLeftColor: "#DC2626",
-  //backgroundColor: "#FEF2F2",
-},
-badgeAjornat: {
-  backgroundColor: "#FEE2E2",
-  borderColor: "#FCA5A5",
-},
-badgeTextAjornat: {
-  color: "#B91C1C",
-},
-scoreAjornat: {
-  color: "#B91C1C",
-},
-bottomRow: {
-  flexDirection: "row",
-  justifyContent: "space-between",
-  alignItems: "center",
-  marginTop: 8,
-},
+    screen: {
+      flex: 1,
+      backgroundColor: colors.bg,
+      paddingHorizontal: 16,
+      paddingTop: 8,
+    },
+    loadingWrap: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    matchCardAjornat: {
+      borderLeftWidth: 6,
+      borderLeftColor: "#DC2626",
+      //backgroundColor: "#FEF2F2",
+    },
+    badgeAjornat: {
+      backgroundColor: "#FEE2E2",
+      borderColor: "#FCA5A5",
+    },
+    badgeTextAjornat: {
+      color: "#B91C1C",
+    },
+    scoreAjornat: {
+      color: "#B91C1C",
+    },
+    bottomRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      alignItems: "center",
+      marginTop: 8,
+    },
 
-matchIdBottom: {
-  fontSize: 11,
-  fontWeight: "700",
-  color: colors.muted,
-},
-  // top header (match-summary-like buttons)
-  topBarRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginBottom: 10,
-  },
-  navButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    backgroundColor: colors.card,
-    borderWidth: 1,
-    borderColor: colors.border,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOpacity: 0.06,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 6 },
-      },
-      android: { elevation: 2 },
-    }),
-  },
-  navButtonText: {
-    fontWeight: "900",
-    fontSize: 16,
-  },
+    matchIdBottom: {
+      fontSize: 11,
+      fontWeight: "700",
+      color: colors.muted,
+    },
+    // top header (match-summary-like buttons)
+    topBarRow: {
+      flexDirection: "row",
+      justifyContent: "space-between",
+      marginBottom: 10,
+    },
+    navButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 8,
+      paddingVertical: 8,
+      paddingHorizontal: 10,
+      borderRadius: 12,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOpacity: 0.06,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 6 },
+        },
+        android: { elevation: 2 },
+      }),
+    },
+    navButtonText: {
+      fontWeight: "900",
+      fontSize: 16,
+    },
 
-  titleWrap: {
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: "900",
-    color: colors.text,
-  },
-  weekRange: {
-    marginTop: 6,
-    color: colors.muted,
-    fontWeight: "700",
-  },
+    titleWrap: {
+      alignItems: "center",
+      marginBottom: 12,
+    },
+    title: {
+      fontSize: 20,
+      fontWeight: "900",
+      color: colors.text,
+    },
+    weekRange: {
+      marginTop: 6,
+      color: colors.muted,
+      fontWeight: "700",
+    },
 
-  summaryCard: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOpacity: 0.06,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 6 },
-      },
-      android: { elevation: 2 },
-    }),
-  },
-  summaryRow: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  summaryPill: {
-    flex: 1,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    paddingVertical: 10,
-    paddingHorizontal: 10,
-    backgroundColor: colors.cardAlt,
-  },
-  pillFinished: {
-    backgroundColor: isDark ? "#122A1C" : "#F2FFF7",
-    borderColor: isDark ? "#22543D" : "#D7F5E3",
-  },
-  pillPending: {
-    backgroundColor: isDark ? "#2C1E03" : "#FFF9F2",
-    borderColor: isDark ? "#7B4F01" : "#F8E2C3",
-  },
-  pillLive: {
-    backgroundColor: isDark ? "#071529" : "#EFF6FF",
-    borderColor: isDark ? "#1E3A8A" : "#3B82F6",
-  },
-  pillAjornat: {
-    backgroundColor: isDark ? "#2C1E1E" : "#FEF2F2",
-    borderColor: isDark ? "#7B4F4F" : "#FCA5A5",
-  },
-  pillValue: {
-    fontWeight: "900",
-    fontSize: 18,
-    color: colors.text,
-  },
-  pillLabel: {
-    marginTop: 2,
-    fontWeight: "800",
-    color: isDark ? colors.text : colors.muted,
-    fontSize: 12,
-  },
+    summaryCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: 12,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOpacity: 0.06,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 6 },
+        },
+        android: { elevation: 2 },
+      }),
+    },
+    summaryRow: {
+      flexDirection: "row",
+      gap: 10,
+    },
+    summaryPill: {
+      flex: 1,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      paddingVertical: 10,
+      paddingHorizontal: 10,
+      backgroundColor: colors.cardAlt,
+    },
+    pillFinished: {
+      backgroundColor: isDark ? "#122A1C" : "#F2FFF7",
+      borderColor: isDark ? "#22543D" : "#D7F5E3",
+    },
+    pillPending: {
+      backgroundColor: isDark ? "#2C1E03" : "#FFF9F2",
+      borderColor: isDark ? "#7B4F01" : "#F8E2C3",
+    },
+    pillLive: {
+      backgroundColor: isDark ? "#071529" : "#EFF6FF",
+      borderColor: isDark ? "#1E3A8A" : "#3B82F6",
+    },
+    pillAjornat: {
+      backgroundColor: isDark ? "#2C1E1E" : "#FEF2F2",
+      borderColor: isDark ? "#7B4F4F" : "#FCA5A5",
+    },
+    pillValue: {
+      fontWeight: "900",
+      fontSize: 18,
+      color: colors.text,
+    },
+    pillLabel: {
+      marginTop: 2,
+      fontWeight: "800",
+      color: isDark ? colors.text : colors.muted,
+      fontSize: 12,
+    },
 
-  matchCard: {
-    backgroundColor: colors.card,
-    borderRadius: 18,
-    padding: 14,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 12,
-    ...Platform.select({
-      ios: {
-        shadowColor: "#000",
-        shadowOpacity: 0.06,
-        shadowRadius: 10,
-        shadowOffset: { width: 0, height: 6 },
-      },
-      android: { elevation: 2 },
-    }),
-  },
-  matchCardFinished: {
-    borderLeftWidth: 6,
-    borderLeftColor: "#22C55E",
-    backgroundColor: isDark ? "#0D2818" : "#F2FFF7",
-  },
-  matchCardPending: {
-    borderLeftWidth: 6,
-    borderLeftColor: "#F59E0B",
-    backgroundColor: colors.card,
-  },
-  matchCardLive: {
-    borderLeftWidth: 6,
-    borderLeftColor: "#3B82F6",
-    backgroundColor: isDark ? "#071529" : "#EFF6FF",
-  },
+    matchCard: {
+      backgroundColor: colors.card,
+      borderRadius: 18,
+      padding: 14,
+      borderWidth: 1,
+      borderColor: colors.border,
+      marginBottom: 12,
+      ...Platform.select({
+        ios: {
+          shadowColor: "#000",
+          shadowOpacity: 0.06,
+          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 6 },
+        },
+        android: { elevation: 2 },
+      }),
+    },
+    matchCardFinished: {
+      borderLeftWidth: 6,
+      borderLeftColor: "#22C55E",
+      backgroundColor: isDark ? "#0D2818" : "#F2FFF7",
+    },
+    matchCardPending: {
+      borderLeftWidth: 6,
+      borderLeftColor: "#F59E0B",
+      backgroundColor: colors.card,
+    },
+    matchCardLive: {
+      borderLeftWidth: 6,
+      borderLeftColor: "#3B82F6",
+      backgroundColor: isDark ? "#071529" : "#EFF6FF",
+    },
 
-  matchTopRow: {
-  gap: 8,
-},
-matchTitle: {
-  fontWeight: "900",
-  fontSize: 14,
-  color: colors.text,
-},
-matchMetaRow: {
-  flexDirection: "row",
-  alignItems: "center",
-  justifyContent: "space-between",
-  gap: 12,
-},
-metaRow: {
-  flexDirection: "row",
-  flexWrap: "wrap",
-  flex: 1,
-  marginTop: 0,
-},
-matchBottomRow: {
-  flexDirection: "row",
-  alignItems: "flex-start",
-  justifyContent: "space-between",
-  gap: 12,
-},
-phaseText: {
-  flex: 1,
-  color: colors.muted,
-  fontWeight: "800",
-  fontSize: 12,
-},
-scoreText: {
-  fontWeight: "900",
-  fontSize: 16,
-  textAlign: "right",
-},
-  vs: {
-    color: colors.muted,
-    fontWeight: "900",
-  },
-  metaText: {
-    color: colors.muted,
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  metaMuted: {
-    color: colors.muted,
-    fontWeight: "700",
-    fontSize: 12,
-  },
-  badge: {
-    borderRadius: 999,
-    paddingVertical: 5,
-    paddingHorizontal: 10,
-    borderWidth: 1,
-    alignSelf: "flex-end",
-  },
-  badgeFinished: {
-    backgroundColor: "#DCFCE7",
-    borderColor: "#BBF7D0",
-  },
-  badgePending: {
-    backgroundColor: "#FFFBEB",
-    borderColor: "#FED7AA",
-  },
-  badgeLive: {
-    backgroundColor: "#DBEAFE",
-    borderColor: "#BFDBFE",
-  },
-  badgeText: {
-    fontWeight: "900",
-    fontSize: 12,
-    color: colors.text,
-  },
-  badgeTextLive: {
-    color: "#1D4ED8",
-  },
-  scoreFinished: {
-    color: "#15803D",
-  },
-  scorePending: {
-    color: "#F59E0B",
-  },
-  scoreLive: {
-    color: "#1D4ED8",
-  },
+    matchTopRow: {
+      gap: 8,
+    },
+    matchTitle: {
+      fontWeight: "900",
+      fontSize: 14,
+      color: colors.text,
+    },
+    matchMetaRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+    },
+    metaRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      flex: 1,
+      marginTop: 0,
+    },
+    matchBottomRow: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: 12,
+    },
+    phaseText: {
+      flex: 1,
+      color: colors.muted,
+      fontWeight: "800",
+      fontSize: 12,
+    },
+    scoreText: {
+      fontWeight: "900",
+      fontSize: 16,
+      textAlign: "right",
+    },
+    vs: {
+      color: colors.muted,
+      fontWeight: "900",
+    },
+    metaText: {
+      color: colors.muted,
+      fontWeight: "700",
+      fontSize: 12,
+    },
+    metaMuted: {
+      color: colors.muted,
+      fontWeight: "700",
+      fontSize: 12,
+    },
+    badge: {
+      borderRadius: 999,
+      paddingVertical: 5,
+      paddingHorizontal: 10,
+      borderWidth: 1,
+      alignSelf: "flex-end",
+    },
+    badgeFinished: {
+      backgroundColor: "#DCFCE7",
+      borderColor: "#BBF7D0",
+    },
+    badgePending: {
+      backgroundColor: "#FFFBEB",
+      borderColor: "#FED7AA",
+    },
+    badgeLive: {
+      backgroundColor: "#DBEAFE",
+      borderColor: "#BFDBFE",
+    },
+    badgeText: {
+      fontWeight: "900",
+      fontSize: 12,
+      color: colors.text,
+    },
+    badgeTextLive: {
+      color: "#1D4ED8",
+    },
+    scoreFinished: {
+      color: "#15803D",
+    },
+    scorePending: {
+      color: "#F59E0B",
+    },
+    scoreLive: {
+      color: "#1D4ED8",
+    },
 
-  pendingHint: {
-    marginTop: 10,
-    fontWeight: "700",
-    color: colors.muted,
-    fontSize: 12,
-  },
-  openHint: {
-    marginTop: 10,
-    fontWeight: "800",
-    color: colors.text,
-    fontSize: 12,
-  },
+    pendingHint: {
+      marginTop: 10,
+      fontWeight: "700",
+      color: colors.muted,
+      fontSize: 12,
+    },
+    openHint: {
+      marginTop: 10,
+      fontWeight: "800",
+      color: colors.text,
+      fontSize: 12,
+    },
 
-  emptyWrap: {
-    paddingVertical: 48,
-    alignItems: "center",
-  },
-  emptyTitle: {
-    fontWeight: "900",
-    fontSize: 18,
-    color: colors.text,
-  },
-  emptySub: {
-    marginTop: 8,
-    color: colors.muted,
-    fontWeight: "700",
-    textAlign: "center",
-  },
+    emptyWrap: {
+      paddingVertical: 48,
+      alignItems: "center",
+    },
+    emptyTitle: {
+      fontWeight: "900",
+      fontSize: 18,
+      color: colors.text,
+    },
+    emptySub: {
+      marginTop: 8,
+      color: colors.muted,
+      fontWeight: "700",
+      textAlign: "center",
+    },
   });
 }

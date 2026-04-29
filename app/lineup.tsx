@@ -13,6 +13,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { supabase } from "../src/supabase";
 import { useAppTheme } from "../src/theme";
+import { useLanguage } from "../src/i18n/LanguageContext";
 import { BackButton } from "@/components/HeaderButtons";
 
 type PlayerItem = {
@@ -40,6 +41,7 @@ export default function LineupScreen() {
   const roundIdParam = params.roundId ? Number(params.roundId) : null;
 
   const { colors } = useAppTheme();
+  const { t } = useLanguage();
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -55,10 +57,9 @@ export default function LineupScreen() {
   const [championshipId, setChampionshipId] = useState<number | null>(null);
   const [matchPhaseId, setMatchPhaseId] = useState<number | null>(null);
 
-  // ✅ Capità per defecte (de team_player) i capità temporal per aquest partit (override)
   const [originalCaptainByTeam, setOriginalCaptainByTeam] = useState<Record<number, number | null>>({});
   const [captainOverrideByTeam, setCaptainOverrideByTeam] = useState<Record<number, number | null>>({});
-  // ✅ Marcador en directe (global del match) per mostrar abans d'alinear (excepte Round 1 Torn 1)
+
   const [teamAName, setTeamAName] = useState<string>("");
   const [teamBName, setTeamBName] = useState<string>("");
   const [teamAId, setTeamAId] = useState<number | null>(null);
@@ -69,7 +70,6 @@ export default function LineupScreen() {
 
   const [maxTeamPlayers, setMaxTeamPlayers] = useState<number>(16);
 
-  // Add/Replace player UI
   const [addModalVisible, setAddModalVisible] = useState(false);
   const [addRole, setAddRole] = useState<AddRole>("attack");
   const [newPlayerName, setNewPlayerName] = useState("");
@@ -86,8 +86,8 @@ export default function LineupScreen() {
 
   const roundTitle = useMemo(() => {
     if (!roundRow) return "";
-    return `Round ${roundRow.match_round_number} · Torn ${roundRow.turn}`;
-  }, [roundRow]);
+    return `${t("matchSummary.round")} ${roundRow.match_round_number} · ${t("matchSummary.turn")} ${roundRow.turn}`;
+  }, [roundRow, t]);
 
   function displayName(p: PlayerItem) {
     return `${p.player_number} · ${p.player_name}${p.is_captain ? " (C)" : ""}`;
@@ -102,7 +102,6 @@ export default function LineupScreen() {
     const rest = list.filter((_, i) => i !== captainIdx);
     return [...rest, captain];
   }
-
 
   async function refreshScoreboardForMatch(matchIdNum: number, aId: number, bId: number) {
     setScoreLoading(true);
@@ -155,7 +154,7 @@ export default function LineupScreen() {
 
       if (eErr) throw eErr;
 
-      const totals = new Map<number, number>(); // team_id -> score
+      const totals = new Map<number, number>();
       for (const ev of (events ?? []) as any[]) {
         const rid = playIdToRound.get(ev.play_id);
         if (!rid) continue;
@@ -188,7 +187,6 @@ export default function LineupScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchId, roundIdParam]);
 
-
   async function pickNextRoundAction(
     matchIdNum: number
   ): Promise<{ action: "lineup" | "play"; round: RoundRow } | null> {
@@ -204,19 +202,16 @@ export default function LineupScreen() {
     for (const r of rounds) {
       const roundId = r.round_id as number;
 
-      // 1) Quants atacants hi ha previstos a la lineup d'aquest round?
       const { count: attackCount, error: aErr } = await supabase
         .from("round_lineup")
         .select("id", { count: "exact", head: true })
         .eq("round_id", roundId)
         .eq("role", "attack");
 
-      // Si hi ha error, no ens arrisquem: saltem a següent (o bloquegem més tard).
       if (aErr) continue;
 
       const expected = attackCount ?? 0;
 
-      // Si encara NO hi ha lineup d'atacants, aquest round és editable (cal fer lineup).
       if (expected === 0) {
         return {
           action: "lineup",
@@ -230,7 +225,6 @@ export default function LineupScreen() {
         };
       }
 
-      // 2) Quants plays hi ha creats (un per atacant) dins d'aquest round?
       const { data: plays, error: pErr } = await supabase
         .from("play")
         .select("id, attacker_player_id")
@@ -245,8 +239,6 @@ export default function LineupScreen() {
           .filter((x: any) => typeof x === "number") as number[]
       );
 
-      // Si no hi ha cap play encara, però hi ha lineup, el round està llest per començar:
-      // NO deixem editar lineup (ja hi ha lineup) però hem d'anar a PLAY, no avançar torn.
       if (playIds.length === 0) {
         return {
           action: "play",
@@ -260,7 +252,6 @@ export default function LineupScreen() {
         };
       }
 
-      // 3) Verifiquem que cada play té com a mínim 1 play_event (si l'app es tanca a mig guardat)
       let playsWithEvent = new Set<number>();
       if (playIds.length > 0) {
         const { data: ev, error: evErr } = await supabase
@@ -277,9 +268,6 @@ export default function LineupScreen() {
 
       const anyMissingEvent = playIds.some((pid) => !playsWithEvent.has(pid));
 
-      // Round "in progress" si:
-      // - falta algun atacant per tirar, o
-      // - hi ha alguna play sense events (guardat a mitges)
       if (attackersWithPlay.size < expected || anyMissingEvent) {
         return {
           action: "play",
@@ -292,8 +280,6 @@ export default function LineupScreen() {
           },
         };
       }
-
-      // Si arribem aquí, el round està complet: continuem buscant el següent.
     }
 
     return null;
@@ -308,7 +294,6 @@ export default function LineupScreen() {
       return;
     }
 
-    // Si el match està finalitzat, no deixem editar
     const { data: matchRow, error: matchErr } = await supabase
       .from("match")
       .select("id, championship_id, phase_id,is_finished, team_a_id, team_b_id, team_a:team_a_id(name), team_b:team_b_id(name)")
@@ -316,13 +301,13 @@ export default function LineupScreen() {
       .single();
 
     if (matchErr || !matchRow) {
-      Alert.alert("Error", "No s'ha pogut carregar el match.");
+      Alert.alert(t("common.error"), t("lineup.matchLoadError"));
       setLoading(false);
       return;
     }
 
     if (matchRow.is_finished) {
-      Alert.alert("Partit finalitzat", "Aquest partit ja està tancat i no es pot modificar.");
+      Alert.alert(t("lineup.matchFinishedTitle"), t("lineup.matchFinishedMessage"));
       router.back();
       return;
     }
@@ -332,8 +317,8 @@ export default function LineupScreen() {
 
     setTeamAId(matchRow.team_a_id ?? null);
     setTeamBId(matchRow.team_b_id ?? null);
-    setTeamAName(matchRow.team_a?.[0]?.name ?? "Equip A");
-    setTeamBName(matchRow.team_b?.[0]?.name ?? "Equip B");
+    setTeamAName(matchRow.team_a?.name ?? t("publicMatches.teamA"));
+    setTeamBName(matchRow.team_b?.name ?? t("publicMatches.teamB"));
 
     const { data: cfg } = await supabase
       .from("championship_config")
@@ -373,7 +358,6 @@ export default function LineupScreen() {
     if (!rr) nextAction = await pickNextRoundAction(matchId);
 
     if (!rr && nextAction?.action === "play") {
-      // Hi ha un torn en curs (o guardat a mitges). La lineup ja no és editable: cal continuar a Play.
       setLoading(false);
       router.replace({
         pathname: "/play",
@@ -387,10 +371,7 @@ export default function LineupScreen() {
     }
 
     if (!rr) {
-      Alert.alert(
-        "Lineup bloquejada",
-        "Aquest partit ja té tirades registrades. No es pot tornar a editar la lineup."
-      );
+      Alert.alert(t("lineup.lockedTitle"), t("lineup.lockedMessage"));
       setLoading(false);
       router.replace({ pathname: "/play", params: { matchId: String(matchId) } });
       return;
@@ -398,12 +379,9 @@ export default function LineupScreen() {
 
     setRoundRow(rr);
 
-
-    // ✅ Mostrem marcador només si NO és Round 1 Torn 1
     if (!(rr.match_round_number === 1 && rr.turn === 1) && matchRow.team_a_id && matchRow.team_b_id) {
       await refreshScoreboardForMatch(matchId, matchRow.team_a_id, matchRow.team_b_id);
     }
-
 
     const loaded = await loadPlayersForTeams(
       rr.attacking_team_id,
@@ -427,12 +405,10 @@ export default function LineupScreen() {
       .from("team_player")
       .select("player_id, player_number, is_captain, player:player_id(name, external_code)")
       .eq("team_id", attTeamId)
-      // A team can have different rosters per championship.
-      // Only show players from the current match's championship.
       .eq("championship_id", champId);
 
     if (attErr) {
-      Alert.alert("Error", `No s'han pogut carregar atacants: ${attErr.message}`);
+      Alert.alert(t("common.error"), t("lineup.attackersLoadError", { message: attErr.message }));
       return { ok: false, attackList: [], defenseList: [] };
     }
 
@@ -452,7 +428,7 @@ export default function LineupScreen() {
       .eq("championship_id", champId);
 
     if (defErr) {
-      Alert.alert("Error", `No s'han pogut carregar defensors: ${defErr.message}`);
+      Alert.alert(t("common.error"), t("lineup.defendersLoadError", { message: defErr.message }));
       return { ok: false, attackList: [], defenseList: [] };
     }
 
@@ -471,17 +447,14 @@ export default function LineupScreen() {
     setAttackPlayers(attList);
     setDefensePlayers(defList);
 
-
     return { ok: true, attackList: attList, defenseList: defList };
   }
 
   async function loadCaptainOverridesForMatch(attTeamId: number, defTeamId: number, attackList: PlayerItem[], defenseList: PlayerItem[]) {
-    // Capità per defecte (de team_player)
     const attDefault = attackList.find((p) => p.is_captain)?.player_id ?? null;
     const defDefault = defenseList.find((p) => p.is_captain)?.player_id ?? null;
     setOriginalCaptainByTeam({ [attTeamId]: attDefault, [defTeamId]: defDefault });
 
-    // Si no tenim matchId, no fem overrides
     if (!Number.isFinite(matchId)) return;
 
     const { data, error } = await supabase
@@ -498,7 +471,6 @@ export default function LineupScreen() {
     }
     setCaptainOverrideByTeam(overrides);
 
-    // Apliquem override (si existeix) només per aquest match
     const attOverride = overrides[attTeamId] ?? null;
     const defOverride = overrides[defTeamId] ?? null;
 
@@ -521,6 +493,7 @@ export default function LineupScreen() {
       setDefensePlayers((prev) => prev.map((p) => ({ ...p, is_captain: playerId ? p.player_id === playerId : p.player_id === (originalCaptainByTeam[teamId] ?? -1) })));
     }
   }
+
   const canEditCaptain = useMemo(() => {
     if (!roundRow) return false;
     return roundRow.match_round_number === 1 && roundRow.turn === 1;
@@ -533,12 +506,12 @@ export default function LineupScreen() {
       const isCurrentOverride = currentOverride === player.player_id;
 
       const buttons: any[] = [
-        { text: "Cancel·lar", style: "cancel" },
+        { text: t("publicMatches.cancel"), style: "cancel" },
       ];
 
       if (isCurrentOverride) {
         buttons.unshift({
-          text: "Restaurar capità per defecte",
+          text: t("lineup.restoreDefaultCaptain"),
           style: "destructive",
           onPress: async () => {
             await supabase
@@ -553,7 +526,7 @@ export default function LineupScreen() {
         });
       } else {
         buttons.unshift({
-          text: "Fer capità del partit",
+          text: t("lineup.makeMatchCaptain"),
           onPress: async () => {
             await supabase
               .from("match_captain_override")
@@ -565,10 +538,9 @@ export default function LineupScreen() {
         });
       }
 
-      Alert.alert("Capità del partit", `Vols posar ${player.player_name} com a capità per aquest partit?`, buttons);
+      Alert.alert(t("lineup.matchCaptainTitle"), t("lineup.matchCaptainQuestion", { player: player.player_name }), buttons);
     };
 
-    // Android: defer per evitar que el gesture “s'empassi” l'alert dins ScrollView
     Platform.OS === "android" ? setTimeout(doShow, 0) : doShow();
   }
 
@@ -607,7 +579,7 @@ export default function LineupScreen() {
         return next;
       }
       if (next.size >= 8) {
-        Alert.alert("Límit", "Només pots seleccionar 8 defensors.");
+        Alert.alert(t("lineup.limitTitle"), t("lineup.maxDefenders"));
         return next;
       }
       next.add(playerId);
@@ -619,7 +591,7 @@ export default function LineupScreen() {
     setAttackSelected((prev) => {
       if (prev.some((x) => x.player_id === p.player_id)) return prev;
       if (prev.length >= 6) {
-        Alert.alert("Límit", "Només pots seleccionar 6 atacants.");
+        Alert.alert(t("lineup.limitTitle"), t("lineup.maxAttackers"));
         return prev;
       }
 
@@ -644,7 +616,6 @@ export default function LineupScreen() {
     setAttackSelected((prev) => prev.filter((x) => x.player_id !== playerId));
   }
 
-  // ==== Afegir jugadors (mateixa lògica que tens) ====
   async function getTeamRoster(teamId: number, champId: number): Promise<PlayerItem[]> {
     const { data, error } = await supabase
       .from("team_player")
@@ -700,15 +671,12 @@ export default function LineupScreen() {
 
   function openAddPlayer(role: AddRole) {
     if ([2, 3, 4, 5].includes(matchPhaseId ?? -1)) {
-      Alert.alert(
-        "No disponible",
-        "A vuitens, quarts, semis i final no es poden afegir jugadors."
-      );
+      Alert.alert(t("matchSummary.notAvailable"), t("lineup.cannotAddPlayersKnockout"));
       return;
     }
     const teamId = role === "attack" ? attackingTeamId : defendingTeamId;
     if (!teamId) {
-      Alert.alert("Error", "No s'ha pogut detectar l'equip.");
+      Alert.alert(t("common.error"), t("lineup.teamDetectError"));
       return;
     }
     setAddRole(role);
@@ -753,7 +721,7 @@ export default function LineupScreen() {
 
     const ids = new Set<number>();
     for (const r of exactSameNameRows) {
-      const id = r.player?.[0]?.id;
+      const id = r.player?.id;
       if (typeof id === "number") ids.add(id);
     }
 
@@ -762,13 +730,13 @@ export default function LineupScreen() {
 
   async function submitAddOrReplace() {
     if (!teamForAdd || !championshipId) {
-      Alert.alert("Error", "Falten dades de campionat/equip.");
+      Alert.alert(t("common.error"), t("lineup.missingChampionshipTeam"));
       return;
     }
 
     const name = newPlayerName.trim();
     if (name.length < 2) {
-      Alert.alert("Nom invàlid", "Introdueix un nom de jugador.");
+      Alert.alert(t("lineup.invalidNameTitle"), t("lineup.invalidNameMessage"));
       return;
     }
 
@@ -794,17 +762,14 @@ export default function LineupScreen() {
 
         const ok = await canRemovePlayerEverywhere(replaceTargetPlayerId);
         if (!ok) {
-          Alert.alert(
-            "No es pot substituir",
-            "Aquest jugador ja té dades relacionades. No es pot canviar."
-          );
+          Alert.alert(t("lineup.cannotReplaceTitle"), t("lineup.cannotReplaceMessage"));
           setSaving(false);
           return;
         }
 
         const replaced = roster.find((p) => p.player_id === replaceTargetPlayerId);
         if (!replaced) {
-          Alert.alert("Error", "No s'ha pogut trobar el jugador a substituir.");
+          Alert.alert(t("common.error"), t("lineup.replacePlayerNotFound"));
           setSaving(false);
           return;
         }
@@ -869,7 +834,7 @@ export default function LineupScreen() {
         .single();
 
       if (pErr || !newPlayer) {
-        throw pErr ?? new Error("No s'ha pogut crear el player");
+        throw pErr ?? new Error(t("lineup.playerCreateError"));
       }
 
       if (isReplacement && replaceTargetPlayerId) {
@@ -922,17 +887,17 @@ export default function LineupScreen() {
       setNewPlayerName("");
 
       Alert.alert(
-        "Fet ✅",
+        t("lineup.doneTitle"),
         isReplacement
           ? sameNameInChampionship
-            ? `Jugador substituït correctament (codi ${externalCodeForNewPlayer}).`
-            : "Jugador substituït correctament."
+            ? t("lineup.playerReplacedWithCode", { code: externalCodeForNewPlayer ?? "" })
+            : t("lineup.playerReplaced")
           : sameNameInChampionship
-            ? `Jugador creat amb external_code ${externalCodeForNewPlayer}.`
-            : "Jugador creat."
+            ? t("lineup.playerCreatedWithCode", { code: externalCodeForNewPlayer ?? "" })
+            : t("lineup.playerCreated")
       );
     } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Error afegint/substituint jugador.");
+      Alert.alert(t("common.error"), e?.message ?? t("lineup.addReplaceError"));
     } finally {
       setSaving(false);
     }
@@ -941,27 +906,26 @@ export default function LineupScreen() {
   async function saveLineup(): Promise<boolean> {
     if (!roundRow) return false;
     if (!attackingTeamId || !defendingTeamId) {
-      Alert.alert("Error", "Falten equips d'atac/defensa al round.");
+      Alert.alert(t("common.error"), t("lineup.missingRoundTeams"));
       return false;
     }
 
     const enforced = enforceCaptainLast(attackSelected);
 
     if (enforced.length < 4) {
-      Alert.alert("Falten atacants", "Has de seleccionar mínim 4 atacants.");
+      Alert.alert(t("lineup.missingAttackersTitle"), t("lineup.missingAttackersMessage"));
       return false;
     }
 
     if (defenseSelectedIds.size < 4) {
-      Alert.alert("Falten defensors", "Has de seleccionar mínim 4 defensors.");
+      Alert.alert(t("lineup.missingDefendersTitle"), t("lineup.missingDefendersMessage"));
       return false;
     }
 
     if (defenseSelectedIds.size > 8) {
-      Alert.alert("Massa defensors", "Pots seleccionar com a màxim 8 defensors.");
+      Alert.alert(t("lineup.tooManyDefendersTitle"), t("lineup.tooManyDefendersMessage"));
       return false;
     }
-
 
     setSaving(true);
     try {
@@ -993,10 +957,10 @@ export default function LineupScreen() {
       if (insErr) throw insErr;
 
       setAttackSelected(enforced);
-      Alert.alert("Guardat ✅", "Alineació guardada correctament.");
+      Alert.alert(t("lineup.savedTitle"), t("lineup.savedMessage"));
       return true;
     } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Error guardant l'alineació.");
+      Alert.alert(t("common.error"), e?.message ?? t("lineup.saveError"));
       return false;
     } finally {
       setSaving(false);
@@ -1035,7 +999,6 @@ export default function LineupScreen() {
           router.replace({ pathname: "/match", params: { id: String(matchId) } });
         }} />
 
-        {/* ✅ Marcador (només si NO és Round 1 Torn 1) */}
         {roundRow && !(roundRow.match_round_number === 1 && roundRow.turn === 1) ? (
           <View
             style={{
@@ -1048,8 +1011,8 @@ export default function LineupScreen() {
               backgroundColor: colors.card,
             }}
           >
-            <Text style={{ textAlign: "center", fontWeight: "900", fontSize: 16,color: colors.text }}>
-              Marcador
+            <Text style={{ textAlign: "center", fontWeight: "900", fontSize: 16, color: colors.text }}>
+              {t("matchSummary.score")}
             </Text>
 
             {scoreLoading ? (
@@ -1080,10 +1043,10 @@ export default function LineupScreen() {
                     textAlign: "center",
                     fontWeight: "500",
                     fontSize: 12,
-                    color:colors.text
+                    color: colors.text,
                   }}
                 >
-                  Diferència: {Math.abs(scoreA - scoreB)}
+                  {t("lineup.difference")}: {Math.abs(scoreA - scoreB)}
                 </Text>
               </>
             )}
@@ -1091,19 +1054,18 @@ export default function LineupScreen() {
         ) : null}
 
         <Text style={{ fontSize: 20, fontWeight: "bold", textAlign: "center", color: colors.text }}>
-          Alineació
+          {t("matchSummary.lineup")}
         </Text>
 
         <Text style={{ textAlign: "center", color: colors.muted, marginTop: 6 }}>
-          {roundTitle} · Max jugadors/equip: {maxTeamPlayers}
+          {roundTitle} · {t("lineup.maxPlayersTeam")}: {maxTeamPlayers}
         </Text>
 
         <View style={{ height: 18 }} />
 
-        {/* ATACANTS */}
         <View style={{ padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Text style={{ fontWeight: "800", fontSize: 16, color: colors.text }}>Atacants (4-6) · amb ordre</Text>
+            <Text style={{ fontWeight: "800", fontSize: 16, color: colors.text }}>{t("lineup.attackersTitle")}</Text>
 
             {canAddPlayers ? (
               <Pressable
@@ -1118,14 +1080,14 @@ export default function LineupScreen() {
                   opacity: saving ? 0.6 : 1,
                 }}
               >
-                <Text style={{ fontWeight: "700", color: colors.text }}>+ Jugador</Text>
+                <Text style={{ fontWeight: "700", color: colors.text }}>+ {t("lineup.player")}</Text>
               </Pressable>
             ) : null}
           </View>
 
-          <Text style={{ marginTop: 6, color: colors.muted }}>Si selecciones el capità (C), sempre quedarà últim.</Text>
+          <Text style={{ marginTop: 6, color: colors.muted }}>{t("lineup.captainLastHint")}</Text>
           {attackSelected.length === 0 ? (
-            <Text style={{ color: "#777", marginTop: 6 }}>Encara no n'has seleccionat cap.</Text>
+            <Text style={{ color: "#777", marginTop: 6 }}>{t("lineup.noAttackersSelected")}</Text>
           ) : (
             enforceCaptainLast(attackSelected).map((p, idx) => (
               <Pressable
@@ -1141,7 +1103,7 @@ export default function LineupScreen() {
                 }}
               >
                 <Text style={{ fontWeight: "700" }}>
-                  {idx + 1}. {displayName(p)} <Text style={{ fontWeight: "400" }}>(toca per treure)</Text>
+                  {idx + 1}. {displayName(p)} <Text style={{ fontWeight: "400" }}>({t("lineup.tapToRemove")})</Text>
                 </Text>
               </Pressable>
             ))
@@ -1149,7 +1111,7 @@ export default function LineupScreen() {
 
           <View style={{ height: 14 }} />
 
-          <Text style={{ fontWeight: "700", color: colors.text }}>Disponibles:</Text>
+          <Text style={{ fontWeight: "700", color: colors.text }}>{t("lineup.available")}:</Text>
 
           {attackPlayers.map((p) => {
             const selected = attackSelected.some((x) => x.player_id === p.player_id);
@@ -1174,27 +1136,24 @@ export default function LineupScreen() {
                 }}
               >
                 <Text style={{ fontWeight: "600", color: colors.text }}>
-                  {displayName(p)} {selected ? "(seleccionat)" : ""}
+                  {displayName(p)} {selected ? `(${t("lineup.selected")})` : ""}
                 </Text>
               </Pressable>
             );
           })}
 
-          {/* Info només quan NO es pot canviar capità */}
           {!canEditCaptain ? (
             <Text style={{ marginTop: 10, color: colors.muted, fontWeight: "700" }}>
-              ℹ️ El capità només es pot canviar a Ronda 1 · Torn 1.
+              ℹ️ {t("lineup.captainOnlyFirstRound")}
             </Text>
           ) : null}
-
         </View>
 
         <View style={{ height: 16 }} />
 
-        {/* DEFENSORS */}
         <View style={{ padding: 14, borderRadius: 12, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.bg }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Text style={{ fontWeight: "800", fontSize: 16, color: colors.text }}>Defensors (4-8)</Text>
+            <Text style={{ fontWeight: "800", fontSize: 16, color: colors.text }}>{t("lineup.defendersTitle")}</Text>
 
             {canAddPlayers ? (
               <Pressable
@@ -1209,17 +1168,17 @@ export default function LineupScreen() {
                   opacity: saving ? 0.6 : 1,
                 }}
               >
-                <Text style={{ fontWeight: "700", color: colors.text }}>+ Jugador</Text>
+                <Text style={{ fontWeight: "700", color: colors.text }}>+ {t("lineup.player")}</Text>
               </Pressable>
             ) : null}
           </View>
 
           <Text style={{ marginTop: 6, color: colors.muted }}>
-            Selecciona exactament 8 (tap per marcar/desmarcar).
+            {t("lineup.defendersHint")}
           </Text>
 
           <Text style={{ marginTop: 10, fontWeight: "700", color: colors.text }}>
-            Seleccionats: {defenseSelectedIds.size}/8
+            {t("lineup.selectedPlural")}: {defenseSelectedIds.size}/8
           </Text>
 
           {defensePlayers.map((p) => {
@@ -1251,7 +1210,7 @@ export default function LineupScreen() {
           })}
           {!canEditCaptain ? (
             <Text style={{ marginTop: 10, color: colors.muted, fontWeight: "700" }}>
-              ℹ️ El capità només es pot canviar a Ronda 1 · Torn 1.
+              ℹ️ {t("lineup.captainOnlyFirstRound")}
             </Text>
           ) : null}
         </View>
@@ -1269,44 +1228,47 @@ export default function LineupScreen() {
             opacity: saving ? 0.7 : 1,
           }}
         >
-          <Text style={{ color: colors.primaryText, fontWeight: "800" }}>{saving ? "Guardant..." : "Arbitrar"}</Text>
+          <Text style={{ color: colors.primaryText, fontWeight: "800" }}>
+            {saving ? t("lineup.saving") : t("home.refereeStart").replace("👨‍⚖️ ", "")}
+          </Text>
         </Pressable>
       </ScrollView>
 
-      {/* MODAL: Afegir */}
       <Modal visible={addModalVisible} transparent animationType="fade" onRequestClose={() => setAddModalVisible(false)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", padding: 18 }}>
           <View style={{ backgroundColor: colors.card, borderRadius: 14, padding: 16 }}>
             <Text style={{ fontSize: 16, fontWeight: "800", color: colors.text }}>
-              Afegir jugador ({addRole === "attack" ? "Atacants" : "Defensors"})
+              {t("lineup.addPlayer")} ({addRole === "attack" ? t("lineup.attackers") : t("lineup.defenders")})
             </Text>
 
             <Text style={{ marginTop: 8, color: colors.muted }}>
-              Escriu el nom. Si ja existeix al campionat, el crearem igualment amb un external_code únic per diferenciar-lo.
+              {t("lineup.addPlayerHint")}
             </Text>
 
-            <Text style={{ marginTop: 12, fontWeight: "700", color: colors.text }}>Nom del jugador</Text>
+            <Text style={{ marginTop: 12, fontWeight: "700", color: colors.text }}>{t("lineup.playerName")}</Text>
             <TextInput
               value={newPlayerName}
-              onChangeText={(t) => {
-                setNewPlayerName(t);
-                searchExistingInChampionship(t);
+              onChangeText={(text) => {
+                setNewPlayerName(text);
+                searchExistingInChampionship(text);
               }}
-              placeholder="Ex: Joan Garcia"
+              placeholder={t("lineup.playerNamePlaceholder")}
+              placeholderTextColor={colors.muted}
               style={{
                 borderWidth: 1,
                 borderColor: colors.border,
                 borderRadius: 10,
                 padding: 12,
                 marginTop: 8,
+                color: colors.text,
               }}
             />
 
             {duplicateNameCount > 0 ? (
               <View style={{ marginTop: 12 }}>
-                <Text style={{ fontWeight: "700" }}>⚠️ Ja existeix al campionat</Text>
+                <Text style={{ fontWeight: "700", color: colors.text }}>⚠️ {t("lineup.duplicateNameTitle")}</Text>
                 <Text style={{ color: colors.muted, marginTop: 4 }}>
-                  S'han trobat {duplicateNameCount} jugador(s) amb aquest mateix nom al campionat. Es crearà un nou jugador amb un external_code únic.
+                  {t("lineup.duplicateNameMessage", { count: duplicateNameCount })}
                 </Text>
               </View>
             ) : null}
@@ -1321,7 +1283,7 @@ export default function LineupScreen() {
                 }}
                 style={{ paddingVertical: 10, paddingHorizontal: 12 }}
               >
-                <Text style={{ fontWeight: "700", color: colors.text }}>Cancel·lar</Text>
+                <Text style={{ fontWeight: "700", color: colors.text }}>{t("publicMatches.cancel")}</Text>
               </Pressable>
 
               <Pressable
@@ -1337,20 +1299,21 @@ export default function LineupScreen() {
                   opacity: saving ? 0.6 : 1,
                 }}
               >
-                <Text style={{ fontWeight: "800", color: colors.text }}>{saving ? "..." : "Crear nou"}</Text>
+                <Text style={{ fontWeight: "800", color: colors.text }}>{saving ? "..." : t("lineup.createNew")}</Text>
               </Pressable>
             </View>
           </View>
         </View>
       </Modal>
 
-      {/* MODAL: Triar jugador a substituir */}
       <Modal visible={replaceModalVisible} transparent animationType="fade" onRequestClose={() => setReplaceModalVisible(false)}>
         <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", padding: 18 }}>
           <View style={{ backgroundColor: colors.card, borderRadius: 14, padding: 16, maxHeight: "80%" }}>
-            <Text style={{ fontSize: 16, fontWeight: "800" }}>Equip ple ({maxTeamPlayers})</Text>
+            <Text style={{ fontSize: 16, fontWeight: "800", color: colors.text }}>
+              {t("lineup.teamFull", { max: maxTeamPlayers })}
+            </Text>
             <Text style={{ marginTop: 8, color: colors.muted }}>
-              Tria quin jugador vols substituir (només si no té dades relacionades).
+              {t("lineup.replaceHint")}
             </Text>
 
             <ScrollView style={{ marginTop: 10 }}>
@@ -1369,7 +1332,7 @@ export default function LineupScreen() {
                       marginBottom: 8,
                     }}
                   >
-                    <Text style={{ fontWeight: "700" }}>
+                    <Text style={{ fontWeight: "700", color: colors.text }}>
                       {p.player_number} · {p.player_name} {p.is_captain ? "(C) " : ""}{selected ? "✅" : ""}
                     </Text>
                   </Pressable>
@@ -1385,7 +1348,7 @@ export default function LineupScreen() {
                 }}
                 style={{ paddingVertical: 10, paddingHorizontal: 12 }}
               >
-                <Text style={{ fontWeight: "700" }}>Cancel·lar</Text>
+                <Text style={{ fontWeight: "700", color: colors.text }}>{t("publicMatches.cancel")}</Text>
               </Pressable>
 
               <Pressable
@@ -1404,7 +1367,7 @@ export default function LineupScreen() {
                   opacity: saving || !replaceTargetPlayerId ? 0.5 : 1,
                 }}
               >
-                <Text style={{ fontWeight: "800" }}>Substituir</Text>
+                <Text style={{ fontWeight: "800", color: colors.text }}>{t("lineup.replace")}</Text>
               </Pressable>
             </View>
           </View>

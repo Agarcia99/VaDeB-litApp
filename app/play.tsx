@@ -16,6 +16,8 @@ import { Audio } from "expo-av";
 import * as Haptics from "expo-haptics";
 import { supabase } from "../src/supabase";
 import { useAppTheme } from "../src/theme";
+import { useLanguage } from "../src/i18n/LanguageContext";
+import { sendPushNotification } from "../src/notifications/sendPushNotification";
 
 type RoundRow = {
   round_id: number;
@@ -37,23 +39,23 @@ type LineupRow = {
   player?: { id: number; name: string } | null;
 };
 
-function confirmAction(title: string, message: string) {
+function confirmAction(t: any, title: string, message: string) {
   return new Promise<boolean>((resolve) => {
     Alert.alert(title, message, [
-      { text: "Cancel·lar", style: "cancel", onPress: () => resolve(false) },
-      { text: "Sí, guardar", style: "destructive", onPress: () => resolve(true) },
+      { text: t("publicMatches.cancel"), style: "cancel", onPress: () => resolve(false) },
+      { text: t("common.yes"), style: "destructive", onPress: () => resolve(true) },
     ]);
   });
 }
 
-function confirmFinishTurn() {
+function confirmFinishTurn(t: any) {
   return new Promise<boolean>((resolve) => {
     Alert.alert(
-      "Confirmació final",
-      "Segur que vols finalitzar el torn? Revisa bé l'última tirada abans de continuar.",
+      t("play.finalConfirmTitle"),
+      t("play.finalConfirmMessage"),
       [
-        { text: "No, revisar", style: "cancel", onPress: () => resolve(false) },
-        { text: "Sí, finalitzar", style: "destructive", onPress: () => resolve(true) },
+        { text: t("play.review"), style: "cancel", onPress: () => resolve(false) },
+        { text: t("play.yesFinish"), style: "destructive", onPress: () => resolve(true) },
       ]
     );
   });
@@ -76,7 +78,6 @@ async function getRequiredPlaysForRound(roundId: number, attackingTeamId: number
 }
 
 async function isMatchCompleted(roundList: RoundRow[]): Promise<boolean> {
-  // Un match està complet quan tots els rounds tenen tantes tirades com atacants seleccionats (4-6)
   for (const r of roundList) {
     const required = await getRequiredPlaysForRound(r.round_id, r.attacking_team_id);
     if (required === 0) return false;
@@ -94,6 +95,7 @@ async function isMatchCompleted(roundList: RoundRow[]): Promise<boolean> {
 
   return true;
 }
+
 /**
  * ✅ Finalitza match guardant resultat final i surt a /matches
  */
@@ -101,8 +103,22 @@ async function finalizeMatch(params: {
   matchId: number;
   scoreTeamA: number;
   scoreTeamB: number;
+  championshipId?: number | null;
+  teamAId?: number | null;
+  teamBId?: number | null;
+  teamAName?: string | null;
+  teamBName?: string | null;
 }) {
-  const { matchId, scoreTeamA, scoreTeamB } = params;
+  const {
+    matchId,
+    scoreTeamA,
+    scoreTeamB,
+    championshipId,
+    teamAId,
+    teamBId,
+    teamAName,
+    teamBName,
+  } = params;
 
   const { error } = await supabase
     .from("match")
@@ -115,6 +131,20 @@ async function finalizeMatch(params: {
     .eq("id", matchId);
 
   if (error) throw error;
+
+  if (championshipId && teamAId && teamBId && teamAName && teamBName) {
+    await sendPushNotification({
+      championshipId,
+      teamIds: [teamAId, teamBId],
+      type: "match_finished",
+      title: "Partit finalitzat",
+      message: `${teamAName} ${scoreTeamA} - ${scoreTeamB} ${teamBName}`,
+      data: {
+        match_id: matchId,
+        reason: "finalized",
+      },
+    });
+  }
 }
 
 export default function PlayScreen() {
@@ -124,6 +154,8 @@ export default function PlayScreen() {
   const roundIdParam = params.roundId ? Number(params.roundId) : null;
 
   const { colors } = useAppTheme();
+  const { t } = useLanguage();
+  const [championshipId, setChampionshipId] = useState<number | null>(null);
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -148,12 +180,7 @@ export default function PlayScreen() {
 
   const [maxPointsRound, setMaxPointsRound] = useState<number>(600);
 
-  // ✅ Config: nombre de rondes per partit (per defecte 2)
-  // championship_config key = "match_rounds" (value: integer)
   const [matchRoundsCount, setMatchRoundsCount] = useState<number>(2);
-
-  // ✅ Config: quan ha de vibrar el cronòmetre (segons). Per defecte 30.
-  // championship_config key = "vibration_time" (value: number, en segons)
   const [vibrationTimeSec, setVibrationTimeSec] = useState<number>(30);
 
   const [conversionModalOpen, setConversionModalOpen] = useState(false);
@@ -170,19 +197,20 @@ export default function PlayScreen() {
     setCanasValue((v) => {
       const next = v + delta;
       if (next > maxPointsRound) {
-        Alert.alert("Error", `No es poden posar més de ${maxPointsRound} canes en 1 tirada.`);
+        Alert.alert(
+          t("common.error"),
+          t("play.maxCanesPerThrow", { max: maxPointsRound })
+        );
         return v;
       }
       return next;
     });
   }
 
-  // ✅ Marcador
   const [scoreLoading, setScoreLoading] = useState(false);
   const [scoreA, setScoreA] = useState(0);
   const [scoreB, setScoreB] = useState(0);
 
-  // ✅ Equip A/B del match (fixos, no depenen de qui comença)
   const [matchTeamsFixed, setMatchTeamsFixed] = useState<{
     aId: number;
     bId: number;
@@ -190,16 +218,13 @@ export default function PlayScreen() {
     bName: string;
   } | null>(null);
 
-  // ✅ Modal final (mostrar resultat abans de sortir)
   const [finalModalOpen, setFinalModalOpen] = useState(false);
   const [finalScores, setFinalScores] = useState<{ a: number; b: number } | null>(null);
   const [finishedLocal, setFinishedLocal] = useState(false);
 
-  // ✅ Bélit d'or (només en eliminatòries: phase_id != 1 && != 8)
   const [belitDorModalOpen, setBelitDorModalOpen] = useState(false);
   const [belitDorPendingTotals, setBelitDorPendingTotals] = useState<{ a: number; b: number } | null>(null);
 
-  // ⏱️ Cronòmetre visual (no es guarda enlloc)
   const [timerRunning, setTimerRunning] = useState(false);
   const [elapsedMs, setElapsedMs] = useState(0);
   const lastTickRef = useRef<number | null>(null);
@@ -213,7 +238,6 @@ const BEEP_DATA_URI =
 const beepSoundRef = useRef<Audio.Sound | null>(null);
 
 useEffect(() => {
-  // Permet que el so soni també amb el silenci activat a iOS
   Audio.setAudioModeAsync({
     playsInSilentModeIOS: true,
     shouldDuckAndroid: false,
@@ -242,29 +266,21 @@ async function playBeep() {
       await beepSoundRef.current.setVolumeAsync(1.0);
     } catch {}
     await beepSoundRef.current.replayAsync();
-  } catch {
-    // ignore (so opcional)
-  }
+  } catch {}
 }
 
 function triggerAlarm3x() {
-  // Objectiu: que a Android vibri de forma fiable (OEMs diferents) i a iOS es mantingui com fins ara.
-  // - Android: combinació de Vibration (durada + patró) + expo-haptics (impact + notification) com a fallback.
-  // - iOS: 3 vibracions separades (els patrons s'ignoren a iOS).
   const runBeep = () => void playBeep();
 
   if (Platform.OS === "android") {
-    // 1) Vibració "simple" (molts dispositius respecten millor una durada que un patró)
     try {
       Vibration.vibrate(700);
     } catch {}
 
-    // 2) Patró 3 cops (si el dispositiu el suporta)
     try {
       Vibration.vibrate([0, 350, 180, 350, 180, 350]);
     } catch {}
 
-    // 3) Fallback amb Haptics (expo-haptics) — sovint funciona quan Vibration queda silenciós
     void (async () => {
       try {
         await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
@@ -275,237 +291,215 @@ function triggerAlarm3x() {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
         }, 900);
 
-        // Extra: notification (alguns OEMs la fan més "forta")
         setTimeout(() => {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
         }, 120);
       } catch {}
     })();
   } else {
-    // iOS: patró ignorat -> 3 vibracions separades
     Vibration.vibrate();
     setTimeout(() => Vibration.vibrate(), 430);
     setTimeout(() => Vibration.vibrate(), 860);
   }
 
-  // 3 beeps (audible) — al màxim volum que permet el sistema
   runBeep();
   setTimeout(runBeep, 430);
   setTimeout(runBeep, 860);
 }
 
-  const vibrationTimeMs = useMemo(() => {
-    const s = Number(vibrationTimeSec);
-    return Number.isFinite(s) && s > 0 ? Math.round(s * 1000) : 0;
-  }, [vibrationTimeSec]);
+const vibrationTimeMs = useMemo(() => {
+  const s = Number(vibrationTimeSec);
+  return Number.isFinite(s) && s > 0 ? Math.round(s * 1000) : 0;
+}, [vibrationTimeSec]);
 
-  const attacker = attackers[currentIndex];
+const attacker = attackers[currentIndex];
 
-  useEffect(() => {
-    if (!timerRunning) {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
-      lastTickRef.current = null;
-      return;
-    }
-
-    // quan engeguem: reiniciem la referència de tick
-    lastTickRef.current = Date.now();
-    // si ja passàvem del llindar, no tornem a vibrar fins reset
-    vibratedAt30Ref.current = vibrationTimeMs > 0 ? elapsedMs >= vibrationTimeMs : true;
-
-    intervalRef.current = setInterval(() => {
-      const now = Date.now();
-      const last = lastTickRef.current ?? now;
-      lastTickRef.current = now;
-      const delta = now - last;
-
-      setElapsedMs((prev) => {
-        const next = prev + delta;
-        if (vibrationTimeMs > 0 && !vibratedAt30Ref.current && next >= vibrationTimeMs) {
-          vibratedAt30Ref.current = true;
-          triggerAlarm3x();
-        }
-        return next;
-      });
-    }, 100);
-
-    return () => {
-      if (intervalRef.current) clearInterval(intervalRef.current);
+useEffect(() => {
+  if (!timerRunning) {
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
       intervalRef.current = null;
-      lastTickRef.current = null;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timerRunning, vibrationTimeMs]);
-
-  function toggleTimer() {
-    setTimerRunning((v) => !v);
+    }
+    lastTickRef.current = null;
+    return;
   }
 
-  function resetTimer() {
-    setTimerRunning(false);
-    setElapsedMs(0);
-    vibratedAt30Ref.current = false;
-  }
+  lastTickRef.current = Date.now();
+  vibratedAt30Ref.current = vibrationTimeMs > 0 ? elapsedMs >= vibrationTimeMs : true;
+
+  intervalRef.current = setInterval(() => {
+    const now = Date.now();
+    const last = lastTickRef.current ?? now;
+    lastTickRef.current = now;
+    const delta = now - last;
+
+    setElapsedMs((prev) => {
+      const next = prev + delta;
+      if (vibrationTimeMs > 0 && !vibratedAt30Ref.current && next >= vibrationTimeMs) {
+        vibratedAt30Ref.current = true;
+        triggerAlarm3x();
+      }
+      return next;
+    });
+  }, 100);
+
+  return () => {
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = null;
+    lastTickRef.current = null;
+  };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [timerRunning, vibrationTimeMs]);
+
+function toggleTimer() {
+  setTimerRunning((v) => !v);
+}
+
+function resetTimer() {
+  setTimerRunning(false);
+  setElapsedMs(0);
+  vibratedAt30Ref.current = false;
+}
 
 useEffect(() => {
   resetTimer();
 }, [currentIndex]);
 
-  const timerSeconds = Math.floor(elapsedMs / 1000);
-  const timerTenths = Math.floor((elapsedMs % 1000) / 100);
-  const timerDisplay = `${String(Math.floor(timerSeconds / 60)).padStart(2, "0")}:${String(
-    timerSeconds % 60
-  ).padStart(2, "0")}.${timerTenths}`;
+const timerSeconds = Math.floor(elapsedMs / 1000);
+const timerTenths = Math.floor((elapsedMs % 1000) / 100);
+const timerDisplay = `${String(Math.floor(timerSeconds / 60)).padStart(2, "0")}:${String(
+  timerSeconds % 60
+).padStart(2, "0")}.${timerTenths}`;
 
-  const headerTitleAttack = useMemo(() => {
-    if (!currentRound) return "";
-    const aName =
-      currentRound.attacking_team_name ?? `Equip ${currentRound.attacking_team_id}`;
-    return `Ataca: ${aName}`;
-  }, [currentRound]);
+const headerTitleAttack = useMemo(() => {
+  if (!currentRound) return "";
+  const aName = currentRound.attacking_team_name ?? `${t("play.team")} ${currentRound.attacking_team_id}`;
+  return `${t("play.attack")}: ${aName}`;
+}, [currentRound, t]);
+
 const headerTitleDefense = useMemo(() => {
-    if (!currentRound) return "";
-    const dName =
-      currentRound.defending_team_name ?? `Equip ${currentRound.defending_team_id}`;
-    return `Defensa: ${dName}`;
-  }, [currentRound]);
+  if (!currentRound) return "";
+  const dName = currentRound.defending_team_name ?? `${t("play.team")} ${currentRound.defending_team_id}`;
+  return `${t("play.defense")}: ${dName}`;
+}, [currentRound, t]);
 
-  const matchTeams = useMemo(() => {
-    if (matchTeamsFixed) return matchTeamsFixed;
-    // fallback (no hauria de passar): dedueix-ho dels rounds
-    if (!rounds.length) return null;
-    const first = rounds[0];
-    const aId = first.attacking_team_id;
-    const bId = first.defending_team_id;
-    const aName = first.attacking_team_name ?? `Equip ${aId}`;
-    const bName = first.defending_team_name ?? `Equip ${bId}`;
-    return { aId, bId, aName, bName };
-  }, [matchTeamsFixed, rounds]);
+const matchTeams = useMemo(() => {
+  if (matchTeamsFixed) return matchTeamsFixed;
+  if (!rounds.length) return null;
+  const first = rounds[0];
+  const aId = first.attacking_team_id;
+  const bId = first.defending_team_id;
+  const aName = first.attacking_team_name ?? `${t("play.team")} ${aId}`;
+  const bName = first.defending_team_name ?? `${t("play.team")} ${bId}`;
+  return { aId, bId, aName, bName };
+}, [matchTeamsFixed, rounds, t]);
 
-  useEffect(() => {
-    if (!matchId || Number.isNaN(matchId)) {
-      Alert.alert("Error", "matchId invàlid");
-      router.back();
+useEffect(() => {
+  if (!matchId || Number.isNaN(matchId)) {
+    Alert.alert(t("common.error"), t("play.invalidMatchId"));
+    router.back();
+    return;
+  }
+  init();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [matchId, roundIdParam]);
+
+useEffect(() => {
+  if (!attackers.length) return;
+  setCurrentIndex(Math.min(playsDone, attackers.length - 1));
+}, [playsDone, attackers.length]);
+
+async function init() {
+  setLoading(true);
+
+  let fixedIds: { aId: number; bId: number } | undefined;
+  let matchRoundsLocal = matchRoundsCount || 2;
+
+  {
+    const { data: m, error: mErr } = await supabase
+      .from("match")
+      .select("is_finished, team_a_id, team_b_id, championship_id")
+      .eq("id", matchId)
+      .single();
+
+    if (mErr) {
+      Alert.alert(t("common.error"), mErr.message);
+      setLoading(false);
       return;
     }
-    init();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchId, roundIdParam]);
+    setChampionshipId((m as any)?.championship_id ?? null);
 
-  useEffect(() => {
-    if (!attackers.length) return;
-    setCurrentIndex(Math.min(playsDone, attackers.length - 1));
-  }, [playsDone, attackers.length]);
+    if (m?.is_finished) {
+      Alert.alert(t("play.matchFinished"), t("play.matchAlreadyClosed"));
+      router.replace("/matches");
+      return;
+    }
 
-  async function init() {
-    setLoading(true);
+    fixedIds =
+      m?.team_a_id && m?.team_b_id
+        ? { aId: m.team_a_id as number, bId: m.team_b_id as number }
+        : undefined;
 
-    // holds the fixed A/B team ids for this match across init() blocks
-    let fixedIds: { aId: number; bId: number } | undefined;
+    try {
+      const champId = (m as any)?.championship_id as number | undefined;
+      if (champId) {
+        const { data: cfg, error: cfgErr } = await supabase
+          .from("championship_config")
+          .select("value")
+          .eq("championship_id", champId)
+          .eq("key", "max_points_round")
+          .is("phase_id", null)
+          .limit(1);
 
-    // local copy so we can apply the config within the same init() run
-    let matchRoundsLocal = matchRoundsCount || 2;
-
-    // ✅ 0) Si el match ja està finalitzat, bloqueja i surt
-    {
-      const { data: m, error: mErr } = await supabase
-        .from("match")
-        .select("is_finished, team_a_id, team_b_id, championship_id")
-        .eq("id", matchId)
-        .single();
-
-      if (mErr) {
-        Alert.alert("Error", mErr.message);
-        setLoading(false);
-        return;
+        if (!cfgErr) {
+          const raw = (cfg?.[0] as any)?.value;
+          const parsed = typeof raw === "string" ? Number(raw) : Number(raw);
+          if (Number.isFinite(parsed) && parsed > 0) setMaxPointsRound(parsed);
+        }
       }
+    } catch {}
 
-      if (m?.is_finished) {
-        Alert.alert("Partit finalitzat", "Aquest partit ja està tancat.");
-        router.replace("/matches");
-        return;
-      }
+    try {
+      const champId = (m as any)?.championship_id as number | undefined;
+      if (champId) {
+        const { data: cfg, error: cfgErr } = await supabase
+          .from("championship_config")
+          .select("value")
+          .eq("championship_id", champId)
+          .eq("key", "match_rounds")
+          .is("phase_id", null)
+          .limit(1);
 
-
-      // ✅ capture fixed A/B team ids early so scoreboard never flips when Team B starts
-      fixedIds = m?.team_a_id && m?.team_b_id ? { aId: m.team_a_id as number, bId: m.team_b_id as number } : undefined;
-
-      // ✅ Config: màxim de canes per tirada (championship_config key="max_points_round")
-      try {
-        const champId = (m as any)?.championship_id as number | undefined;
-        if (champId) {
-          const { data: cfg, error: cfgErr } = await supabase
-            .from("championship_config")
-            .select("value")
-            .eq("championship_id", champId)
-            .eq("key", "max_points_round")
-            .is("phase_id", null)
-            .limit(1);
-
-          if (!cfgErr) {
-            const raw = (cfg?.[0] as any)?.value;
-            const parsed = typeof raw === "string" ? Number(raw) : Number(raw);
-            if (Number.isFinite(parsed) && parsed > 0) setMaxPointsRound(parsed);
+        if (!cfgErr) {
+          const raw = (cfg?.[0] as any)?.value;
+          const parsed = typeof raw === "string" ? Number(raw) : Number(raw);
+          if (Number.isFinite(parsed) && parsed >= 1) {
+            matchRoundsLocal = Math.floor(parsed);
+            setMatchRoundsCount(matchRoundsLocal);
           }
         }
-      } catch {
-        // keep default 600
       }
+    } catch {}
 
-      // ✅ Config: nombre de rondes per partit (championship_config key="match_rounds")
-      // IMPORTANT: un match pot tenir dades antigues creades amb 2 rondes; més avall filtrarem.
-      try {
-        const champId = (m as any)?.championship_id as number | undefined;
-        if (champId) {
-          const { data: cfg, error: cfgErr } = await supabase
-            .from("championship_config")
-            .select("value")
-            .eq("championship_id", champId)
-            .eq("key", "match_rounds")
-            .is("phase_id", null)
-            .limit(1);
+    try {
+      const champId = (m as any)?.championship_id as number | undefined;
+      if (champId) {
+        const { data: cfg, error: cfgErr } = await supabase
+          .from("championship_config")
+          .select("value")
+          .eq("championship_id", champId)
+          .eq("key", "vibration_time")
+          .is("phase_id", null)
+          .limit(1);
 
-          if (!cfgErr) {
-            const raw = (cfg?.[0] as any)?.value;
-            const parsed = typeof raw === "string" ? Number(raw) : Number(raw);
-            if (Number.isFinite(parsed) && parsed >= 1) {
-              matchRoundsLocal = Math.floor(parsed);
-              setMatchRoundsCount(matchRoundsLocal);
-            }
-          }
+        if (!cfgErr) {
+          const raw = (cfg?.[0] as any)?.value;
+          const parsed = typeof raw === "string" ? Number(raw) : Number(raw);
+          if (Number.isFinite(parsed) && parsed >= 0) setVibrationTimeSec(parsed);
         }
-      } catch {
-        // keep default 2
       }
+    } catch {}
 
-      // ✅ Config: vibració del cronòmetre (championship_config key="vibration_time", segons)
-      try {
-        const champId = (m as any)?.championship_id as number | undefined;
-        if (champId) {
-          const { data: cfg, error: cfgErr } = await supabase
-            .from("championship_config")
-            .select("value")
-            .eq("championship_id", champId)
-            .eq("key", "vibration_time")
-            .is("phase_id", null)
-            .limit(1);
-
-          if (!cfgErr) {
-            const raw = (cfg?.[0] as any)?.value;
-            const parsed = typeof raw === "string" ? Number(raw) : Number(raw);
-            // Permetem 0 per desactivar vibració
-            if (Number.isFinite(parsed) && parsed >= 0) setVibrationTimeSec(parsed);
-          }
-        }
-      } catch {
-        // keep default 30
-      }
-
-
-    // ✅ carrega equips fixos del match (A/B) per calcular marcador correcte encara que comenci Team B
     {
       const aId = fixedIds?.aId;
       const bId = fixedIds?.bId;
@@ -517,220 +511,203 @@ const headerTitleDefense = useMemo(() => {
           .in("id", [aId, bId]);
 
         if (tErr) {
-          Alert.alert("Error", tErr.message);
+          Alert.alert(t("common.error"), tErr.message);
           setLoading(false);
           return;
         }
 
-        const aName = (teams ?? []).find((t: any) => t.id === aId)?.name ?? `Equip ${aId}`;
-        const bName = (teams ?? []).find((t: any) => t.id === bId)?.name ?? `Equip ${bId}`;
+        const aName = (teams ?? []).find((team: any) => team.id === aId)?.name ?? `${t("play.team")} ${aId}`;
+        const bName = (teams ?? []).find((team: any) => team.id === bId)?.name ?? `${t("play.team")} ${bId}`;
         setMatchTeamsFixed({ aId, bId, aName, bName });
       }
     }
-    }
+  }
 
-    // 1) Carrega els rounds
-    const { data: rds, error: rErr } = await supabase
-      .from("v_rounds_by_match")
-      .select(`
-        round_id,
-        match_round_number,
-        round_number,
-        turn,
-        attacking_team_id,
-        attacking_team_name,
-        defending_team_id,
-        defending_team_name
-      `)
-      .eq("match_id", matchId)
-      .order("match_round_number", { ascending: true })
-      .order("turn", { ascending: true });
+  const { data: rds, error: rErr } = await supabase
+    .from("v_rounds_by_match")
+    .select(`
+      round_id,
+      match_round_number,
+      round_number,
+      turn,
+      attacking_team_id,
+      attacking_team_name,
+      defending_team_id,
+      defending_team_name
+    `)
+    .eq("match_id", matchId)
+    .order("match_round_number", { ascending: true })
+    .order("turn", { ascending: true });
 
-    if (rErr || !rds?.length) {
-      Alert.alert("Error", rErr?.message ?? "No s'han pogut carregar els rounds");
-      setLoading(false);
-      return;
-    }
-
-    const listAll: RoundRow[] = rds.map((x: any) => ({
-      round_id: x.round_id,
-      match_round_number: x.match_round_number,
-      round_number: x.round_number,
-      turn: x.turn,
-      attacking_team_id: x.attacking_team_id,
-      defending_team_id: x.defending_team_id,
-      attacking_team_name: x.attacking_team_name ?? null,
-      defending_team_name: x.defending_team_name ?? null,
-    }));
-
-    // ⚠️ Filtra per les rondes configurades (match_rounds). Evita que el flux salti a rondes antigues.
-    const list: RoundRow[] = listAll.filter((r) => r.match_round_number <= matchRoundsLocal);
-
-    if (!list.length) {
-      Alert.alert("Error", "No hi ha rounds vàlids per aquest partit.");
-      setLoading(false);
-      return;
-    }
-
-    setRounds(list);
-
-    // 2) Tria round actual
-    let chosen: RoundRow | null = null;
-
-    if (roundIdParam) {
-      chosen = list.find((r) => r.round_id === roundIdParam) ?? null;
-    }
-
-    if (!chosen) {
-      for (const r of list) {
-        const { count } = await supabase
-          .from("play")
-          .select("id", { count: "exact", head: true })
-          .eq("round_id", r.round_id);
-
-        const required = await getRequiredPlaysForRound(r.round_id, r.attacking_team_id);
-
-        if ((count ?? 0) < required) {
-          chosen = r;
-          break;
-        }
-      }
-      if (!chosen) chosen = list[list.length - 1];
-    }
-
-    setCurrentRound(chosen);
-
-    // 3) Carrega lineup del round
-    await loadLineup(chosen.round_id);
-
-    // 4) playsDone per reprendre
-    await loadPlaysDone(chosen.round_id);
-
-    // ✅ 5) marcador inicial
-    await refreshScoreboard(list, fixedIds);
-
+  if (rErr || !rds?.length) {
+    Alert.alert(t("common.error"), rErr?.message ?? t("play.roundsLoadError"));
     setLoading(false);
+    return;
   }
 
-  async function loadLineup(roundId: number) {
-    const { data: lu, error } = await supabase
-      .from("round_lineup")
-      .select(
-        `id, role, order_in_role, team_id, player_id, player:player_id ( id, name )`
-      )
-      .eq("round_id", roundId);
+  const listAll: RoundRow[] = rds.map((x: any) => ({
+    round_id: x.round_id,
+    match_round_number: x.match_round_number,
+    round_number: x.round_number,
+    turn: x.turn,
+    attacking_team_id: x.attacking_team_id,
+    defending_team_id: x.defending_team_id,
+    attacking_team_name: x.attacking_team_name ?? null,
+    defending_team_name: x.defending_team_name ?? null,
+  }));
 
-    if (error) {
-      Alert.alert("Error", `No s'ha pogut carregar la lineup: ${error.message}`);
-      setAttackers([]);
-      setDefenders([]);
-      return;
-    }
+  const list: RoundRow[] = listAll.filter((r) => r.match_round_number <= matchRoundsLocal);
 
-    const rows = (lu ?? []) as any as LineupRow[];
-    const atk = rows
-      .filter((r) => r.role === "attack")
-      .sort((a, b) => (a.order_in_role ?? 999) - (b.order_in_role ?? 999));
-
-    const def = rows.filter((r) => r.role === "defense");
-
-    setAttackers(atk);
-    setDefenders(def);
+  if (!list.length) {
+    Alert.alert(t("common.error"), t("play.noValidRounds"));
+    setLoading(false);
+    return;
   }
 
-  async function loadPlaysDone(roundId: number) {
-    const { count, error } = await supabase
-      .from("play")
-      .select("id", { count: "exact", head: true })
-      .eq("round_id", roundId);
+  setRounds(list);
 
-    if (error) {
-      setPlaysDone(0);
-      setAwaitingTurnConfirmation(false);
-      setCanUndoNow(false);
-      return;
+  let chosen: RoundRow | null = null;
+
+  if (roundIdParam) {
+    chosen = list.find((r) => r.round_id === roundIdParam) ?? null;
+  }
+
+  if (!chosen) {
+    for (const r of list) {
+      const { count } = await supabase
+        .from("play")
+        .select("id", { count: "exact", head: true })
+        .eq("round_id", r.round_id);
+
+      const required = await getRequiredPlaysForRound(r.round_id, r.attacking_team_id);
+
+      if ((count ?? 0) < required) {
+        chosen = r;
+        break;
+      }
     }
+    if (!chosen) chosen = list[list.length - 1];
+  }
 
-    const done = count ?? 0;
-    setPlaysDone(done);
+  setCurrentRound(chosen);
+
+  await loadLineup(chosen.round_id);
+  await loadPlaysDone(chosen.round_id);
+  await refreshScoreboard(list, fixedIds);
+
+  setLoading(false);
+}
+
+async function loadLineup(roundId: number) {
+  const { data: lu, error } = await supabase
+    .from("round_lineup")
+    .select(`id, role, order_in_role, team_id, player_id, player:player_id ( id, name )`)
+    .eq("round_id", roundId);
+
+  if (error) {
+    Alert.alert(t("common.error"), t("play.lineupLoadError", { message: error.message }));
+    setAttackers([]);
+    setDefenders([]);
+    return;
+  }
+
+  const rows = (lu ?? []) as any as LineupRow[];
+  const atk = rows
+    .filter((r) => r.role === "attack")
+    .sort((a, b) => (a.order_in_role ?? 999) - (b.order_in_role ?? 999));
+
+  const def = rows.filter((r) => r.role === "defense");
+
+  setAttackers(atk);
+  setDefenders(def);
+}
+
+async function loadPlaysDone(roundId: number) {
+  const { count, error } = await supabase
+    .from("play")
+    .select("id", { count: "exact", head: true })
+    .eq("round_id", roundId);
+
+  if (error) {
+    setPlaysDone(0);
     setAwaitingTurnConfirmation(false);
-    setCanUndoNow(done > 0);
+    setCanUndoNow(false);
+    return;
   }
 
-  /**
-   * ✅ Marcador en directe (global de match)
-   * Ara RETORNA els totals calculats per poder guardar-los al final
-   */
-  async function refreshScoreboard(
+  const done = count ?? 0;
+  setPlaysDone(done);
+  setAwaitingTurnConfirmation(false);
+  setCanUndoNow(done > 0);
+}
+
+async function refreshScoreboard(
   roundList?: RoundRow[],
   fixedTeams?: { aId: number; bId: number }
 ) {
-    const list = roundList ?? rounds;
-    if (!list?.length) return { a: scoreA, b: scoreB };
+  const list = roundList ?? rounds;
+  if (!list?.length) return { a: scoreA, b: scoreB };
 
-    setScoreLoading(true);
-    try {
-      const roundMap = new Map<number, { atk: number; def: number }>();
-      for (const r of list) {
-        roundMap.set(r.round_id, { atk: r.attacking_team_id, def: r.defending_team_id });
+  setScoreLoading(true);
+  try {
+    const roundMap = new Map<number, { atk: number; def: number }>();
+    for (const r of list) {
+      roundMap.set(r.round_id, { atk: r.attacking_team_id, def: r.defending_team_id });
+    }
+
+    const roundIds = list.map((r) => r.round_id);
+
+    const { data: plays, error: pErr } = await supabase
+      .from("play")
+      .select("id, round_id")
+      .in("round_id", roundIds);
+
+    if (pErr) throw pErr;
+
+    const playRows = plays ?? [];
+    if (!playRows.length) {
+      setScoreA(0);
+      setScoreB(0);
+      return { a: 0, b: 0 };
+    }
+
+    const playIdToRound = new Map<number, number>();
+    const playIds: number[] = [];
+    for (const p of playRows as any[]) {
+      playIdToRound.set(p.id, p.round_id);
+      playIds.push(p.id);
+    }
+
+    const { data: events, error: eErr } = await supabase
+      .from("play_event")
+      .select("play_id, event_type, value, player_id")
+      .in("play_id", playIds);
+
+    if (eErr) throw eErr;
+
+    const totals = new Map<number, number>();
+
+    for (const ev of (events ?? []) as any[]) {
+      const roundId = playIdToRound.get(ev.play_id);
+      if (!roundId) continue;
+      const map = roundMap.get(roundId);
+      if (!map) continue;
+
+      const v = typeof ev.value === "number" ? ev.value : 0;
+
+      if (ev.event_type === "CANAS_SCORED") {
+        totals.set(map.atk, (totals.get(map.atk) ?? 0) + v);
+      } else if (ev.event_type === "TEAM_BONUS_CANAS") {
+        totals.set(map.atk, (totals.get(map.atk) ?? 0) + v);
+      } else if (ev.event_type === "DEFENDER_BONUS_CANAS") {
+        totals.set(map.def, (totals.get(map.def) ?? 0) + v);
       }
+    }
 
-      const roundIds = list.map((r) => r.round_id);
-
-      const { data: plays, error: pErr } = await supabase
-        .from("play")
-        .select("id, round_id")
-        .in("round_id", roundIds);
-
-      if (pErr) throw pErr;
-
-      const playRows = plays ?? [];
-      if (!playRows.length) {
-        setScoreA(0);
-        setScoreB(0);
-        return { a: 0, b: 0 };
-      }
-
-      const playIdToRound = new Map<number, number>();
-      const playIds: number[] = [];
-      for (const p of playRows as any[]) {
-        playIdToRound.set(p.id, p.round_id);
-        playIds.push(p.id);
-      }
-
-      const { data: events, error: eErr } = await supabase
-        .from("play_event")
-        .select("play_id, event_type, value, player_id")
-        .in("play_id", playIds);
-
-      if (eErr) throw eErr;
-
-      const totals = new Map<number, number>(); // team_id -> score
-
-      for (const ev of (events ?? []) as any[]) {
-        const roundId = playIdToRound.get(ev.play_id);
-        if (!roundId) continue;
-        const map = roundMap.get(roundId);
-        if (!map) continue;
-
-        const v = typeof ev.value === "number" ? ev.value : 0;
-
-        if (ev.event_type === "CANAS_SCORED") {
-          // sempre suma a l'equip atacant del round
-          totals.set(map.atk, (totals.get(map.atk) ?? 0) + v);
-        } else if (ev.event_type === "TEAM_BONUS_CANAS") {
-          totals.set(map.atk, (totals.get(map.atk) ?? 0) + v);
-        } else if (ev.event_type === "DEFENDER_BONUS_CANAS") {
-          totals.set(map.def, (totals.get(map.def) ?? 0) + v);
-        }
-      }
-
-      // assignem a Equip A/B del match (fixos)
-      const teams =
+    const teams =
       fixedTeams ??
-      matchTeamsFixed ?? // <-- usa l’estat quan ja hi és
-      matchTeams ??      // <-- memo
-      {
+      matchTeamsFixed ??
+      matchTeams ?? {
         aId: list[0].attacking_team_id,
         bId: list[0].defending_team_id,
       };
@@ -742,279 +719,302 @@ const headerTitleDefense = useMemo(() => {
     setScoreB(b);
 
     return { a, b };
-    } catch (e: any) {
-      console.warn("refreshScoreboard error:", e?.message ?? e);
-      return { a: scoreA, b: scoreB };
-    } finally {
-      setScoreLoading(false);
-    }
+  } catch (e: any) {
+    console.warn("refreshScoreboard error:", e?.message ?? e);
+    return { a: scoreA, b: scoreB };
+  } finally {
+    setScoreLoading(false);
+  }
+}
+
+async function createPlay(attackerPlayerId: number) {
+  if (!currentRound) return null;
+
+  const { data, error } = await supabase
+    .from("play")
+    .insert({
+      round_id: currentRound.round_id,
+      attacker_player_id: attackerPlayerId,
+      eliminated: false,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    Alert.alert(t("common.error"), t("play.createPlayError", { message: error.message }));
+    return null;
   }
 
-  async function createPlay(attackerPlayerId: number) {
-    if (!currentRound) return null;
+  return data;
+}
 
-    const { data, error } = await supabase
+async function createPlayEvent(
+  playId: number,
+  event_type: string,
+  value: number | null,
+  player_id: number | null
+) {
+  const { error } = await supabase.from("play_event").insert({
+    play_id: playId,
+    event_type,
+    value,
+    player_id,
+  });
+
+  if (error) {
+    Alert.alert(t("common.error"), t("play.createPlayEventError", { message: error.message }));
+    throw error;
+  }
+}
+
+async function getLastPlayOfCurrentRound() {
+  if (!currentRound) return null;
+
+  const { data, error } = await supabase
+    .from("play")
+    .select("id, attacker_player_id")
+    .eq("round_id", currentRound.round_id)
+    .order("id", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error) {
+    Alert.alert(t("common.error"), t("play.lastThrowLoadError", { message: error.message }));
+    return null;
+  }
+
+  return data;
+}
+
+async function undoPreviousPlay() {
+  if (!currentRound || saving) return;
+
+  if (!canUndoNow) {
+    Alert.alert(t("play.actionUnavailable"), t("play.undoConsecutiveNotAllowed"));
+    return;
+  }
+
+  if (playsDone <= 0) {
+    Alert.alert(t("common.info"), t("play.noThrowToUndo"));
+    return;
+  }
+
+  const ok = await new Promise<boolean>((resolve) => {
+    Alert.alert(t("play.undoLastPlay"), t("play.undoLastPlayMessage"), [
+      { text: t("publicMatches.cancel"), style: "cancel", onPress: () => resolve(false) },
+      { text: t("play.yesUndo"), style: "destructive", onPress: () => resolve(true) },
+    ]);
+  });
+
+  if (!ok) return;
+
+  try {
+    setSaving(true);
+
+    const lastPlay = await getLastPlayOfCurrentRound();
+    if (!lastPlay?.id) {
+      Alert.alert(t("common.info"), t("play.noThrowFoundToUndo"));
+      return;
+    }
+
+    const { error: evErr } = await supabase
+      .from("play_event")
+      .delete()
+      .eq("play_id", lastPlay.id);
+
+    if (evErr) throw evErr;
+
+    const { error: playErr } = await supabase
       .from("play")
-      .insert({
-        round_id: currentRound.round_id,
-        attacker_player_id: attackerPlayerId,
-        eliminated: false,
-      })
-      .select()
+      .delete()
+      .eq("id", lastPlay.id);
+
+    if (playErr) throw playErr;
+
+    const { count, error: countErr } = await supabase
+      .from("play")
+      .select("id", { count: "exact", head: true })
+      .eq("round_id", currentRound.round_id);
+
+    if (countErr) throw countErr;
+
+    const done = count ?? 0;
+    setPlaysDone(done);
+    setCurrentIndex(Math.max(0, Math.min(done, (attackers.length || 6) - 1)));
+    setCanUndoNow(false);
+    setAwaitingTurnConfirmation(false);
+
+    await refreshScoreboard();
+
+    Alert.alert(t("lineup.doneTitle"), t("play.undoDone"));
+  } catch (e: any) {
+    Alert.alert(t("common.error"), e?.message ?? t("play.undoError"));
+  } finally {
+    setSaving(false);
+  }
+}
+
+async function continueAfterTurnCompleted(totalsOverride?: { a: number; b: number }) {
+  if (!currentRound) return;
+  const ok = await confirmFinishTurn(t);
+  if (!ok) return;
+  const totals = totalsOverride ?? (await refreshScoreboard());
+
+  await sendPushNotification({
+  championshipId,
+  teamIds: [
+    currentRound.attacking_team_id,
+    currentRound.defending_team_id,
+  ],
+  type: "round_finished",
+  title: "Ronda finalitzada",
+  message: `Ronda ${currentRound.match_round_number} · Torn ${currentRound.turn} finalitzat`,
+  data: {
+    match_id: matchId,
+    round_id: currentRound.round_id,
+    match_round_number: currentRound.match_round_number,
+    turn: currentRound.turn,
+  },
+  dedupeKey: `round_finished:${currentRound.round_id}`,
+});
+
+  const mr = matchRoundsCount || 2;
+  const isLastTurnByConfig =
+    currentRound.match_round_number >= mr && currentRound.turn === 2;
+
+  if (isLastTurnByConfig) {
+    const { data: mInfo, error: mInfoErr } = await supabase
+      .from("match")
+      .select("phase_id")
+      .eq("id", matchId)
       .single();
 
-    if (error) {
-      Alert.alert("Error", `No s'ha pogut crear play: ${error.message}`);
-      return null;
+    if (mInfoErr) {
+      Alert.alert(t("common.error"), mInfoErr.message);
+      return;
     }
 
-    return data;
+    const phaseId = (mInfo as any)?.phase_id as number;
+    if (phaseId !== 1 && phaseId !== 8 && totals.a === totals.b) {
+      setBelitDorPendingTotals({ a: totals.a, b: totals.b });
+      setBelitDorModalOpen(true);
+      return;
+    }
+
+    Alert.alert(t("play.matchFinishedOk"), t("play.allThrowsRegistered"));
+    await finalizeMatch({
+  matchId,
+  scoreTeamA: totals.a,
+  scoreTeamB: totals.b,
+  championshipId,
+  teamAId: matchTeams?.aId,
+  teamBId: matchTeams?.bId,
+  teamAName: matchTeams?.aName,
+  teamBName: matchTeams?.bName,
+});
+    setFinishedLocal(true);
+    setFinalScores({ a: totals.a, b: totals.b });
+    setFinalModalOpen(true);
+    return;
   }
 
-  async function createPlayEvent(
-    playId: number,
-    event_type: string,
-    value: number | null,
-    player_id: number | null
-  ) {
-    const { error } = await supabase.from("play_event").insert({
-      play_id: playId,
-      event_type,
-      value,
-      player_id,
+  const idx = rounds.findIndex((r) => r.round_id === currentRound.round_id);
+  const next = idx >= 0 ? rounds[idx + 1] : null;
+
+  if (next) {
+    Alert.alert(t("play.turnCompleted"), t("play.prepareNextTurn"));
+    router.replace({
+      pathname: "/lineup",
+      params: { matchId: String(matchId), roundId: String(next.round_id) },
     });
-
-    if (error) {
-      Alert.alert("Error", `No s'ha pogut crear play_event: ${error.message}`);
-      throw error;
-    }
+  } else {
+    Alert.alert(t("play.matchCompleted"), t("play.allThrowsRegistered"));
+    router.replace("/matches");
   }
+}
 
-  async function getLastPlayOfCurrentRound() {
-    if (!currentRound) return null;
+async function applyBelitDor(winner: "A" | "B") {
+  try {
+    if (!belitDorPendingTotals) return;
+    if (!matchTeamsFixed?.aId || !matchTeamsFixed?.bId) {
+      Alert.alert(t("common.error"), t("play.matchTeamsLoadError"));
+      return;
+    }
 
-    const { data, error } = await supabase
+    setSaving(true);
+
+    const roundIdForGolden =
+      currentRound?.round_id ?? (rounds.length ? rounds[rounds.length - 1].round_id : null);
+
+    if (!roundIdForGolden) {
+      Alert.alert(t("common.error"), t("play.belitDorRoundError"));
+      setSaving(false);
+      return;
+    }
+
+    const scoreA0 = belitDorPendingTotals.a;
+    const scoreB0 = belitDorPendingTotals.b;
+
+    const scoreA1 = winner === "A" ? scoreA0 + 1 : scoreA0;
+    const scoreB1 = winner === "B" ? scoreB0 + 1 : scoreB0;
+
+    const { data: goldenPlay, error: gpErr } = await supabase
       .from("play")
-      .select("id, attacker_player_id")
-      .eq("round_id", currentRound.round_id)
-      .order("id", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .insert({
+        round_id: roundIdForGolden,
+        attacker_player_id: null,
+        eliminated: null,
+        eliminated_by_player_id: null,
+      })
+      .select("id")
+      .single();
 
-    if (error) {
-      Alert.alert("Error", `No s'ha pogut carregar l'última tirada: ${error.message}`);
-      return null;
-    }
-
-    return data;
-  }
-
-  async function undoPreviousPlay() {
-    if (!currentRound || saving) return;
-
-    if (!canUndoNow) {
-      Alert.alert(
-        "Acció no disponible",
-        "No pots desfer dues tirades seguides. Torna a entrar una jugada abans de retrocedir de nou."
-      );
+    if (gpErr) {
+      Alert.alert(t("common.error"), gpErr.message);
+      setSaving(false);
       return;
     }
 
-    if (playsDone <= 0) {
-      Alert.alert("Info", "Encara no hi ha cap tirada per desfer.");
-      return;
-    }
-
-    const ok = await new Promise<boolean>((resolve) => {
-      Alert.alert(
-        "Desfer última tirada",
-        "S'eliminarà completament la jugada immediatament anterior per tornar-la a entrar. Vols continuar?",
-        [
-          { text: "Cancel·lar", style: "cancel", onPress: () => resolve(false) },
-          { text: "Sí, desfer", style: "destructive", onPress: () => resolve(true) },
-        ]
-      );
+    const { error: peErr } = await supabase.from("play_event").insert({
+      play_id: (goldenPlay as any)?.id,
+      event_type: "BELIT_DOR",
+      value: 1,
+      player_id: null,
     });
 
-    if (!ok) return;
-
-    try {
-      setSaving(true);
-
-      const lastPlay = await getLastPlayOfCurrentRound();
-      if (!lastPlay?.id) {
-        Alert.alert("Info", "No s'ha trobat cap tirada per desfer.");
-        return;
-      }
-
-      const { error: evErr } = await supabase
-        .from("play_event")
-        .delete()
-        .eq("play_id", lastPlay.id);
-
-      if (evErr) throw evErr;
-
-      const { error: playErr } = await supabase
-        .from("play")
-        .delete()
-        .eq("id", lastPlay.id);
-
-      if (playErr) throw playErr;
-
-      const { count, error: countErr } = await supabase
-        .from("play")
-        .select("id", { count: "exact", head: true })
-        .eq("round_id", currentRound.round_id);
-
-      if (countErr) throw countErr;
-
-      const done = count ?? 0;
-      setPlaysDone(done);
-      setCurrentIndex(Math.max(0, Math.min(done, (attackers.length || 6) - 1)));
-      setCanUndoNow(false);
-      setAwaitingTurnConfirmation(false);
-
-      await refreshScoreboard();
-
-      Alert.alert("Fet ✅", "S'ha desfet l'última tirada. Torna-la a entrar correctament.");
-    } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "No s'ha pogut desfer l'última tirada.");
-    } finally {
+    if (peErr) {
+      Alert.alert(t("common.error"), peErr.message);
       setSaving(false);
-    }
-  }
-
-  async function continueAfterTurnCompleted(totalsOverride?: { a: number; b: number }) {
-    if (!currentRound) return;
-    const ok = await confirmFinishTurn();
-    if (!ok) return;
-    const totals = totalsOverride ?? (await refreshScoreboard());
-
-    const mr = matchRoundsCount || 2;
-    const isLastTurnByConfig =
-      currentRound.match_round_number >= mr && currentRound.turn === 2;
-
-    if (isLastTurnByConfig) {
-      const { data: mInfo, error: mInfoErr } = await supabase
-        .from("match")
-        .select("phase_id")
-        .eq("id", matchId)
-        .single();
-
-      if (mInfoErr) {
-        Alert.alert("Error", mInfoErr.message);
-        return;
-      }
-
-      const phaseId = (mInfo as any)?.phase_id as number;
-      if (phaseId !== 1 && phaseId !== 8 && totals.a === totals.b) {
-        setBelitDorPendingTotals({ a: totals.a, b: totals.b });
-        setBelitDorModalOpen(true);
-        return;
-      }
-
-      Alert.alert("Partit finalitzat ✅", "S'han registrat totes les tirades del partit.");
-      await finalizeMatch({ matchId, scoreTeamA: totals.a, scoreTeamB: totals.b });
-      setFinishedLocal(true);
-      setFinalScores({ a: totals.a, b: totals.b });
-      setFinalModalOpen(true);
       return;
     }
 
-    const idx = rounds.findIndex((r) => r.round_id === currentRound.round_id);
-    const next = idx >= 0 ? rounds[idx + 1] : null;
+    await finalizeMatch({
+  matchId,
+  scoreTeamA: scoreA1,
+  scoreTeamB: scoreB1,
+  championshipId,
+  teamAId: matchTeams?.aId,
+  teamBId: matchTeams?.bId,
+  teamAName: matchTeams?.aName,
+  teamBName: matchTeams?.bName,
+});
 
-    if (next) {
-      Alert.alert("Torn complet ✅", "Ara toca preparar el següent torn.");
-      router.replace({
-        pathname: "/lineup",
-        params: { matchId: String(matchId), roundId: String(next.round_id) },
-      });
-    } else {
-      Alert.alert("Partit complet ✅", "S'han registrat totes les tirades del partit.");
-      router.replace("/matches");
-    }
+    setScoreA(scoreA1);
+    setScoreB(scoreB1);
+
+    setBelitDorModalOpen(false);
+    setBelitDorPendingTotals(null);
+
+    Alert.alert(t("play.matchFinishedOk"), t("play.allThrowsRegistered"));
+    setFinishedLocal(true);
+    setFinalScores({ a: scoreA1, b: scoreB1 });
+    setFinalModalOpen(true);
+  } catch (e: any) {
+    Alert.alert(t("common.error"), e?.message ?? t("play.belitDorApplyError"));
+  } finally {
+    setSaving(false);
   }
-
-  
-  // ✅ Aplica el Bélit d'Or (només eliminatòries): suma +1 al marcador, crea play especial + play_event i finalitza
-  async function applyBelitDor(winner: "A" | "B") {
-    try {
-      if (!belitDorPendingTotals) return;
-      if (!matchTeamsFixed?.aId || !matchTeamsFixed?.bId) {
-        Alert.alert("Error", "No s'han pogut carregar els equips del partit.");
-        return;
-      }
-
-      setSaving(true);
-
-      const roundIdForGolden =
-        currentRound?.round_id ?? (rounds.length ? rounds[rounds.length - 1].round_id : null);
-
-      if (!roundIdForGolden) {
-        Alert.alert("Error", "No s'ha pogut determinar el round per registrar el bélit d'or.");
-        setSaving(false);
-        return;
-      }
-
-      const scoreA0 = belitDorPendingTotals.a;
-      const scoreB0 = belitDorPendingTotals.b;
-
-      const scoreA1 = winner === "A" ? scoreA0 + 1 : scoreA0;
-      const scoreB1 = winner === "B" ? scoreB0 + 1 : scoreB0;
-
-      // 1) Crea un play especial (sense attacker) per poder vincular l'event a un match via round -> match_round
-      const { data: goldenPlay, error: gpErr } = await supabase
-        .from("play")
-        .insert({
-          round_id: roundIdForGolden,
-          attacker_player_id: null,
-          eliminated: null,
-          eliminated_by_player_id: null,
-        })
-        .select("id")
-        .single();
-
-      if (gpErr) {
-        Alert.alert("Error", gpErr.message);
-        setSaving(false);
-        return;
-      }
-
-      // 2) Crea event BELIT_DOR (value=1)
-      const { error: peErr } = await supabase.from("play_event").insert({
-        play_id: (goldenPlay as any)?.id,
-        event_type: "BELIT_DOR",
-        value: 1,
-        player_id: null,
-      });
-
-      if (peErr) {
-        Alert.alert("Error", peErr.message);
-        setSaving(false);
-        return;
-      }
-
-      // 3) Finalitza el partit amb marcador actualitzat (+1 al guanyador)
-      await finalizeMatch({ matchId, scoreTeamA: scoreA1, scoreTeamB: scoreB1 });
-
-      setScoreA(scoreA1);
-      setScoreB(scoreB1);
-
-      setBelitDorModalOpen(false);
-      setBelitDorPendingTotals(null);
-
-      Alert.alert("Partit finalitzat ✅", "S'han registrat totes les tirades del partit.");
-      setFinishedLocal(true);
-      setFinalScores({ a: scoreA1, b: scoreB1 });
-      setFinalModalOpen(true);
-    } catch (e: any) {
-      Alert.alert("Error", e?.message ?? "Error aplicant el bélit d'or");
-    } finally {
-      setSaving(false);
-    }
-  }
-
+}
 async function afterSavedAdvance() {
   if (!currentRound) return;
 
@@ -1024,7 +1024,7 @@ async function afterSavedAdvance() {
     .eq("round_id", currentRound.round_id);
 
   if (countErr) {
-    Alert.alert("Error", countErr.message);
+    Alert.alert(t("common.error"), countErr.message);
     return;
   }
 
@@ -1032,14 +1032,11 @@ async function afterSavedAdvance() {
   setPlaysDone(done);
   setCanUndoNow(done > 0);
 
-  // refresca marcador després de cada acció guardada i recull totals
   await refreshScoreboard();
 
   const requiredPlays = attackers.length || 6;
 
   if (done >= requiredPlays) {
-    // Quan s'acaba el torn, NO preguntem automàticament.
-    // Simplement bloquegem les accions de jugada i mostrem "Finalitzar torn".
     setAwaitingTurnConfirmation(true);
     setCurrentIndex(Math.max(0, requiredPlays - 1));
     return;
@@ -1049,536 +1046,475 @@ async function afterSavedAdvance() {
   setCurrentIndex(Math.min(done, attackers.length - 1));
 }
 
-  async function safeSave(fn: () => Promise<void>) {
-    if (saving) return;
-    try {
-      setSaving(true);
-      await fn();
-      setCanUndoNow(true);
-    } finally {
-      setSaving(false);
-    }
+async function safeSave(fn: () => Promise<void>) {
+  if (saving) return;
+  try {
+    setSaving(true);
+    await fn();
+    setCanUndoNow(true);
+  } finally {
+    setSaving(false);
   }
-
-  // --- CANES ---
-  async function saveCanasPlayerOnly() {
-    if (!attacker?.player_id) return;
-
-    const ok = await confirmAction(
-      "Confirmar",
-      `Sumar ${canasValue} canes a ${attacker.player?.name ?? "jugador"} ?`
-    );
-    if (!ok) return;
-
-    await safeSave(async () => {
-      const play = await createPlay(attacker.player_id);
-      if (!play) return;
-
-      await createPlayEvent(play.id, "CANAS_SCORED", canasValue, attacker.player_id);
-
-      setCanasModalOpen(false);
-      setCanasValue(0);
-      await afterSavedAdvance();
-    });
-  }
-
-  async function saveCanasAttackMeter() {
-    if (!attacker?.player_id) return;
-if (canasValue <= 0) {
-  Alert.alert("Error", "Si es demana metre guanyat per atacant, les canes han de ser > 0.");
-  return;
 }
-    const ok = await confirmAction(
-      "Confirmar",
-      `Metre guanyat per atacant: jugador suma ${canasValue} canes i l'equip suma ${canasValue} canes més`
-    );
-    if (!ok) return;
 
-    await safeSave(async () => {
-      const play = await createPlay(attacker.player_id);
-      if (!play) return;
+async function saveCanasPlayerOnly() {
+  if (!attacker?.player_id) return;
 
-      await createPlayEvent(play.id, "CANAS_SCORED", canasValue, attacker.player_id);
-      await createPlayEvent(play.id, "TEAM_BONUS_CANAS", canasValue, null);
+  const ok = await confirmAction(t,
+    t("play.confirm"),
+    t("play.confirmaddCanesPlayer", {
+      canes: canasValue,
+      name: attacker.player?.name ?? t("play.player"),
+    })
+  );
+  if (!ok) return;
 
-      setCanasModalOpen(false);
-      setCanasValue(0);
-      await afterSavedAdvance();
-    });
-  }
+  await safeSave(async () => {
+    const play = await createPlay(attacker.player_id);
+    if (!play) return;
 
-  async function saveCanasDefenseMeter() {
-    if (!attacker?.player_id) return;
-if (canasValue <= 0) {
-  Alert.alert("Error", "Si es demana metre guanyat per defensor, les canes han de ser > 0.");
-  return;
+    await createPlayEvent(play.id, "CANAS_SCORED", canasValue, attacker.player_id);
+
+    setCanasModalOpen(false);
+    setCanasValue(0);
+    await afterSavedAdvance();
+  });
 }
-    const ok = await confirmAction(
-      "Confirmar",
-      `Metre guanyat per defensor: defensa suma ${canasValue} canes i atacant 0?`
-    );
-    if (!ok) return;
 
-    await safeSave(async () => {
-      const play = await createPlay(attacker.player_id);
-      if (!play) return;
+async function saveCanasAttackMeter() {
+  if (!attacker?.player_id) return;
 
-      await createPlayEvent(play.id, "CANAS_SCORED", 0, attacker.player_id);
-      await createPlayEvent(play.id, "DEFENDER_BONUS_CANAS", canasValue, null);
-
-      setCanasModalOpen(false);
-      setCanasValue(0);
-      await afterSavedAdvance();
-    });
+  if (canasValue <= 0) {
+    Alert.alert(t("common.error"), t("play.attackMeterNeedsCanes"));
+    return;
   }
 
-  async function onPickDefender(defenderPlayerId: number) {
-    if (!attacker?.player_id) return;
+  const ok = await confirmAction(t,
+    t("play.confirm"),
+    t("play.confirmAttackMeter", { canes: canasValue })
+  );
+  if (!ok) return;
 
-    const defenderName =
-      defenders.find((d) => d.player_id === defenderPlayerId)?.player?.name ?? "defensor";
+  await safeSave(async () => {
+    const play = await createPlay(attacker.player_id);
+    if (!play) return;
 
-    const label = pendingDefenseEvent === "MATACANAS" ? "Matacanes" : "Recollida";
+    await createPlayEvent(play.id, "CANAS_SCORED", canasValue, attacker.player_id);
+    await createPlayEvent(play.id, "TEAM_BONUS_CANAS", canasValue, null);
 
-    const ok = await confirmAction("Confirmar", `${label} per ${defenderName}?`);
-    if (!ok) return;
+    setCanasModalOpen(false);
+    setCanasValue(0);
+    await afterSavedAdvance();
+  });
+}
 
-    await safeSave(async () => {
-      const play = await createPlay(attacker.player_id);
-      if (!play) return;
+async function saveCanasDefenseMeter() {
+  if (!attacker?.player_id) return;
 
-      if (pendingDefenseEvent === "MATACANAS") {
-        const { error } = await supabase
-          .from("play")
-          .update({ eliminated: true, eliminated_by_player_id: defenderPlayerId })
-          .eq("id", play.id);
+  if (canasValue <= 0) {
+    Alert.alert(t("common.error"), t("play.defenseMeterNeedsCanes"));
+    return;
+  }
 
-        if (error) {
-          Alert.alert("Error", `No s'ha pogut marcar eliminated: ${error.message}`);
-        }
+  const ok = await confirmAction(t,
+    t("play.confirm"),
+    t("play.confirmDefenseMeter", { canes: canasValue })
+  );
+  if (!ok) return;
 
-        await createPlayEvent(play.id, "MATACANAS", 1, defenderPlayerId);
-      } else if (pendingDefenseEvent === "AIR_CATCH") {
-        const { error } = await supabase
-          .from("play")
-          .update({ eliminated: true, eliminated_by_player_id: defenderPlayerId })
-          .eq("id", play.id);
+  await safeSave(async () => {
+    const play = await createPlay(attacker.player_id);
+    if (!play) return;
 
-        if (error) {
-          Alert.alert("Error", `No s'ha pogut marcar eliminated: ${error.message}`);
-        }
-        await createPlayEvent(play.id, "AIR_CATCH", 1, defenderPlayerId);
+    await createPlayEvent(play.id, "CANAS_SCORED", 0, attacker.player_id);
+    await createPlayEvent(play.id, "DEFENDER_BONUS_CANAS", canasValue, null);
+
+    setCanasModalOpen(false);
+    setCanasValue(0);
+    await afterSavedAdvance();
+  });
+}
+
+async function onPickDefender(defenderPlayerId: number) {
+  if (!attacker?.player_id) return;
+
+  const defenderName =
+    defenders.find((d) => d.player_id === defenderPlayerId)?.player?.name ?? t("play.defender");
+
+  const label =
+    pendingDefenseEvent === "MATACANAS"
+      ? t("play.matacanes")
+      : t("play.airCatch");
+
+  const ok = await confirmAction(t,t("play.confirm"), t("play.confirmDefenseAction", { label, name: defenderName }));
+  if (!ok) return;
+
+  await safeSave(async () => {
+    const play = await createPlay(attacker.player_id);
+    if (!play) return;
+
+    if (pendingDefenseEvent === "MATACANAS") {
+      const { error } = await supabase
+        .from("play")
+        .update({ eliminated: true, eliminated_by_player_id: defenderPlayerId })
+        .eq("id", play.id);
+
+      if (error) {
+        Alert.alert(t("common.error"), t("play.markEliminatedError", { message: error.message }));
       }
 
-      setPendingDefenseEvent(null);
-      setDefenderModalOpen(false);
-      await afterSavedAdvance();
-    });
-  }
+      await createPlayEvent(play.id, "MATACANAS", 1, defenderPlayerId);
+    } else if (pendingDefenseEvent === "AIR_CATCH") {
+      const { error } = await supabase
+        .from("play")
+        .update({ eliminated: true, eliminated_by_player_id: defenderPlayerId })
+        .eq("id", play.id);
 
-  async function onExit() {
-    // ✅ Un cop hi ha 1 play registrat al round, no es pot tornar enrere a Lineup
-    if (playsDone > 0) {
-      Alert.alert(
-        "Lineup bloquejada",
-        "Ja s'ha registrat la primera tirada. No es pot tornar a la lineup."
-      );
-      return;
+      if (error) {
+        Alert.alert(t("common.error"), t("play.markEliminatedError", { message: error.message }));
+      }
+
+      await createPlayEvent(play.id, "AIR_CATCH", 1, defenderPlayerId);
     }
 
-    const ok = await confirmAction(
-      "Sortir",
-      "Vols sortir de l'arbitratge? Encara no hi ha cap tirada registrada; podràs ajustar la lineup."
-    );
-    if (!ok) return;
-    router.replace({
-  pathname: "/lineup",
-  params: { matchId: String(matchId), roundId: String(currentRound?.round_id) },
-});
+    setPendingDefenseEvent(null);
+    setDefenderModalOpen(false);
+    await afterSavedAdvance();
+  });
+}
+
+async function onExit() {
+  if (playsDone > 0) {
+    Alert.alert(t("play.lineupLocked"), t("play.lineupLockedMessage"));
+    return;
   }
 
+  const ok = await confirmAction(t,t("play.exit"), t("play.exitMessage"));
+  if (!ok) return;
 
-  if (loading || !currentRound) {
-    return (
-      <View style={{ flex: 1, justifyContent: "center" }}>
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
+  router.replace({
+    pathname: "/lineup",
+    params: { matchId: String(matchId), roundId: String(currentRound?.round_id) },
+  });
+}
 
-  const teams = matchTeams ?? {
-    aName: "Equip A",
-    bName: "Equip B",
-  };
-
-  const playActionsDisabled = saving || finishedLocal || awaitingTurnConfirmation;
-  const finishTurnDisabled = saving || finishedLocal;
-
+if (loading || !currentRound) {
   return (
-    <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
-      {/* Header: sortir (esquerra) + cronòmetre (dreta) */}
-      <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-        <Pressable
-          onPress={onExit}
-          disabled={saving || playsDone > 0}
-          style={{
-            alignSelf: "flex-start",
-            paddingVertical: 8,
-            paddingHorizontal: 12,
-            borderRadius: 10,
-            borderWidth: 1,
-            borderColor: colors.border,
-            opacity: saving || playsDone > 0 ? 0.35 : 1,
-          }}
-        >
-          <Text style={{ fontWeight: "600", color: colors.text }}>⤴︎ Sortir</Text>
-        </Pressable>
+    <View style={{ flex: 1, justifyContent: "center" }}>
+      <ActivityIndicator size="large" />
+    </View>
+  );
+}
 
-        <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-          {/* Temps (només números) */}
-          <View
-            style={{
-              paddingVertical: 6,
-              paddingHorizontal: 10,
-              borderRadius: 999,
-              borderWidth: 1,
-              borderColor: timerRunning ? "#2563EB" : colors.border,
-              backgroundColor: timerRunning ? colors.timerRunningBg : colors.bg,
-            }}
-          >
-            <Text style={{ fontWeight: "900", fontVariant: ["tabular-nums"] as any,color:colors.text }}>
-              {timerDisplay}
-            </Text>
-          </View>
+const teams = matchTeams ?? {
+  aName: t("play.teamA"),
+  bName: t("play.teamB"),
+};
 
-          {/* Botó PRO (sense text). Tap: start/stop. Long press: reset */}
-          <Pressable
-            onPress={toggleTimer}
-            onLongPress={resetTimer}
-            delayLongPress={450}
-            style={{
-              width: 44,
-              height: 44,
-              borderRadius: 22,
-              justifyContent: "center",
-              alignItems: "center",
-              borderWidth: 1,
-              borderColor: timerRunning ? "#1D4ED8" : "#16A34A",
-              backgroundColor: timerRunning ? "#DBEAFE" : "#DCFCE7",
-            }}
-          >
-            <Text style={{ fontSize: 18 }}>{timerRunning ? "⏸️" : "⏱️"}</Text>
-          </Pressable>
-        </View>
-      </View>
+const playActionsDisabled = saving || finishedLocal || awaitingTurnConfirmation;
+const finishTurnDisabled = saving || finishedLocal;
 
-      <Text style={{ fontSize: 20, fontWeight: "bold", textAlign: "center", color: colors.text }}>
-        {headerTitleAttack}
-      </Text>
-      <Text style={{ fontSize: 20, fontWeight: "bold", textAlign: "center", color: colors.text }}>
-        {headerTitleDefense}
-      </Text>
-      <Text style={{ textAlign: "center", color: colors.muted, marginTop: 6 }}>
-        Round {currentRound.match_round_number} · Torn {currentRound.turn}
-      </Text>
-
-      <View style={{ height: 16 }} />
-
-      <View
+return (
+  <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 24 }}>
+    <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+      <Pressable
+        onPress={onExit}
+        disabled={saving || playsDone > 0}
         style={{
-          padding: 14,
-          borderRadius: 12,
+          alignSelf: "flex-start",
+          paddingVertical: 8,
+          paddingHorizontal: 12,
+          borderRadius: 10,
           borderWidth: 1,
           borderColor: colors.border,
-          backgroundColor: colors.bg,
-          alignItems: "center",
+          opacity: saving || playsDone > 0 ? 0.35 : 1,
         }}
       >
-        <Text style={{ fontSize: 14, color: colors.muted }}>Tira ara:</Text>
-        <Text style={{ fontSize: 24, fontWeight: "900", marginTop: 6,color: colors.text }}>
-          {attacker?.player?.name ?? "—"}
-        </Text>
-        <Text style={{ marginTop: 6, color: colors.muted }}>
-          {Math.min(playsDone + 1, attackers.length || 6)} / {attackers.length || 6}
-        </Text>
-      </View>
-
-      <View style={{ height: 12 }} />
-
-      {awaitingTurnConfirmation ? (
-  <Pressable
-    onPress={() => {
-      continueAfterTurnCompleted();
-    }}
-    disabled={finishTurnDisabled}
-    style={{
-      marginTop: 4,
-      padding: 14,
-      borderRadius: 12,
-      backgroundColor: colors.primary,
-      alignItems: "center",
-      opacity: finishTurnDisabled ? 0.45 : 1,
-    }}
-  >
-    <Text style={{ fontWeight: "900", fontSize: 15, color: colors.primaryText }}>
-      ✅ Finalitzar torn
-    </Text>
-  </Pressable>
-) : null}
-
-      <View style={{ height: 4 }} />
-
-      <Pressable
-        onPress={() => setCanasModalOpen(true)}
-        disabled={playActionsDisabled}
-        style={{
-          padding: 14,
-          borderRadius: 12,
-          backgroundColor: colors.cardgreen,
-          borderWidth: 1,
-          borderColor: colors.successBg,
-          alignItems: "center",
-          marginBottom: 10,
-          opacity: playActionsDisabled ? 0.45 : 1,
-        }}
-      >
-        <Text style={{ fontWeight: "900", fontSize: 16 ,color: colors.text}}>Sumar canes</Text>
+        <Text style={{ fontWeight: "600", color: colors.text }}>{t("play.exit")}</Text>
       </Pressable>
 
-      <Pressable
-        onPress={async () => {
-          const ok = await confirmAction("Confirmar", "Registrar Matacanes?");
-          if (!ok) return;
-          setPendingDefenseEvent("MATACANAS");
-          setDefenderModalOpen(true);
-        }}
-        disabled={playActionsDisabled}
-        style={{
-          padding: 14,
-          borderRadius: 12,
-          backgroundColor: colors.cardred,
-          borderWidth: 1,
-          borderColor: colors.dangerBg,
-          alignItems: "center",
-          marginBottom: 10,
-          opacity: playActionsDisabled ? 0.45 : 1,
-        }}
-      >
-        <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>Matacanes</Text>
-        <Text style={{ color: colors.muted, marginTop: 2 }}>Selecciona defensor</Text>
-      </Pressable>
-
-      <Pressable
-        onPress={async () => {
-          const ok = await confirmAction("Confirmar", "Registrar Recollida?");
-          if (!ok) return;
-          setPendingDefenseEvent("AIR_CATCH");
-          setDefenderModalOpen(true);
-        }}
-        disabled={playActionsDisabled}
-        style={{
-          padding: 14,
-          borderRadius: 12,
-          backgroundColor: colors.cardblue,
-          borderWidth: 1,
-          borderColor: colors.cardblue,
-          alignItems: "center",
-          opacity: playActionsDisabled ? 0.45 : 1,
-        }}
-      >
-        <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>Recollida</Text>
-        <Text style={{ color: colors.muted, marginTop: 2 }}>Selecciona defensor</Text>
-      </Pressable>
-<View style={{ height: 12 }} />
-
-<Pressable
-        onPress={undoPreviousPlay}
-        disabled={saving || finishedLocal || playsDone <= 0 || !canUndoNow}
-        style={{
-          padding: 12,
-          borderRadius: 12,
-          backgroundColor: colors.cardyellow,
-          borderWidth: 1,
-          borderColor: colors.warnBg,
-          alignItems: "center",
-          opacity: saving || finishedLocal || playsDone <= 0 || !canUndoNow ? 0.45 : 1,
-        }}
-      >
-        <Text style={{ fontWeight: "900", fontSize: 15, color: colors.text }}>
-          ↩️ Desfer última tirada
-        </Text>
-      </Pressable>
-
-      {/* Modal Canes */}
-      <Modal visible={canasModalOpen} transparent animationType="fade">
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
         <View
           style={{
-            flex: 1,
-            backgroundColor: "rgba(0,0,0,0.35)",
-            justifyContent: "center",
-            padding: 18,
+            paddingVertical: 6,
+            paddingHorizontal: 10,
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: timerRunning ? "#2563EB" : colors.border,
+            backgroundColor: timerRunning ? colors.timerRunningBg : colors.bg,
           }}
         >
-          <View
+          <Text style={{ fontWeight: "900", fontVariant: ["tabular-nums"] as any, color: colors.text }}>
+            {timerDisplay}
+          </Text>
+        </View>
+
+        <Pressable
+          onPress={toggleTimer}
+          onLongPress={resetTimer}
+          delayLongPress={450}
+          style={{
+            width: 44,
+            height: 44,
+            borderRadius: 22,
+            justifyContent: "center",
+            alignItems: "center",
+            borderWidth: 1,
+            borderColor: timerRunning ? "#1D4ED8" : "#16A34A",
+            backgroundColor: timerRunning ? "#DBEAFE" : "#DCFCE7",
+          }}
+        >
+          <Text style={{ fontSize: 18 }}>{timerRunning ? "⏸️" : "⏱️"}</Text>
+        </Pressable>
+      </View>
+    </View>
+
+    <Text style={{ fontSize: 20, fontWeight: "bold", textAlign: "center", color: colors.text }}>
+      {headerTitleAttack}
+    </Text>
+    <Text style={{ fontSize: 20, fontWeight: "bold", textAlign: "center", color: colors.text }}>
+      {headerTitleDefense}
+    </Text>
+    <Text style={{ textAlign: "center", color: colors.muted, marginTop: 6 }}>
+      {t("play.round")} {currentRound.match_round_number} · {t("play.turn")} {currentRound.turn}
+    </Text>
+
+    <View style={{ height: 16 }} />
+
+    <View
+      style={{
+        padding: 14,
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: colors.border,
+        backgroundColor: colors.bg,
+        alignItems: "center",
+      }}
+    >
+      <Text style={{ fontSize: 14, color: colors.muted }}>{t("play.throwNow")}</Text>
+      <Text style={{ fontSize: 24, fontWeight: "900", marginTop: 6, color: colors.text }}>
+        {attacker?.player?.name ?? "—"}
+      </Text>
+      <Text style={{ marginTop: 6, color: colors.muted }}>
+        {Math.min(playsDone + 1, attackers.length || 6)} / {attackers.length || 6}
+      </Text>
+    </View>
+
+    <View style={{ height: 12 }} />
+
+    {awaitingTurnConfirmation ? (
+      <Pressable
+        onPress={() => continueAfterTurnCompleted()}
+        disabled={finishTurnDisabled}
+        style={{
+          marginTop: 4,
+          padding: 14,
+          borderRadius: 12,
+          backgroundColor: colors.primary,
+          alignItems: "center",
+          opacity: finishTurnDisabled ? 0.45 : 1,
+        }}
+      >
+        <Text style={{ fontWeight: "900", fontSize: 15, color: colors.primaryText }}>
+          {t("play.finishTurn")}
+        </Text>
+      </Pressable>
+    ) : null}
+
+    <View style={{ height: 4 }} />
+
+    <Pressable
+      onPress={() => setCanasModalOpen(true)}
+      disabled={playActionsDisabled}
+      style={{
+        padding: 14,
+        borderRadius: 12,
+        backgroundColor: colors.cardgreen,
+        borderWidth: 1,
+        borderColor: colors.successBg,
+        alignItems: "center",
+        marginBottom: 10,
+        opacity: playActionsDisabled ? 0.45 : 1,
+      }}
+    >
+      <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>{t("play.addCanes")}</Text>
+    </Pressable>
+
+    <Pressable
+      onPress={async () => {
+        const ok = await confirmAction(t,t("play.confirm"), t("play.registerMatacanes"));
+        if (!ok) return;
+        setPendingDefenseEvent("MATACANAS");
+        setDefenderModalOpen(true);
+      }}
+      disabled={playActionsDisabled}
+      style={{
+        padding: 14,
+        borderRadius: 12,
+        backgroundColor: colors.cardred,
+        borderWidth: 1,
+        borderColor: colors.dangerBg,
+        alignItems: "center",
+        marginBottom: 10,
+        opacity: playActionsDisabled ? 0.45 : 1,
+      }}
+    >
+      <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>{t("play.matacanes")}</Text>
+      <Text style={{ color: colors.muted, marginTop: 2 }}>{t("play.selectDefender")}</Text>
+    </Pressable>
+
+    <Pressable
+      onPress={async () => {
+        const ok = await confirmAction(t,t("play.confirm"), t("play.registerAirCatch"));
+        if (!ok) return;
+        setPendingDefenseEvent("AIR_CATCH");
+        setDefenderModalOpen(true);
+      }}
+      disabled={playActionsDisabled}
+      style={{
+        padding: 14,
+        borderRadius: 12,
+        backgroundColor: colors.cardblue,
+        borderWidth: 1,
+        borderColor: colors.cardblue,
+        alignItems: "center",
+        opacity: playActionsDisabled ? 0.45 : 1,
+      }}
+    >
+      <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>{t("play.airCatch")}</Text>
+      <Text style={{ color: colors.muted, marginTop: 2 }}>{t("play.selectDefender")}</Text>
+    </Pressable>
+
+    <View style={{ height: 12 }} />
+
+    <Pressable
+      onPress={undoPreviousPlay}
+      disabled={saving || finishedLocal || playsDone <= 0 || !canUndoNow}
+      style={{
+        padding: 12,
+        borderRadius: 12,
+        backgroundColor: colors.cardyellow,
+        borderWidth: 1,
+        borderColor: colors.warnBg,
+        alignItems: "center",
+        opacity: saving || finishedLocal || playsDone <= 0 || !canUndoNow ? 0.45 : 1,
+      }}
+    >
+      <Text style={{ fontWeight: "900", fontSize: 15, color: colors.text }}>
+        {t("play.undoLastPlay")}
+      </Text>
+    </Pressable>
+
+    <Modal visible={canasModalOpen} transparent animationType="fade">
+      <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.35)", justifyContent: "center", padding: 18 }}>
+        <View style={{ backgroundColor: colors.card, borderRadius: 14, padding: 16, borderWidth: 1, borderColor: colors.border }}>
+          <Text style={{ fontSize: 18, fontWeight: "900", textAlign: "center", color: colors.text }}>
+            {t("play.canesToAdd", { canes: canasValue })}
+          </Text>
+
+          <View style={{ height: 12 }} />
+
+          <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
+            {[-20, -5, 5, 20].map((delta) => (
+              <Pressable
+                key={delta}
+                onPress={() =>
+                  delta < 0
+                    ? setCanasValue((v) => Math.max(0, v + delta))
+                    : addCanes(delta)
+                }
+                disabled={playActionsDisabled}
+                style={{
+                  paddingVertical: 10,
+                  paddingHorizontal: 14,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: colors.border,
+                  opacity: playActionsDisabled ? 0.45 : 1,
+                }}
+              >
+                <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>
+                  {delta > 0 ? `+ ${delta}` : `− ${Math.abs(delta)}`}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          <View style={{ height: 14 }} />
+
+          <Pressable
+            onPress={saveCanasPlayerOnly}
+            disabled={playActionsDisabled}
             style={{
-              backgroundColor: colors.card,
-              borderRadius: 14,
-              padding: 16,
+              padding: 14,
+              borderRadius: 12,
+              backgroundColor: colors.cardAlt,
               borderWidth: 1,
               borderColor: colors.border,
+              alignItems: "center",
+              marginBottom: 10,
+              opacity: playActionsDisabled ? 0.45 : 1,
             }}
           >
-            <Text style={{ fontSize: 18, fontWeight: "900", textAlign: "center",color: colors.text }}>
-              Canes a sumar: {canasValue}
-            </Text>
+            <Text style={{ fontWeight: "900", color: colors.text }}>{t("play.addCanesPlayer")}</Text>
+            <Text style={{ color: colors.muted, marginTop: 2 }}>{t("play.onlyPlayerScores")}</Text>
+          </Pressable>
 
-            <View style={{ height: 12 }} />
+          <Pressable
+            onPress={saveCanasAttackMeter}
+            disabled={saving || finishedLocal || canasValue <= 0}
+            style={{
+              padding: 14,
+              borderRadius: 12,
+              backgroundColor: colors.cardgreen,
+              borderWidth: 1,
+              borderColor: colors.successBg,
+              alignItems: "center",
+              marginBottom: 10,
+              opacity: saving || canasValue <= 0 ? 0.45 : 1,
+            }}
+          >
+            <Text style={{ fontWeight: "900", color: colors.text }}>{t("play.attackMeter")}</Text>
+            <Text style={{ color: colors.muted, marginTop: 2 }}>{t("play.playerAndTeamScore")}</Text>
+          </Pressable>
 
-            <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
-              <Pressable
-                onPress={() => setCanasValue((v) => Math.max(0, v - 20))}
-                disabled={playActionsDisabled}
-                style={{
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  opacity: playActionsDisabled ? 0.45 : 1,
-                }}
-              >
-                <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>− 20</Text>
-              </Pressable>
-<Pressable
-                onPress={() => setCanasValue((v) => Math.max(0, v - 5))}
-                disabled={playActionsDisabled}
-                style={{
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  opacity: playActionsDisabled ? 0.45 : 1,
-                }}
-              >
-                <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>− 5</Text>
-              </Pressable>
+          <Pressable
+            onPress={saveCanasDefenseMeter}
+            disabled={saving || finishedLocal || canasValue <= 0}
+            style={{
+              padding: 14,
+              borderRadius: 12,
+              backgroundColor: colors.cardyellow,
+              borderWidth: 1,
+              borderColor: colors.warnBg,
+              alignItems: "center",
+              marginBottom: 10,
+              opacity: saving || canasValue <= 0 ? 0.45 : 1,
+            }}
+          >
+            <Text style={{ fontWeight: "900", color: colors.text }}>{t("play.defenseMeter")}</Text>
+            <Text style={{ color: colors.muted, marginTop: 2 }}>{t("play.defenseScoresAttackerZero")}</Text>
+          </Pressable>
 
-              <Pressable
-                onPress={() => addCanes(5)}
-                disabled={playActionsDisabled}
-                style={{
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  opacity: playActionsDisabled ? 0.45 : 1,
-                }}
-              >
-                <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>+ 5</Text>
-              </Pressable>
-<Pressable
-                onPress={() => addCanes(20)}
-                disabled={playActionsDisabled}
-                style={{
-                  paddingVertical: 10,
-                  paddingHorizontal: 14,
-                  borderRadius: 12,
-                  borderWidth: 1,
-                  borderColor: colors.border,
-                  opacity: playActionsDisabled ? 0.45 : 1,
-                }}
-              >
-                <Text style={{ fontWeight: "900", fontSize: 16, color: colors.text }}>+ 20</Text>
-              </Pressable>
+          <Pressable
+            onPress={() => setCanasModalOpen(false)}
+            disabled={playActionsDisabled}
+            style={{ alignItems: "center", padding: 10, opacity: saving ? 0.45 : 1 }}
+          >
+            <Text style={{ color: colors.muted, fontWeight: "700" }}>{t("publicMatches.cancel")}</Text>
+          </Pressable>
+
+          {canasValue <= 0 && (
+            <View style={{ backgroundColor: "#fff3cd", padding: 10, borderRadius: 8, marginTop: 8 }}>
+              <Text style={{ color: "#856404", fontSize: 13 }}>
+                {t("play.meterWarning")}
+              </Text>
             </View>
-
-            <View style={{ height: 14 }} />
-
-            <Pressable
-              onPress={saveCanasPlayerOnly}
-              disabled={playActionsDisabled}
-              style={{
-                padding: 14,
-                borderRadius: 12,
-                backgroundColor: colors.cardAlt,
-                borderWidth: 1,
-                borderColor: colors.border,
-                alignItems: "center",
-                marginBottom: 10,
-                opacity: playActionsDisabled ? 0.45 : 1,
-              }}
-            >
-              <Text style={{ fontWeight: "900", color: colors.text }}>
-                Sumar canes al jugador 
-              </Text>
-              <Text style={{ color: colors.muted, marginTop: 2 }}>Només el jugador suma</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={saveCanasAttackMeter}
-              disabled={saving || finishedLocal || canasValue <= 0}
-              style={{
-                padding: 14,
-                borderRadius: 12,
-                backgroundColor: colors.cardgreen,
-                borderWidth: 1,
-                borderColor: colors.successBg,
-                alignItems: "center",
-                marginBottom: 10,
-                opacity: (saving || canasValue <= 0) ? 0.45 : 1,
-              }}
-            >
-              <Text style={{ fontWeight: "900", color: colors.text }}>Metre guanyat per atacant</Text>
-              <Text style={{ color: colors.muted, marginTop: 2 }}>Jugador + Equip sumen</Text>
-            </Pressable>
-
-            <Pressable
-              onPress={saveCanasDefenseMeter}
-              disabled={saving || finishedLocal || canasValue <= 0}
-              style={{
-                padding: 14,
-                borderRadius: 12,
-                backgroundColor: colors.cardyellow,
-                borderWidth: 1,
-                borderColor: colors.warnBg,
-                alignItems: "center",
-                marginBottom: 10,
-                opacity: (saving || canasValue <= 0) ? 0.45 : 1,
-              }}
-            >
-              <Text style={{ fontWeight: "900", color: colors.text }}>Metre guanyat per defensor</Text>
-              <Text style={{ color: colors.muted, marginTop: 2 }}>
-                Defensa suma · atacant 0
-              </Text>
-            </Pressable>
-
-            <Pressable
-              onPress={() => setCanasModalOpen(false)}
-              disabled={playActionsDisabled}
-              style={{ alignItems: "center", padding: 10, opacity: saving ? 0.45 : 1 }}
-            >
-              <Text style={{ color: colors.muted, fontWeight: "700" }}>Cancel·lar</Text>
-            </Pressable>
-{canasValue <= 0 && (
-  <View style={{
-    backgroundColor: "#fff3cd",
-    padding: 10,
-    borderRadius: 8,
-    marginTop: 8
-  }}>
-    <Text style={{ color: "#856404", fontSize: 13 }}>
-      ⚠ Per demanar metre has d'introduir canes majors que 0.
-    </Text>
-  </View>
-)}
-          </View>
+          )}
         </View>
-      </Modal>
-
-
-{/* Modal Conversió metres / canes */}
+      </View>
+    </Modal>
+    {/* Modal Conversió metres / canes */}
 <Modal visible={conversionModalOpen} transparent animationType="fade">
   <View
     style={{
@@ -1615,8 +1551,8 @@ if (canasValue <= 0) {
               justifyContent: "space-between",
             }}
           >
-            <Text style={{ fontWeight: "900",color:colors.text }}>{item.meters} m</Text>
-            <Text style={{ fontWeight: "900",color:colors.text }}>{item.canes} canes</Text>
+            <Text style={{ fontWeight: "900", color: colors.text }}>{item.meters} m</Text>
+            <Text style={{ fontWeight: "900", color: colors.text }}>{item.canes} {t("matchSummary.canes")}</Text>
           </View>
         )}
       />
@@ -1632,7 +1568,7 @@ if (canasValue <= 0) {
           alignItems: "center",
         }}
       >
-        <Text style={{ color: colors.primaryText, fontWeight: "900" }}>Tancar</Text>
+        <Text style={{ color: colors.primaryText, fontWeight: "900" }}>{t("play.close")}</Text>
       </Pressable>
     </View>
   </View>
@@ -1659,10 +1595,10 @@ if (canasValue <= 0) {
             }}
           >
             <Text style={{ fontSize: 18, fontWeight: "900", textAlign: "center", color: colors.text }}>
-              Qui ho ha fet?
+              {t("play.whoDidIt")}
             </Text>
             <Text style={{ textAlign: "center", color: colors.muted, marginTop: 4 }}>
-              {pendingDefenseEvent === "MATACANAS" ? "Matacanes" : "Recollida"}
+              {pendingDefenseEvent === "MATACANAS" ? t("play.matacanes") : t("play.airCatch")}
             </Text>
 
             <View style={{ height: 10 }} />
@@ -1687,7 +1623,7 @@ if (canasValue <= 0) {
                   }}
                 >
                   <Text style={{ fontWeight: "900", color: colors.text }}>
-                    {item.player?.name ?? `Jugador ${item.player_id}`}
+                    {item.player?.name ?? `${t("lineup.player")} ${item.player_id}`}
                   </Text>
                 </Pressable>
               )}
@@ -1701,7 +1637,7 @@ if (canasValue <= 0) {
               disabled={playActionsDisabled}
               style={{ alignItems: "center", padding: 10, opacity: saving ? 0.6 : 1 }}
             >
-              <Text style={{ color: colors.muted, fontWeight: "700" }}>Cancel·lar</Text>
+              <Text style={{ color: colors.muted, fontWeight: "700" }}>{t("play.cancel")}</Text>
             </Pressable>
           </View>
         </View>
@@ -1722,7 +1658,7 @@ if (canasValue <= 0) {
     marginBottom: 10,
   }}
 >
-  <Text style={{ fontWeight: "900",color:colors.text }}>Conversió metres/canes</Text>
+  <Text style={{ fontWeight: "900", color: colors.text }}>{t("play.conversion")}</Text>
 </Pressable>
       {/* ✅ MARCADOR (scrollable) */}
       <View
@@ -1737,7 +1673,7 @@ if (canasValue <= 0) {
       >
 
 <Text style={{ textAlign: "center", color: colors.muted, fontWeight: "700" }}>
-          Marcador en directe {scoreLoading ? "· actualitzant..." : ""}
+          {t("play.liveScore")} {scoreLoading ? `· ${t("play.updating")}` : ""}
         </Text>
 
         <View style={{ height: 8 }} />
@@ -1749,7 +1685,7 @@ if (canasValue <= 0) {
           }}
         >
           <View style={{ flex: 1, paddingRight: 8 }}>
-            <Text numberOfLines={1} style={{ fontWeight: "800",color: colors.text }}>
+            <Text numberOfLines={1} style={{ fontWeight: "800", color: colors.text }}>
               {teams.aName}
             </Text>
           </View>
@@ -1759,7 +1695,7 @@ if (canasValue <= 0) {
           </Text>
 
           <View style={{ flex: 1, paddingLeft: 8, alignItems: "flex-end" }}>
-            <Text numberOfLines={1} style={{ fontWeight: "800", color: colors.text  }}>
+            <Text numberOfLines={1} style={{ fontWeight: "800", color: colors.text }}>
               {teams.bName}
             </Text>
           </View>
@@ -1771,10 +1707,10 @@ if (canasValue <= 0) {
             fontWeight: "500",
             fontSize: 14,
             marginBottom: 8,
-              color:colors.text
+              color: colors.text
           }}
         >
-          Diferència: {Math.abs(scoreA - scoreB)}
+          {t("play.difference")}: {Math.abs(scoreA - scoreB)}
         </Text>
       </View>
 
@@ -1799,24 +1735,24 @@ if (canasValue <= 0) {
               borderColor: colors.border,
             }}
           >
-            <Text style={{ fontSize: 18, fontWeight: "800", marginBottom: 8, textAlign: "center",color: colors.text }}>
-              No es pot empatar
+            <Text style={{ fontSize: 18, fontWeight: "800", marginBottom: 8, textAlign: "center", color: colors.text }}>
+              {t("play.noDrawTitle")}
             </Text>
             <Text style={{ fontSize: 14, color: colors.muted, marginBottom: 14, textAlign: "center"}}>
-              S'ha de jugar el bélit d'or. Selecciona el guanyador:
+              {t("play.belitDorSelectWinner")}
             </Text>
 
             <View style={{ gap: 10 }}>
               <Pressable
                 disabled={saving}
                 onPress={() => {
-                  const name = matchTeamsFixed?.aName ?? "Equip A";
+                  const name = matchTeamsFixed?.aName ?? t("publicMatches.teamA");
                   Alert.alert(
-                    "Confirmació",
-                    `Estàs segur que ha guanyat el bélit d'or ${name}?`,
+                    t("play.confirmTitle"),
+                    t("play.belitDorConfirm", { name }),
                     [
-                      { text: "Cancel·lar", style: "cancel" },
-                      { text: "Sí", style: "default", onPress: () => applyBelitDor("A") },
+                      { text: t("play.cancel"), style: "cancel" },
+                      { text: t("common.yes"), style: "default", onPress: () => applyBelitDor("A") },
                     ]
                   );
                 }}
@@ -1827,19 +1763,19 @@ if (canasValue <= 0) {
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: colors.primaryText, fontWeight: "800" }}>{matchTeamsFixed?.aName ?? "Equip A"}</Text>
+                <Text style={{ color: colors.primaryText, fontWeight: "800" }}>{matchTeamsFixed?.aName ?? t("publicMatches.teamA")}</Text>
               </Pressable>
 
               <Pressable
                 disabled={saving}
                 onPress={() => {
-                  const name = matchTeamsFixed?.bName ?? "Equip B";
+                  const name = matchTeamsFixed?.bName ?? t("publicMatches.teamB");
                   Alert.alert(
-                    "Confirmació",
-                    `Estàs segur que ha guanyat el bélit d'or ${name}?`,
+                    t("play.confirmTitle"),
+                    t("play.belitDorConfirm", { name }),
                     [
-                      { text: "Cancel·lar", style: "cancel" },
-                      { text: "Sí", style: "default", onPress: () => applyBelitDor("B") },
+                      { text: t("play.cancel"), style: "cancel" },
+                      { text: t("common.yes"), style: "default", onPress: () => applyBelitDor("B") },
                     ]
                   );
                 }}
@@ -1850,7 +1786,7 @@ if (canasValue <= 0) {
                   alignItems: "center",
                 }}
               >
-                <Text style={{ color: colors.primaryText, fontWeight: "800" }}>{matchTeamsFixed?.bName ?? "Equip B"}</Text>
+                <Text style={{ color: colors.primaryText, fontWeight: "800" }}>{matchTeamsFixed?.bName ?? t("publicMatches.teamB")}</Text>
               </Pressable>
             </View>
           </View>
@@ -1876,20 +1812,20 @@ if (canasValue <= 0) {
               alignItems: "center",
             }}
           >
-            <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text }}>Resultat final</Text>
+            <Text style={{ fontSize: 18, fontWeight: "900", color: colors.text }}>{t("play.finalResult")}</Text>
 
             <View style={{ height: 10 }} />
 
-            <Text style={{ fontSize: 20, fontWeight: "600", color: colors.text }}>{matchTeams?.aName ?? "Equip A"} - {finalScores?.a ?? scoreA}</Text>
+            <Text style={{ fontSize: 20, fontWeight: "600", color: colors.text }}>{matchTeams?.aName ?? t("publicMatches.teamA")} - {finalScores?.a ?? scoreA}</Text>
 
             <View style={{ height: 10 }} />
 
-            <Text style={{ fontSize: 20, fontWeight: "600", color: colors.text }}>{matchTeams?.bName ?? "Equip B"} - {finalScores?.b ?? scoreB}</Text>
+            <Text style={{ fontSize: 20, fontWeight: "600", color: colors.text }}>{matchTeams?.bName ?? t("publicMatches.teamB")} - {finalScores?.b ?? scoreB}</Text>
 
             <View style={{ height: 10 }} />
 
             <Text style={{ color: colors.muted, textAlign: "center" }}>
-              Partit finalitzat. Pots comunicar el resultat als equips.
+              {t("play.finalResultMessage")}
             </Text>
 
             <View style={{ height: 14 }} />
@@ -1907,11 +1843,10 @@ if (canasValue <= 0) {
                 borderColor: colors.border,
               }}
             >
-              <Text style={{ fontWeight: "900", color: colors.text }}>Finalitzat</Text>
+              <Text style={{ fontWeight: "900", color: colors.text }}>{t("play.finished")}</Text>
             </Pressable>
           </View>
         </View>
       </Modal>
 </ScrollView>
-  );
-}
+  )};

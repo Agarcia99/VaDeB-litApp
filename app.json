@@ -58,7 +58,8 @@
         {
           "calendarPermission": "Permet que VaDeBelit accedeixi al teu calendari per afegir-hi partits."
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true,
