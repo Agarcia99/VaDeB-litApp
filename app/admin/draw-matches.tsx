@@ -1870,11 +1870,11 @@ export default function DrawMatchesScreen() {
         .from("match")
         .select("id", { count: "exact" })
         .eq("championship_id", championshipId)
-        .eq("is_finished", true);
+        .or("is_finished.eq.true,started_at.not.is.null")
 
       if (finishedErr) throw new Error(finishedErr.message);
       if ((finishedData?.length ?? 0) > 0) {
-        throw new Error("El campionat ja ha començat (hi ha partits finalitzats). No es pot netejar.");
+        throw new Error("El campionat ja ha començat (hi ha partits començats o finalitzats). No es pot netejar.");
       }
 
       // Agafar slot_ids dels matches (per alliberar slots després)
@@ -1889,9 +1889,85 @@ export default function DrawMatchesScreen() {
         .map((m: any) => Number(m.slot_id))
         .filter((n) => Number.isFinite(n));
 
-      // Esborrar matches
-      const { error: delErr } = await supabase.from("match").delete().eq("championship_id", championshipId);
-      if (delErr) throw new Error(delErr.message);
+      const matchIds = (matches ?? [])
+        .map((m: any) => Number(m.id))
+        .filter((n) => Number.isFinite(n));
+
+      if (matchIds.length > 0) {
+        const { data: matchRounds, error: mrErr } = await supabase
+          .from("match_round")
+          .select("id")
+          .in("match_id", matchIds);
+
+        if (mrErr) throw new Error(mrErr.message);
+
+        const matchRoundIds = (matchRounds ?? [])
+          .map((mr: any) => Number(mr.id))
+          .filter((n) => Number.isFinite(n));
+
+        if (matchRoundIds.length > 0) {
+          const { data: rounds, error: rErr } = await supabase
+            .from("round")
+            .select("id")
+            .in("match_round_id", matchRoundIds);
+
+          if (rErr) throw new Error(rErr.message);
+
+          const roundIds = (rounds ?? [])
+            .map((r: any) => Number(r.id))
+            .filter((n) => Number.isFinite(n));
+
+          if (roundIds.length > 0) {
+            const { data: plays, error: pErr } = await supabase
+              .from("play")
+              .select("id")
+              .in("round_id", roundIds);
+
+            if (pErr) throw new Error(pErr.message);
+
+            const playIds = (plays ?? [])
+              .map((p: any) => Number(p.id))
+              .filter((n) => Number.isFinite(n));
+
+            if (playIds.length > 0) {
+              const { error: peErr } = await supabase
+                .from("play_event")
+                .delete()
+                .in("play_id", playIds);
+
+              if (peErr) throw new Error(peErr.message);
+            }
+
+            const { error: pDelErr } = await supabase
+              .from("play")
+              .delete()
+              .in("round_id", roundIds);
+
+            if (pDelErr) throw new Error(pDelErr.message);
+
+            const { error: rDelErr } = await supabase
+              .from("round")
+              .delete()
+              .in("id", roundIds);
+
+            if (rDelErr) throw new Error(rDelErr.message);
+          }
+
+          const { error: mrDelErr } = await supabase
+            .from("match_round")
+            .delete()
+            .in("id", matchRoundIds);
+
+          if (mrDelErr) throw new Error(mrDelErr.message);
+        }
+
+        const { error: delErr } = await supabase
+          .from("match")
+          .delete()
+          .in("id", matchIds);
+
+        if (delErr) throw new Error(delErr.message);
+      }
 
       // Alliberar slots que estaven usats per aquests matches
       if (slotIds.length > 0) {
@@ -1935,7 +2011,7 @@ export default function DrawMatchesScreen() {
           .from("match")
           .select("id", { count: "exact", head: true })
           .eq("championship_id", championshipId)
-          .eq("is_finished", true),
+          .or("is_finished.eq.true,started_at.not.is.null"),
       ]);
 
       if (totalErr) throw new Error(totalErr.message);
@@ -2124,7 +2200,7 @@ export default function DrawMatchesScreen() {
               </Text>
               {cleanBlockedBecauseFinished ? (
                 <Text style={{ color: "#9a3412", marginTop: 6, fontWeight: "700" }}>
-                  Hi ha partits finalitzats. No es pot netejar un campionat que ja ha començat.
+                  Hi ha partits començats o finalitzats. No es pot netejar un campionat que ja ha començat.
                 </Text>
               ) : null}
             </View>
