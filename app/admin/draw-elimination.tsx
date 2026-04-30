@@ -1687,7 +1687,7 @@ const phaseMeta = ELIM_PHASES.find((p) => p.id === selectedElimPhaseId);
                       borderRadius: 12,
                       borderWidth: 1,
                       borderColor: isAssigned ? colors.text : colors.border,
-                      backgroundColor: isAssigned ? colors.text : colors.bg,
+                      backgroundColor: isAssigned ? colors.cardblue : colors.bg,
                       flexDirection: "row",
                       justifyContent: "space-between",
                       alignItems: "center",
